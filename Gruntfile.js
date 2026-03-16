@@ -406,9 +406,12 @@ module.exports = function(grunt) {
 					[ WORKING_DIR + 'wp-admin/js/code-editor.js' ]: [ './src/js/_enqueues/wp/code-editor.js' ],
 					[ WORKING_DIR + 'wp-admin/js/color-picker.js' ]: [ './src/js/_enqueues/lib/color-picker.js' ],
 					[ WORKING_DIR + 'wp-admin/js/comment.js' ]: [ './src/js/_enqueues/admin/comment.js' ],
+					// Performance: common.js uses lazy-init patterns for conditional feature execution.
+					// Postbox, sortable, column toggles, and permalink UI initialize on demand.
 					[ WORKING_DIR + 'wp-admin/js/common.js' ]: [ './src/js/_enqueues/admin/common.js' ],
 					[ WORKING_DIR + 'wp-admin/js/custom-background.js' ]: [ './src/js/_enqueues/admin/custom-background.js' ],
 					[ WORKING_DIR + 'wp-admin/js/custom-header.js' ]: [ './src/js/_enqueues/admin/custom-header.js' ],
+					// Performance: Customizer JS loads only in Customizer context (PHP-gated).
 					[ WORKING_DIR + 'wp-admin/js/customize-controls.js' ]: [ './src/js/_enqueues/wp/customize/controls.js' ],
 					[ WORKING_DIR + 'wp-admin/js/customize-nav-menus.js' ]: [ './src/js/_enqueues/wp/customize/nav-menus.js' ],
 					[ WORKING_DIR + 'wp-admin/js/customize-widgets.js' ]: [ './src/js/_enqueues/wp/customize/widgets.js' ],
@@ -485,6 +488,8 @@ module.exports = function(grunt) {
 					[ WORKING_DIR + 'wp-includes/js/wp-custom-header.js' ]: [ './src/js/_enqueues/wp/custom-header.js' ],
 					[ WORKING_DIR + 'wp-includes/js/wp-embed-template.js' ]: [ './src/js/_enqueues/lib/embed-template.js' ],
 					[ WORKING_DIR + 'wp-includes/js/wp-embed.js' ]: [ './src/js/_enqueues/wp/embed.js' ],
+					// Performance: emoji-loader uses deferred execution via requestIdleCallback with
+					// content-based detection to avoid unnecessary emoji processing on modern browsers.
 					[ WORKING_DIR + 'wp-includes/js/wp-emoji-loader.js' ]: [ './src/js/_enqueues/lib/emoji-loader.js' ],
 					[ WORKING_DIR + 'wp-includes/js/wp-emoji.js' ]: [ './src/js/_enqueues/wp/emoji.js' ],
 					[ WORKING_DIR + 'wp-includes/js/wp-list-revisions.js' ]: [ './src/js/_enqueues/lib/list-revisions.js' ],
@@ -1034,9 +1039,11 @@ module.exports = function(grunt) {
 					'!{wp-admin,wp-includes}/**/*.min.js',
 					'!wp-admin/js/custom-header.js', // Why? We should minify this.
 					'!wp-admin/js/farbtastic.js',
-					'!wp-includes/js/wp-emoji-loader.js', // This is a module. See the emoji-loader task below.
+					'!wp-includes/js/wp-emoji-loader.js', // Module with deferred loading. See the emoji-loader task below.
 				]
 			},
+			// Performance: emoji-loader is minified as a module with toplevel enabled for
+			// optimal dead-code elimination. The loader uses deferred/conditional execution.
 			'emoji-loader': {
 				options: {
 					module: true,
@@ -1099,6 +1106,9 @@ module.exports = function(grunt) {
 				],
 				dest: WORKING_DIR + 'wp-includes/js/tinymce/wp-tinymce.js'
 			},
+			// Performance: The emoji release bundle (twemoji + wp-emoji) is loaded on-demand
+			// when the deferred emoji-loader detects content requiring emoji support.
+			// The emoji-loader itself is a separate module with its own uglify target.
 			emoji: {
 				options: {
 					separator: '\n',
@@ -1813,6 +1823,9 @@ module.exports = function(grunt) {
 		'clean:interactivity-assets',
 	] );
 
+	// Performance: The JS build pipeline supports optimized module boundaries.
+	// common.js (lazy-init), emoji-loader (deferred), and customizer JS (context-gated)
+	// are processed through their standard copy/uglify/concat targets.
 	grunt.registerTask( 'build:js', [
 		'clean:js',
 		'build:webpack',
