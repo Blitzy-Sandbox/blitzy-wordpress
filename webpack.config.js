@@ -12,6 +12,14 @@ module.exports = function (
 		env.buildTarget = env.mode === 'production' ? 'build/' : 'src/';
 	}
 
+	// Enable code splitting for conditionally-loaded modules.
+	// Admin common.js is split into core essentials and lazy-loaded feature modules.
+	// Emoji detection is deferred to on-demand loading.
+	// Customizer JS loads only in Customizer context.
+	if ( typeof env.codeSplitting === 'undefined' ) {
+		env.codeSplitting = env.mode === 'production';
+	}
+
 	// Only building Core-specific media files and development scripts.
 	// Blocks, packages, script modules, and vendors are now sourced from
 	// the Gutenberg build (see tools/gutenberg/copy.js).
