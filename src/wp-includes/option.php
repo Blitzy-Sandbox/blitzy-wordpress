@@ -129,7 +129,18 @@ function get_option( $option, $default_value = false ) {
 	 * @param mixed  $default_value The fallback value to return if the option does not exist.
 	 *                              Default false.
 	 */
-	$pre = apply_filters( "pre_option_{$option}", false, $option, $default_value );
+	/*
+	 * Performance: Only invoke pre_option filters when callbacks are registered.
+	 * Skipping unneeded apply_filters() calls avoids function overhead on every
+	 * get_option() invocation. When no plugin has hooked into these filter points,
+	 * the default return value (false) is used directly.
+	 */
+	$pre = false;
+
+	if ( has_filter( "pre_option_{$option}" ) ) {
+		/** This filter is documented in wp-includes/option.php */
+		$pre = apply_filters( "pre_option_{$option}", false, $option, $default_value );
+	}
 
 	/**
 	 * Filters the value of any existing option before it is retrieved.
@@ -147,7 +158,9 @@ function get_option( $option, $default_value = false ) {
 	 * @param mixed  $default_value The fallback value to return if the option does not exist.
 	 *                              Default false.
 	 */
-	$pre = apply_filters( 'pre_option', $pre, $option, $default_value );
+	if ( has_filter( 'pre_option' ) ) {
+		$pre = apply_filters( 'pre_option', $pre, $option, $default_value );
+	}
 
 	if ( false !== $pre ) {
 		return $pre;
@@ -609,9 +622,15 @@ function wp_load_alloptions( $force_cache = false ) {
 	 * @param array|null $alloptions  An array of alloptions. Default null.
 	 * @param bool       $force_cache Whether to force an update of the local cache from the persistent cache. Default false.
 	 */
-	$alloptions = apply_filters( 'pre_wp_load_alloptions', null, $force_cache );
-	if ( is_array( $alloptions ) ) {
-		return $alloptions;
+	/*
+	 * Performance: Skip filter invocation when no callbacks are registered.
+	 * This avoids apply_filters() overhead on each wp_load_alloptions() call.
+	 */
+	if ( has_filter( 'pre_wp_load_alloptions' ) ) {
+		$alloptions = apply_filters( 'pre_wp_load_alloptions', null, $force_cache );
+		if ( is_array( $alloptions ) ) {
+			return $alloptions;
+		}
 	}
 
 	if ( ! wp_installing() || ! is_multisite() ) {
@@ -655,7 +674,11 @@ function wp_load_alloptions( $force_cache = false ) {
 	 *
 	 * @param array $alloptions Array with all options.
 	 */
-	return apply_filters( 'alloptions', $alloptions );
+	if ( has_filter( 'alloptions' ) ) {
+		return apply_filters( 'alloptions', $alloptions );
+	}
+
+	return $alloptions;
 }
 
 /**
