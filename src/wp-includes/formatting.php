@@ -450,6 +450,31 @@ function wpautop( $text, $br = true ) {
 		return '';
 	}
 
+	/*
+	 * Cache the block elements regex pattern and all derived patterns as static variables.
+	 * These patterns never change between calls, so building them once avoids repeated
+	 * string concatenation on every invocation.
+	 */
+	static $allblocks            = null;
+	static $re_block_open        = null;
+	static $re_block_close       = null;
+	static $re_unwrap_p          = null;
+	static $re_strip_open_p      = null;
+	static $re_strip_close_p     = null;
+	static $re_block_after_br    = null;
+
+	if ( null === $allblocks ) {
+		$allblocks = '(?:table|thead|tfoot|caption|col|colgroup|tbody|tr|td|th|div|dl|dd|dt|ul|ol|li|pre|form|map|area|blockquote|address|style|p|h[1-6]|hr|fieldset|legend|section|article|aside|hgroup|header|footer|nav|figure|figcaption|details|menu|summary)';
+
+		// Pre-build all derived regex patterns that use $allblocks.
+		$re_block_open    = '!(<' . $allblocks . '[\s/>])!';
+		$re_block_close   = '!(</' . $allblocks . '>)!';
+		$re_unwrap_p      = '!<p>\s*(</?' . $allblocks . '[^>]*>)\s*</p>!';
+		$re_strip_open_p  = '!<p>\s*(</?' . $allblocks . '[^>]*>)!';
+		$re_strip_close_p = '!(</?' . $allblocks . '[^>]*>)\s*</p>!';
+		$re_block_after_br = '!(</?' . $allblocks . '[^>]*>)\s*<br />!';
+	}
+
 	// Just to make things a little easier, pad the end.
 	$text = $text . "\n";
 
@@ -484,13 +509,11 @@ function wpautop( $text, $br = true ) {
 	// Change multiple <br>'s into two line breaks, which will turn into paragraphs.
 	$text = preg_replace( '|<br\s*/?>\s*<br\s*/?>|', "\n\n", $text );
 
-	$allblocks = '(?:table|thead|tfoot|caption|col|colgroup|tbody|tr|td|th|div|dl|dd|dt|ul|ol|li|pre|form|map|area|blockquote|address|style|p|h[1-6]|hr|fieldset|legend|section|article|aside|hgroup|header|footer|nav|figure|figcaption|details|menu|summary)';
-
 	// Add a double line break above block-level opening tags.
-	$text = preg_replace( '!(<' . $allblocks . '[\s/>])!', "\n\n$1", $text );
+	$text = preg_replace( $re_block_open, "\n\n$1", $text );
 
 	// Add a double line break below block-level closing tags.
-	$text = preg_replace( '!(</' . $allblocks . '>)!', "$1\n\n", $text );
+	$text = preg_replace( $re_block_close, "$1\n\n", $text );
 
 	// Add a double line break after hr tags, which are self closing.
 	$text = preg_replace( '!(<hr\s*?/?>)!', "$1\n\n", $text );
@@ -554,7 +577,7 @@ function wpautop( $text, $br = true ) {
 	$text = preg_replace( '!<p>([^<]+)</(div|address|form)>!', '<p>$1</p></$2>', $text );
 
 	// If an opening or closing block element tag is wrapped in a <p>, unwrap it.
-	$text = preg_replace( '!<p>\s*(</?' . $allblocks . '[^>]*>)\s*</p>!', '$1', $text );
+	$text = preg_replace( $re_unwrap_p, '$1', $text );
 
 	// In some cases <li> may get wrapped in <p>, fix them.
 	$text = preg_replace( '|<p>(<li.+?)</p>|', '$1', $text );
@@ -564,10 +587,10 @@ function wpautop( $text, $br = true ) {
 	$text = str_replace( '</blockquote></p>', '</p></blockquote>', $text );
 
 	// If an opening or closing block element tag is preceded by an opening <p> tag, remove it.
-	$text = preg_replace( '!<p>\s*(</?' . $allblocks . '[^>]*>)!', '$1', $text );
+	$text = preg_replace( $re_strip_open_p, '$1', $text );
 
 	// If an opening or closing block element tag is followed by a closing <p> tag, remove it.
-	$text = preg_replace( '!(</?' . $allblocks . '[^>]*>)\s*</p>!', '$1', $text );
+	$text = preg_replace( $re_strip_close_p, '$1', $text );
 
 	// Optionally insert line breaks.
 	if ( $br ) {
@@ -585,7 +608,7 @@ function wpautop( $text, $br = true ) {
 	}
 
 	// If a <br /> tag is after an opening or closing block tag, remove it.
-	$text = preg_replace( '!(</?' . $allblocks . '[^>]*>)\s*<br />!', '$1', $text );
+	$text = preg_replace( $re_block_after_br, '$1', $text );
 
 	// If a <br /> tag is before a subset of opening or closing block tags, remove it.
 	$text = preg_replace( '!<br />(\s*</?(?:p|li|div|dl|dd|dt|th|pre|td|ul|ol)[^>]*>)!', '$1', $text );
@@ -950,7 +973,8 @@ function _wp_specialchars( $text, $quote_style = ENT_NOQUOTES, $charset = false,
 	}
 
 	// Don't bother if there are no specialchars - saves some processing.
-	if ( ! preg_match( '/[&<>"\']/', $text ) ) {
+	// strpbrk() is faster than preg_match() for simple character class detection.
+	if ( false === strpbrk( $text, '&<>"\'' ) ) {
 		return $text;
 	}
 
@@ -963,7 +987,16 @@ function _wp_specialchars( $text, $quote_style = ENT_NOQUOTES, $charset = false,
 		$quote_style = ENT_QUOTES;
 	}
 
-	$charset = _canonical_charset( $charset ? $charset : get_option( 'blog_charset' ) );
+	// Cache the canonical charset to avoid repeated get_option() and _canonical_charset() calls.
+	static $cached_charset = null;
+	if ( ! $charset ) {
+		if ( null === $cached_charset ) {
+			$cached_charset = _canonical_charset( get_option( 'blog_charset' ) );
+		}
+		$charset = $cached_charset;
+	} else {
+		$charset = _canonical_charset( $charset );
+	}
 
 	$_quote_style = $quote_style;
 
@@ -1031,53 +1064,70 @@ function wp_specialchars_decode( $text, $quote_style = ENT_NOQUOTES ) {
 		$quote_style = ENT_QUOTES;
 	}
 
-	// More complete than get_html_translation_table( HTML_SPECIALCHARS ).
-	$single      = array(
-		'&#039;' => '\'',
-		'&#x27;' => '\'',
-	);
-	$single_preg = array(
-		'/&#0*39;/'   => '&#039;',
-		'/&#x0*27;/i' => '&#x27;',
-	);
-	$double      = array(
-		'&quot;' => '"',
-		'&#034;' => '"',
-		'&#x22;' => '"',
-	);
-	$double_preg = array(
-		'/&#0*34;/'   => '&#034;',
-		'/&#x0*22;/i' => '&#x22;',
-	);
-	$others      = array(
-		'&lt;'   => '<',
-		'&#060;' => '<',
-		'&gt;'   => '>',
-		'&#062;' => '>',
-		'&amp;'  => '&',
-		'&#038;' => '&',
-		'&#x26;' => '&',
-	);
-	$others_preg = array(
-		'/&#0*60;/'   => '&#060;',
-		'/&#0*62;/'   => '&#062;',
-		'/&#0*38;/'   => '&#038;',
-		'/&#x0*26;/i' => '&#x26;',
-	);
+	/*
+	 * Cache translation tables per quote style as static variables.
+	 * These arrays are constant and rebuilding them on every call wastes cycles
+	 * on array creation and array_merge operations.
+	 */
+	static $cached_tables = array();
 
-	if ( ENT_QUOTES === $quote_style ) {
-		$translation      = array_merge( $single, $double, $others );
-		$translation_preg = array_merge( $single_preg, $double_preg, $others_preg );
-	} elseif ( ENT_COMPAT === $quote_style || 'double' === $quote_style ) {
-		$translation      = array_merge( $double, $others );
-		$translation_preg = array_merge( $double_preg, $others_preg );
-	} elseif ( 'single' === $quote_style ) {
-		$translation      = array_merge( $single, $others );
-		$translation_preg = array_merge( $single_preg, $others_preg );
-	} elseif ( ENT_NOQUOTES === $quote_style ) {
-		$translation      = $others;
-		$translation_preg = $others_preg;
+	if ( ! isset( $cached_tables[ $quote_style ] ) ) {
+		// More complete than get_html_translation_table( HTML_SPECIALCHARS ).
+		$single      = array(
+			'&#039;' => '\'',
+			'&#x27;' => '\'',
+		);
+		$single_preg = array(
+			'/&#0*39;/'   => '&#039;',
+			'/&#x0*27;/i' => '&#x27;',
+		);
+		$double      = array(
+			'&quot;' => '"',
+			'&#034;' => '"',
+			'&#x22;' => '"',
+		);
+		$double_preg = array(
+			'/&#0*34;/'   => '&#034;',
+			'/&#x0*22;/i' => '&#x22;',
+		);
+		$others      = array(
+			'&lt;'   => '<',
+			'&#060;' => '<',
+			'&gt;'   => '>',
+			'&#062;' => '>',
+			'&amp;'  => '&',
+			'&#038;' => '&',
+			'&#x26;' => '&',
+		);
+		$others_preg = array(
+			'/&#0*60;/'   => '&#060;',
+			'/&#0*62;/'   => '&#062;',
+			'/&#0*38;/'   => '&#038;',
+			'/&#x0*26;/i' => '&#x26;',
+		);
+
+		if ( ENT_QUOTES === $quote_style ) {
+			$translation      = array_merge( $single, $double, $others );
+			$translation_preg = array_merge( $single_preg, $double_preg, $others_preg );
+		} elseif ( ENT_COMPAT === $quote_style || 'double' === $quote_style ) {
+			$translation      = array_merge( $double, $others );
+			$translation_preg = array_merge( $double_preg, $others_preg );
+		} elseif ( 'single' === $quote_style ) {
+			$translation      = array_merge( $single, $others );
+			$translation_preg = array_merge( $single_preg, $others_preg );
+		} elseif ( ENT_NOQUOTES === $quote_style ) {
+			$translation      = $others;
+			$translation_preg = $others_preg;
+		}
+
+		$cached_tables[ $quote_style ] = array(
+			'translation'      => $translation,
+			'translation_preg' => $translation_preg,
+		);
 	}
+
+	$translation      = $cached_tables[ $quote_style ]['translation'];
+	$translation_preg = $cached_tables[ $quote_style ]['translation_preg'];
 
 	// Remove zero padding on numeric entities.
 	$text = preg_replace( array_keys( $translation_preg ), array_values( $translation_preg ), $text );
@@ -4678,6 +4728,18 @@ function esc_js( $text ) {
  * @return string Escaped text.
  */
 function esc_html( $text ) {
+	/*
+	 * Fast path: for pure-ASCII strings with no HTML special characters,
+	 * both wp_check_invalid_utf8() and _wp_specialchars() would return the
+	 * text unchanged. Bypass the function call overhead for this common case.
+	 * strpbrk() combined with a high-byte check avoids two function calls and
+	 * their internal processing for the majority of short attribute values.
+	 */
+	if ( is_string( $text ) && '' !== $text && false === strpbrk( $text, '&<>"\'' ) && ! preg_match( '/[\\x80-\\xFF]/', $text ) ) {
+		/** This filter is documented in src/wp-includes/formatting.php */
+		return apply_filters( 'esc_html', $text, $text );
+	}
+
 	$safe_text = wp_check_invalid_utf8( $text );
 	$safe_text = _wp_specialchars( $safe_text, ENT_QUOTES );
 	/**
@@ -4703,6 +4765,16 @@ function esc_html( $text ) {
  * @return string Escaped text.
  */
 function esc_attr( $text ) {
+	/*
+	 * Fast path: for pure-ASCII strings with no HTML special characters,
+	 * both wp_check_invalid_utf8() and _wp_specialchars() would return the
+	 * text unchanged. Bypass the function call overhead for this common case.
+	 */
+	if ( is_string( $text ) && '' !== $text && false === strpbrk( $text, '&<>"\'' ) && ! preg_match( '/[\\x80-\\xFF]/', $text ) ) {
+		/** This filter is documented in src/wp-includes/formatting.php */
+		return apply_filters( 'attribute_escape', $text, $text );
+	}
+
 	$safe_text = wp_check_invalid_utf8( $text );
 	$safe_text = _wp_specialchars( $safe_text, ENT_QUOTES );
 	/**
@@ -5656,11 +5728,21 @@ function _sanitize_text_fields( $str, $keep_newlines = false ) {
 	}
 	$filtered = trim( $filtered );
 
-	// Remove percent-encoded characters.
-	$found = false;
-	while ( preg_match( '/%[a-f0-9]{2}/i', $filtered, $match ) ) {
-		$filtered = str_replace( $match[0], '', $filtered );
-		$found    = true;
+	/*
+	 * Remove percent-encoded characters.
+	 * Use preg_replace() to remove all occurrences in a single pass rather than
+	 * finding and removing one match at a time. Loop in case removal of
+	 * percent-encoded sequences reveals new ones (e.g., '%%2020' → '%20' → '').
+	 */
+	$found        = false;
+	$prev_filtered = $filtered;
+	$filtered      = preg_replace( '/%[a-f0-9]{2}/i', '', $filtered );
+	if ( $filtered !== $prev_filtered ) {
+		$found = true;
+		// Continue until no new percent-encoded sequences are formed.
+		while ( preg_match( '/%[a-f0-9]{2}/i', $filtered ) ) {
+			$filtered = preg_replace( '/%[a-f0-9]{2}/i', '', $filtered );
+		}
 	}
 
 	if ( $found ) {
