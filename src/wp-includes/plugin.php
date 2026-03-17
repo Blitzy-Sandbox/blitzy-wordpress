@@ -173,10 +173,12 @@ function add_filter( $hook_name, $callback, $priority = 10, $accepted_args = 1 )
 function apply_filters( $hook_name, $value, ...$args ) {
 	global $wp_filter, $wp_filters, $wp_current_filter;
 
-	if ( ! isset( $wp_filters[ $hook_name ] ) ) {
-		$wp_filters[ $hook_name ] = 1;
-	} else {
-		++$wp_filters[ $hook_name ];
+	// Single-expression counter increment using null coalescing (PHP 7.4+).
+	$wp_filters[ $hook_name ] = ( $wp_filters[ $hook_name ] ?? 0 ) + 1;
+
+	// Fast path: no 'all' hook and no callbacks registered for this hook.
+	if ( ! isset( $wp_filter['all'] ) && ! isset( $wp_filter[ $hook_name ] ) ) {
+		return $value;
 	}
 
 	// Do 'all' actions first.
@@ -228,10 +230,12 @@ function apply_filters( $hook_name, $value, ...$args ) {
 function apply_filters_ref_array( $hook_name, $args ) {
 	global $wp_filter, $wp_filters, $wp_current_filter;
 
-	if ( ! isset( $wp_filters[ $hook_name ] ) ) {
-		$wp_filters[ $hook_name ] = 1;
-	} else {
-		++$wp_filters[ $hook_name ];
+	// Single-expression counter increment using null coalescing (PHP 7.4+).
+	$wp_filters[ $hook_name ] = ( $wp_filters[ $hook_name ] ?? 0 ) + 1;
+
+	// Fast path: no 'all' hook and no callbacks registered for this hook.
+	if ( ! isset( $wp_filter['all'] ) && ! isset( $wp_filter[ $hook_name ] ) ) {
+		return $args[0];
 	}
 
 	// Do 'all' actions first.
@@ -288,6 +292,12 @@ function has_filter( $hook_name, $callback = false, $priority = false ) {
 
 	if ( ! isset( $wp_filter[ $hook_name ] ) ) {
 		return false;
+	}
+
+	// Fast path: when no specific callback is requested, call has_filters() directly
+	// to bypass the parameter-handling overhead of WP_Hook::has_filter().
+	if ( false === $callback ) {
+		return $wp_filter[ $hook_name ]->has_filters();
 	}
 
 	return $wp_filter[ $hook_name ]->has_filter( $hook_name, $callback, $priority );
@@ -416,11 +426,8 @@ function doing_filter( $hook_name = null ) {
 function did_filter( $hook_name ) {
 	global $wp_filters;
 
-	if ( ! isset( $wp_filters[ $hook_name ] ) ) {
-		return 0;
-	}
-
-	return $wp_filters[ $hook_name ];
+	// Null coalescing reduces branch overhead for this frequently-called function.
+	return $wp_filters[ $hook_name ] ?? 0;
 }
 
 /**
@@ -487,10 +494,12 @@ function add_action( $hook_name, $callback, $priority = 10, $accepted_args = 1 )
 function do_action( $hook_name, ...$arg ) {
 	global $wp_filter, $wp_actions, $wp_current_filter;
 
-	if ( ! isset( $wp_actions[ $hook_name ] ) ) {
-		$wp_actions[ $hook_name ] = 1;
-	} else {
-		++$wp_actions[ $hook_name ];
+	// Single-expression counter increment using null coalescing (PHP 7.4+).
+	$wp_actions[ $hook_name ] = ( $wp_actions[ $hook_name ] ?? 0 ) + 1;
+
+	// Fast path: no 'all' hook and no callbacks registered for this hook.
+	if ( ! isset( $wp_filter['all'] ) && ! isset( $wp_filter[ $hook_name ] ) ) {
+		return;
 	}
 
 	// Do 'all' actions first.
@@ -542,10 +551,12 @@ function do_action( $hook_name, ...$arg ) {
 function do_action_ref_array( $hook_name, $args ) {
 	global $wp_filter, $wp_actions, $wp_current_filter;
 
-	if ( ! isset( $wp_actions[ $hook_name ] ) ) {
-		$wp_actions[ $hook_name ] = 1;
-	} else {
-		++$wp_actions[ $hook_name ];
+	// Single-expression counter increment using null coalescing (PHP 7.4+).
+	$wp_actions[ $hook_name ] = ( $wp_actions[ $hook_name ] ?? 0 ) + 1;
+
+	// Fast path: no 'all' hook and no callbacks registered for this hook.
+	if ( ! isset( $wp_filter['all'] ) && ! isset( $wp_filter[ $hook_name ] ) ) {
+		return;
 	}
 
 	// Do 'all' actions first.
@@ -685,11 +696,8 @@ function doing_action( $hook_name = null ) {
 function did_action( $hook_name ) {
 	global $wp_actions;
 
-	if ( ! isset( $wp_actions[ $hook_name ] ) ) {
-		return 0;
-	}
-
-	return $wp_actions[ $hook_name ];
+	// Null coalescing reduces branch overhead for this frequently-called function.
+	return $wp_actions[ $hook_name ] ?? 0;
 }
 
 /**
@@ -1003,11 +1011,12 @@ function _wp_filter_build_unique_id( $hook_name, $callback, $priority ) {
 	}
 
 	if ( is_object( $callback ) ) {
-		// Closures are currently implemented as objects.
-		$callback = array( $callback, '' );
-	} else {
-		$callback = (array) $callback;
+		// Closures and invokable objects: return hash directly without
+		// intermediate array construction and redundant is_object check.
+		return spl_object_hash( $callback );
 	}
+
+	$callback = (array) $callback;
 
 	if ( is_object( $callback[0] ) ) {
 		// Object class calling.
