@@ -87,6 +87,17 @@ class WP_Tax_Query {
 	public $primary_id_column;
 
 	/**
+	 * Cache for transform_query() results to avoid redundant WP_Term_Query lookups.
+	 *
+	 * Keyed by a hash of taxonomy, source field, resulting field, and terms array.
+	 * Each entry stores the resulting terms array for a previously computed transformation.
+	 *
+	 * @since 7.0.0
+	 * @var array
+	 */
+	private $transform_cache = array();
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 3.1.0
@@ -300,14 +311,68 @@ class WP_Tax_Query {
 	 * }
 	 */
 	protected function get_sql_for_query( &$query, $depth = 0 ) {
-		$sql_chunks = array(
-			'join'  => array(),
-			'where' => array(),
-		);
-
 		$sql = array(
 			'join'  => '',
 			'where' => '',
+		);
+
+		/*
+		 * Fast path: single first-order clause at depth 0.
+		 *
+		 * The most common taxonomy query is a single clause (e.g., posts in
+		 * one category). Detect this case early to avoid the overhead of
+		 * accumulating arrays, filtering empties, deduplicating JOINs, and
+		 * building indentation strings that are not needed for a single clause.
+		 */
+		if ( 0 === $depth ) {
+			$first_order_clauses = 0;
+			$has_subquery        = false;
+
+			foreach ( $query as $key => &$check_clause ) {
+				if ( 'relation' === $key ) {
+					continue;
+				}
+				if ( is_array( $check_clause ) ) {
+					if ( $this->is_first_order_clause( $check_clause ) ) {
+						++$first_order_clauses;
+					} else {
+						$has_subquery = true;
+						break;
+					}
+				}
+			}
+			unset( $check_clause );
+
+			if ( 1 === $first_order_clauses && ! $has_subquery ) {
+				foreach ( $query as $key => &$clause ) {
+					if ( 'relation' === $key || ! is_array( $clause ) ) {
+						continue;
+					}
+
+					$clause_sql  = $this->get_sql_for_clause( $clause, $query );
+					$where_count = count( $clause_sql['where'] );
+
+					if ( 1 === $where_count && '' !== $clause_sql['where'][0] ) {
+						$sql['where'] = '( ' . "\n  " . $clause_sql['where'][0] . "\n" . ')';
+					} elseif ( $where_count > 1 ) {
+						$combined     = '( ' . implode( ' AND ', $clause_sql['where'] ) . ' )';
+						$sql['where'] = '( ' . "\n  " . $combined . "\n" . ')';
+					}
+
+					$join_parts = array_filter( $clause_sql['join'] );
+					if ( ! empty( $join_parts ) ) {
+						$sql['join'] = implode( ' ', $join_parts );
+					}
+
+					return $sql;
+				}
+				unset( $clause );
+			}
+		}
+
+		$sql_chunks = array(
+			'join'  => array(),
+			'where' => array(),
 		);
 
 		$indent = '';
@@ -399,7 +464,16 @@ class WP_Tax_Query {
 		}
 
 		$terms    = $clause['terms'];
-		$operator = strtoupper( $clause['operator'] );
+		/*
+		 * The operator is already normalized to uppercase during sanitize_query(),
+		 * but guard against direct external calls with a fast identity check
+		 * before falling back to strtoupper().
+		 */
+		$operator = $clause['operator'];
+		if ( 'IN' !== $operator && 'NOT IN' !== $operator && 'AND' !== $operator
+			&& 'EXISTS' !== $operator && 'NOT EXISTS' !== $operator ) {
+			$operator = strtoupper( $operator );
+		}
 
 		if ( 'IN' === $operator ) {
 
@@ -407,7 +481,16 @@ class WP_Tax_Query {
 				return self::$no_results;
 			}
 
-			$terms = implode( ',', $terms );
+			/*
+			 * For single-term IN queries (the most common case, e.g., posts
+			 * in one category), avoid the overhead of implode() and directly
+			 * cast the single value to a string.
+			 */
+			if ( 1 === count( $terms ) ) {
+				$terms_sql = (string) reset( $terms );
+			} else {
+				$terms_sql = implode( ',', $terms );
+			}
 
 			/*
 			 * Before creating another table join, see if this clause has a
@@ -424,12 +507,12 @@ class WP_Tax_Query {
 				// Store the alias with this clause, so later siblings can use it.
 				$clause['alias'] = $alias;
 
-				$join .= " LEFT JOIN $wpdb->term_relationships";
-				$join .= $i ? " AS $alias" : '';
-				$join .= " ON ($this->primary_table.$this->primary_id_column = $alias.object_id)";
+				$join = " LEFT JOIN $wpdb->term_relationships"
+					. ( $i ? " AS $alias" : '' )
+					. " ON ($this->primary_table.$this->primary_id_column = $alias.object_id)";
 			}
 
-			$where = "$alias.term_taxonomy_id $operator ($terms)";
+			$where = "$alias.term_taxonomy_id $operator ($terms_sql)";
 
 		} elseif ( 'NOT IN' === $operator ) {
 
@@ -437,12 +520,12 @@ class WP_Tax_Query {
 				return $sql;
 			}
 
-			$terms = implode( ',', $terms );
+			$terms_sql = implode( ',', $terms );
 
 			$where = "$this->primary_table.$this->primary_id_column NOT IN (
 				SELECT object_id
 				FROM $wpdb->term_relationships
-				WHERE term_taxonomy_id IN ($terms)
+				WHERE term_taxonomy_id IN ($terms_sql)
 			)";
 
 		} elseif ( 'AND' === $operator ) {
@@ -452,13 +535,12 @@ class WP_Tax_Query {
 			}
 
 			$num_terms = count( $terms );
-
-			$terms = implode( ',', $terms );
+			$terms_sql = implode( ',', $terms );
 
 			$where = "(
 				SELECT COUNT(1)
 				FROM $wpdb->term_relationships
-				WHERE term_taxonomy_id IN ($terms)
+				WHERE term_taxonomy_id IN ($terms_sql)
 				AND object_id = $this->primary_table.$this->primary_id_column
 			) = $num_terms";
 
@@ -612,10 +694,31 @@ class WP_Tax_Query {
 			return;
 		}
 
+		/*
+		 * Build a cache key from the transformation parameters to avoid
+		 * redundant WP_Term_Query lookups when the same taxonomy + field +
+		 * terms combination is transformed more than once.
+		 */
+		$taxonomy  = isset( $query['taxonomy'] ) ? $query['taxonomy'] : '';
+		$cache_key = $taxonomy . ':' . $query['field'] . ':' . $resulting_field . ':' . implode( ',', $terms );
+
+		if ( isset( $this->transform_cache[ $cache_key ] ) ) {
+			$cached = $this->transform_cache[ $cache_key ];
+
+			if ( is_wp_error( $cached ) ) {
+				$query = $cached;
+				return;
+			}
+
+			$query['terms'] = $cached;
+			$query['field'] = $resulting_field;
+			return;
+		}
+
 		$args = array(
 			'get'                    => 'all',
 			'number'                 => 0,
-			'taxonomy'               => $query['taxonomy'],
+			'taxonomy'               => $taxonomy,
 			'update_term_meta_cache' => false,
 			'orderby'                => 'none',
 		);
@@ -636,7 +739,7 @@ class WP_Tax_Query {
 				break;
 		}
 
-		if ( ! is_taxonomy_hierarchical( $query['taxonomy'] ) ) {
+		if ( ! is_taxonomy_hierarchical( $taxonomy ) ) {
 			$args['number'] = count( $terms );
 		}
 
@@ -644,16 +747,23 @@ class WP_Tax_Query {
 		$term_list  = $term_query->query( $args );
 
 		if ( is_wp_error( $term_list ) ) {
+			$this->transform_cache[ $cache_key ] = $term_list;
 			$query = $term_list;
 			return;
 		}
 
 		if ( 'AND' === $query['operator'] && count( $term_list ) < count( $query['terms'] ) ) {
-			$query = new WP_Error( 'inexistent_terms', __( 'Inexistent terms.' ) );
+			$error = new WP_Error( 'inexistent_terms', __( 'Inexistent terms.' ) );
+			$this->transform_cache[ $cache_key ] = $error;
+			$query = $error;
 			return;
 		}
 
-		$query['terms'] = wp_list_pluck( $term_list, $resulting_field );
+		$resulting_terms = wp_list_pluck( $term_list, $resulting_field );
+
+		$this->transform_cache[ $cache_key ] = $resulting_terms;
+
+		$query['terms'] = $resulting_terms;
 		$query['field'] = $resulting_field;
 	}
 }
