@@ -714,6 +714,67 @@ class wpdb {
 	private $has_connected = false;
 
 	/**
+	 * In-request cache for SELECT query results.
+	 *
+	 * Stores results of identical SELECT queries to avoid redundant database
+	 * round-trips within the same request. Keyed by a hash of the SQL string
+	 * and output format. Automatically invalidated when a write query
+	 * (INSERT, UPDATE, DELETE, REPLACE, TRUNCATE, DROP, ALTER, CREATE) executes.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @var array
+	 */
+	private $query_cache = array();
+
+	/**
+	 * Number of entries currently held in the query cache.
+	 *
+	 * Tracked separately for O(1) size checks instead of calling count().
+	 *
+	 * @since 7.0.0
+	 *
+	 * @var int
+	 */
+	private $query_cache_size = 0;
+
+	/**
+	 * Maximum number of entries allowed in the query cache.
+	 *
+	 * Limits memory consumption by evicting the oldest cached results
+	 * (FIFO) when the cache reaches this threshold.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @var int
+	 */
+	private $query_cache_max_size = 256;
+
+	/**
+	 * Number of query cache hits in this request.
+	 *
+	 * Useful for performance profiling and observability. Incremented each
+	 * time a cached result is returned instead of executing a database query.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @var int
+	 */
+	public $query_cache_hits = 0;
+
+	/**
+	 * Number of query cache misses in this request.
+	 *
+	 * Useful for performance profiling and observability. Incremented each
+	 * time a SELECT query is executed because no cached result was available.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @var int
+	 */
+	public $query_cache_misses = 0;
+
+	/**
 	 * Time when the last query was performed.
 	 *
 	 * Only set when `SAVEQUERIES` is defined and truthy.
@@ -983,6 +1044,11 @@ class wpdb {
 		$modes_str = implode( ',', $modes );
 
 		mysqli_query( $this->dbh, "SET SESSION sql_mode='$modes_str'" );
+
+		// Flush query cache because session state changes may affect future SELECT results.
+		if ( $this->query_cache_size > 0 ) {
+			$this->flush_query_cache();
+		}
 	}
 
 	/**
@@ -1273,6 +1339,33 @@ class wpdb {
 			return '';
 		}
 
+		/*
+		 * Fast path for simple strings containing no characters that require
+		 * escaping. This covers the majority of short option names, post slugs,
+		 * and meta keys used in WordPress core queries.
+		 *
+		 * Characters checked against the combined escape-target sets:
+		 *   - mysqli_real_escape_string: NUL, \n, \r, \, ', ", Control-Z
+		 *   - add_placeholder_escape:   %
+		 *
+		 * If none of these bytes appear in the string, both escaping stages
+		 * are provably no-ops and can be safely skipped. The strpbrk() check
+		 * is a single C-level pass through the string, much cheaper than
+		 * the combined cost of mysqli_real_escape_string() plus str_replace().
+		 *
+		 * The length guard (isset offset check) avoids spending time on the
+		 * strpbrk scan for very large strings where the full escaping call
+		 * is negligible relative to total processing time.
+		 *
+		 * @since 7.0.0
+		 */
+		if ( $this->dbh && is_string( $data )
+			&& ! isset( $data[512] )
+			&& false === strpbrk( $data, "\0\n\r\\'\"\x1a%" )
+		) {
+			return $data;
+		}
+
 		if ( $this->dbh ) {
 			$escaped = mysqli_real_escape_string( $this->dbh, $data );
 		} else {
@@ -1458,6 +1551,66 @@ class wpdb {
 	public function prepare( $query, ...$args ) {
 		if ( is_null( $query ) ) {
 			return;
+		}
+
+		/*
+		 * Fast path for the most common single-placeholder patterns.
+		 *
+		 * The two dominant patterns in WordPress core and plugins are:
+		 *   $wpdb->prepare( "SELECT ... WHERE ID = %d", $id )
+		 *   $wpdb->prepare( "SELECT ... WHERE name = %s", $name )
+		 *
+		 * These represent the majority of prepare() calls. By detecting these
+		 * simple cases early, we bypass the expensive regex splitting, format
+		 * analysis, and vsprintf overhead of the general path while maintaining
+		 * identical output and all security guarantees.
+		 *
+		 * Conditions for entering the fast path:
+		 * - Exactly one argument, not passed as an array.
+		 * - No literal percent sequences (%%) requiring special handling.
+		 * - No float (%f/%F), identifier (%i), or numbered ($) placeholders.
+		 * - Exactly one simple %d or %s placeholder in the query.
+		 */
+		if ( 1 === count( $args )
+			&& ! is_array( $args[0] )
+			&& false === strpos( $query, '%%' )
+			&& false === strpos( $query, '%f' )
+			&& false === strpos( $query, '%F' )
+			&& false === strpos( $query, '%i' )
+			&& false === strpos( $query, '$' )
+		) {
+			$simple_d_count = substr_count( $query, '%d' );
+			$simple_s_count = substr_count( $query, '%s' );
+
+			// %d fast path: cast to integer and substitute directly.
+			if ( 1 === $simple_d_count && 0 === $simple_s_count ) {
+				$query = str_replace( '%d', (string) (int) $args[0], $query );
+				return $this->add_placeholder_escape( $query );
+			}
+
+			// %s fast path: escape, quote, and substitute directly.
+			if ( 0 === $simple_d_count && 1 === $simple_s_count ) {
+				$value = $args[0];
+
+				/*
+				 * Non-scalar, non-null values fall through to the full path
+				 * which issues _doing_it_wrong() and handles them safely.
+				 */
+				if ( is_scalar( $value ) || is_null( $value ) ) {
+					// Strip any existing quotes around %s (same as the full path).
+					$query = str_replace( "'%s'", '%s', $query );
+					$query = str_replace( '"%s"', '%s', $query );
+
+					if ( is_int( $value ) || is_float( $value ) ) {
+						$escaped = $value;
+					} else {
+						$escaped = $this->_real_escape( $value );
+					}
+
+					$query = str_replace( '%s', "'" . $escaped . "'", $query );
+					return $this->add_placeholder_escape( $query );
+				}
+			}
 		}
 
 		/*
@@ -1941,6 +2094,21 @@ class wpdb {
 	}
 
 	/**
+	 * Clears the in-request SELECT query result cache.
+	 *
+	 * Called automatically when a write query (INSERT, UPDATE, DELETE, REPLACE,
+	 * TRUNCATE, DROP, ALTER, CREATE) is executed to prevent stale reads. May also
+	 * be called manually when external changes to the database are known to have
+	 * occurred (e.g. after direct mysqli calls or imported data).
+	 *
+	 * @since 7.0.0
+	 */
+	public function flush_query_cache() {
+		$this->query_cache      = array();
+		$this->query_cache_size = 0;
+	}
+
+	/**
 	 * Connects to and selects database.
 	 *
 	 * If `$allow_bail` is false, the lack of database connection will need to be handled manually.
@@ -2305,6 +2473,9 @@ class wpdb {
 
 		if ( preg_match( '/^\s*(create|alter|truncate|drop)\s/i', $query ) ) {
 			$return_val = $this->result;
+
+			// Invalidate the query cache on DDL statements.
+			$this->flush_query_cache();
 		} elseif ( preg_match( '/^\s*(insert|delete|update|replace)\s/i', $query ) ) {
 			$this->rows_affected = mysqli_affected_rows( $this->dbh );
 
@@ -2315,6 +2486,9 @@ class wpdb {
 
 			// Return number of rows affected.
 			$return_val = $this->rows_affected;
+
+			// Invalidate the query cache on data-modifying statements.
+			$this->flush_query_cache();
 		} else {
 			$num_rows = 0;
 
@@ -2323,6 +2497,16 @@ class wpdb {
 					$this->last_result[ $num_rows ] = $row;
 					++$num_rows;
 				}
+			} elseif ( $this->query_cache_size > 0 ) {
+				/*
+				 * Non-resultset statements (e.g., SET, LOCK, CALL, GRANT) that
+				 * were not caught by the DDL or write-query branches above may
+				 * change session state in ways that affect future SELECT results.
+				 * Flush the query cache to prevent stale reads.
+				 *
+				 * @since 7.0.0
+				 */
+				$this->flush_query_cache();
 			}
 
 			// Log and return the number of rows selected.
