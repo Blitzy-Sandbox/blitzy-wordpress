@@ -47,6 +47,17 @@ class WP_Metadata_Lazyloader {
 	protected $settings = array();
 
 	/**
+	 * Tracks whether a lazy-load filter is currently registered for each object type.
+	 *
+	 * Prevents redundant add_filter() calls when queue_objects() is invoked
+	 * multiple times for the same type within a single request.
+	 *
+	 * @since 7.0.0
+	 * @var array
+	 */
+	protected $filter_registered = array();
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 4.5.0
@@ -65,6 +76,14 @@ class WP_Metadata_Lazyloader {
 				'filter'   => 'get_blog_metadata',
 				'callback' => array( $this, 'lazyload_meta_callback' ),
 			),
+			'post'    => array(
+				'filter'   => 'get_post_metadata',
+				'callback' => array( $this, 'lazyload_meta_callback' ),
+			),
+			'user'    => array(
+				'filter'   => 'get_user_metadata',
+				'callback' => array( $this, 'lazyload_meta_callback' ),
+			),
 		);
 	}
 
@@ -73,7 +92,8 @@ class WP_Metadata_Lazyloader {
 	 *
 	 * @since 4.5.0
 	 *
-	 * @param string $object_type Type of object whose meta is to be lazy-loaded. Accepts 'term' or 'comment'.
+	 * @param string $object_type Type of object whose meta is to be lazy-loaded.
+	 *                            Accepts 'term', 'comment', 'blog', 'post', or 'user'.
 	 * @param array  $object_ids  Array of object IDs.
 	 * @return void|WP_Error WP_Error on failure.
 	 */
@@ -89,13 +109,21 @@ class WP_Metadata_Lazyloader {
 		}
 
 		foreach ( $object_ids as $object_id ) {
-			// Keyed by ID for faster lookup.
+			// Keyed by ID for O(1) deduplication within the pending set.
 			if ( ! isset( $this->pending_objects[ $object_type ][ $object_id ] ) ) {
 				$this->pending_objects[ $object_type ][ $object_id ] = 1;
 			}
 		}
 
-		add_filter( $type_settings['filter'], $type_settings['callback'], 10, 5 );
+		/*
+		 * Only register the filter if it is not already active for this type.
+		 * This avoids redundant add_filter() overhead when queue_objects()
+		 * is called multiple times for the same object type.
+		 */
+		if ( empty( $this->filter_registered[ $object_type ] ) ) {
+			add_filter( $type_settings['filter'], $type_settings['callback'], 10, 5 );
+			$this->filter_registered[ $object_type ] = true;
+		}
 
 		/**
 		 * Fires after objects are added to the metadata lazy-load queue.
@@ -114,7 +142,7 @@ class WP_Metadata_Lazyloader {
 	 *
 	 * @since 4.5.0
 	 *
-	 * @param string $object_type Object type. Accepts 'comment' or 'term'.
+	 * @param string $object_type Object type. Accepts 'term', 'comment', 'blog', 'post', or 'user'.
 	 * @return void|WP_Error WP_Error on failure.
 	 */
 	public function reset_queue( $object_type ) {
@@ -126,6 +154,7 @@ class WP_Metadata_Lazyloader {
 
 		$this->pending_objects[ $object_type ] = array();
 		remove_filter( $type_settings['filter'], $type_settings['callback'] );
+		$this->filter_registered[ $object_type ] = false;
 	}
 
 	/**
@@ -164,6 +193,48 @@ class WP_Metadata_Lazyloader {
 	}
 
 	/**
+	 * Lazy-loads post meta for queued posts.
+	 *
+	 * Triggers batch loading of post metadata for all post IDs currently in the
+	 * lazy-load queue. This is useful when post meta was not eagerly primed
+	 * (e.g. when update_post_meta_cache is false) and the first get_post_meta()
+	 * call should prime the cache for all queued posts at once.
+	 *
+	 * This method is public so that it can be used as a filter callback. As a rule, there
+	 * is no need to invoke it directly.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @param mixed $check The `$check` param passed from the 'get_post_metadata' hook.
+	 * @return mixed In order not to short-circuit `get_metadata()`. Generally, this is `null`, but it could be
+	 *               another value if filtered by a plugin.
+	 */
+	public function lazyload_post_meta( $check ) {
+		return $this->lazyload_meta_callback( $check, 0, '', false, 'post' );
+	}
+
+	/**
+	 * Lazy-loads user meta for queued users.
+	 *
+	 * Triggers batch loading of user metadata for all user IDs currently in the
+	 * lazy-load queue. When multiple users are loaded (e.g. in a WP_User_Query
+	 * result set), their meta can be deferred until the first get_user_meta()
+	 * call, at which point this callback primes the cache for all queued users.
+	 *
+	 * This method is public so that it can be used as a filter callback. As a rule, there
+	 * is no need to invoke it directly.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @param mixed $check The `$check` param passed from the 'get_user_metadata' hook.
+	 * @return mixed In order not to short-circuit `get_metadata()`. Generally, this is `null`, but it could be
+	 *               another value if filtered by a plugin.
+	 */
+	public function lazyload_user_meta( $check ) {
+		return $this->lazyload_meta_callback( $check, 0, '', false, 'user' );
+	}
+
+	/**
 	 * Lazy-loads meta for queued objects.
 	 *
 	 * This method is public so that it can be used as a filter callback. As a rule, there
@@ -186,13 +257,18 @@ class WP_Metadata_Lazyloader {
 		}
 
 		$object_ids = array_keys( $this->pending_objects[ $meta_type ] );
-		if ( $object_id && ! in_array( $object_id, $object_ids, true ) ) {
+		if ( $object_id && ! isset( $this->pending_objects[ $meta_type ][ $object_id ] ) ) {
 			$object_ids[] = $object_id;
 		}
 
 		update_meta_cache( $meta_type, $object_ids );
 
-		// No need to run again for this set of objects.
+		/*
+		 * Reset the queue for this type. update_meta_cache() already handles
+		 * internal deduplication via wp_cache_get_multiple(), so there is no
+		 * need to track previously loaded IDs — if the same ID is re-queued
+		 * and re-fetched, the cache layer prevents a redundant DB query.
+		 */
 		$this->reset_queue( $meta_type );
 
 		return $check;
