@@ -570,73 +570,74 @@ class WP_Query {
 	 * @return array Complete query variables with undefined ones filled in empty.
 	 */
 	public function fill_query_vars( $query_vars ) {
-		$keys = array(
-			'error',
-			'm',
-			'p',
-			'post_parent',
-			'subpost',
-			'subpost_id',
-			'attachment',
-			'attachment_id',
-			'name',
-			'pagename',
-			'page_id',
-			'second',
-			'minute',
-			'hour',
-			'day',
-			'monthnum',
-			'year',
-			'w',
-			'category_name',
-			'tag',
-			'cat',
-			'tag_id',
-			'author',
-			'author_name',
-			'feed',
-			'tb',
-			'paged',
-			'meta_key',
-			'meta_value',
-			'preview',
-			's',
-			'sentence',
-			'title',
-			'fields',
-			'menu_order',
-			'embed',
-		);
+		/*
+		 * Use a static cached defaults array to avoid rebuilding key lists on
+		 * every call. The defaults are constant and only need to be constructed
+		 * once per process lifetime. Uses isset() to preserve original semantics
+		 * where null-valued keys are treated as unset and receive defaults.
+		 */
+		static $defaults = null;
 
-		foreach ( $keys as $key ) {
-			if ( ! isset( $query_vars[ $key ] ) ) {
-				$query_vars[ $key ] = '';
-			}
+		if ( null === $defaults ) {
+			$defaults = array(
+				'error'              => '',
+				'm'                  => '',
+				'p'                  => '',
+				'post_parent'        => '',
+				'subpost'            => '',
+				'subpost_id'         => '',
+				'attachment'         => '',
+				'attachment_id'      => '',
+				'name'               => '',
+				'pagename'           => '',
+				'page_id'            => '',
+				'second'             => '',
+				'minute'             => '',
+				'hour'               => '',
+				'day'                => '',
+				'monthnum'           => '',
+				'year'               => '',
+				'w'                  => '',
+				'category_name'      => '',
+				'tag'                => '',
+				'cat'                => '',
+				'tag_id'             => '',
+				'author'             => '',
+				'author_name'        => '',
+				'feed'               => '',
+				'tb'                 => '',
+				'paged'              => '',
+				'meta_key'           => '',
+				'meta_value'         => '',
+				'preview'            => '',
+				's'                  => '',
+				'sentence'           => '',
+				'title'              => '',
+				'fields'             => '',
+				'menu_order'         => '',
+				'embed'              => '',
+				'category__in'       => array(),
+				'category__not_in'   => array(),
+				'category__and'      => array(),
+				'post__in'           => array(),
+				'post__not_in'       => array(),
+				'post_name__in'      => array(),
+				'tag__in'            => array(),
+				'tag__not_in'        => array(),
+				'tag__and'           => array(),
+				'tag_slug__in'       => array(),
+				'tag_slug__and'      => array(),
+				'post_parent__in'    => array(),
+				'post_parent__not_in' => array(),
+				'author__in'         => array(),
+				'author__not_in'     => array(),
+				'search_columns'     => array(),
+			);
 		}
 
-		$array_keys = array(
-			'category__in',
-			'category__not_in',
-			'category__and',
-			'post__in',
-			'post__not_in',
-			'post_name__in',
-			'tag__in',
-			'tag__not_in',
-			'tag__and',
-			'tag_slug__in',
-			'tag_slug__and',
-			'post_parent__in',
-			'post_parent__not_in',
-			'author__in',
-			'author__not_in',
-			'search_columns',
-		);
-
-		foreach ( $array_keys as $key ) {
+		foreach ( $defaults as $key => $default_value ) {
 			if ( ! isset( $query_vars[ $key ] ) ) {
-				$query_vars[ $key ] = array();
+				$query_vars[ $key ] = $default_value;
 			}
 		}
 
@@ -2240,7 +2241,8 @@ class WP_Query {
 			$post__in_for_where = $query_vars['post__in'];
 			$post__in_for_where = array_unique( array_map( 'absint', $post__in_for_where ) );
 			sort( $post__in_for_where );
-			$post__in = implode( ',', array_map( 'absint', $post__in_for_where ) );
+			// Values are already absint'd above, no need to re-map.
+			$post__in = implode( ',', $post__in_for_where );
 			$where   .= " AND {$wpdb->posts}.ID IN ($post__in)";
 		} elseif ( $query_vars['post__not_in'] ) {
 			sort( $query_vars['post__not_in'] );
@@ -2255,7 +2257,8 @@ class WP_Query {
 			$post_parent__in_for_where = $query_vars['post_parent__in'];
 			$post_parent__in_for_where = array_unique( array_map( 'absint', $post_parent__in_for_where ) );
 			sort( $post_parent__in_for_where );
-			$post_parent__in = implode( ',', array_map( 'absint', $post_parent__in_for_where ) );
+			// Values are already absint'd above, no need to re-map.
+			$post_parent__in = implode( ',', $post_parent__in_for_where );
 			$where          .= " AND {$wpdb->posts}.post_parent IN ($post_parent__in)";
 		} elseif ( $query_vars['post_parent__not_in'] ) {
 			sort( $query_vars['post_parent__not_in'] );
@@ -2408,7 +2411,8 @@ class WP_Query {
 				$query_vars['author__in'] = array_unique( array_map( 'absint', $query_vars['author__in'] ) );
 				sort( $query_vars['author__in'] );
 			}
-			$author__in = implode( ',', array_map( 'absint', array_unique( (array) $query_vars['author__in'] ) ) );
+			// Values are already absint'd and unique above, avoid redundant re-processing.
+			$author__in = implode( ',', (array) $query_vars['author__in'] );
 			$where     .= " AND {$wpdb->posts}.post_author IN ($author__in) ";
 		}
 
@@ -3653,6 +3657,33 @@ class WP_Query {
 
 		if ( ! empty( $this->posts ) && $query_vars['update_menu_item_cache'] ) {
 			update_menu_item_cache( $this->posts );
+		}
+
+		/*
+		 * Batch-prime featured image (thumbnail) attachment post caches to
+		 * eliminate N+1 queries in template loops calling has_post_thumbnail(),
+		 * the_post_thumbnail(), or get_the_post_thumbnail_url().
+		 *
+		 * Post meta is already cached at this point (via _prime_post_caches()
+		 * or update_post_caches() above when cache_results and
+		 * update_post_meta_cache are enabled), so get_post_meta() reads from
+		 * the object cache without additional database queries.
+		 */
+		if ( $this->posts && $query_vars['cache_results'] && $query_vars['update_post_meta_cache'] ) {
+			$thumbnail_ids = array();
+
+			foreach ( $this->posts as $_post ) {
+				$thumb_id = get_post_meta( $_post->ID, '_thumbnail_id', true );
+
+				if ( $thumb_id ) {
+					$thumbnail_ids[] = (int) $thumb_id;
+				}
+			}
+
+			if ( $thumbnail_ids ) {
+				// Prime attachment post objects and their meta in a single batch query.
+				_prime_post_caches( array_unique( $thumbnail_ids ), false, true );
+			}
 		}
 
 		if ( $query_vars['lazy_load_term_meta'] ) {
