@@ -635,38 +635,47 @@ function get_metadata_raw( $meta_type, $object_id, $meta_key = '', $single = fal
 		return false;
 	}
 
-	/**
-	 * Short-circuits the return value of a meta field.
-	 *
-	 * The dynamic portion of the hook name, `$meta_type`, refers to the meta object type
-	 * (blog, post, comment, term, user, or any other type with an associated meta table).
-	 * Returning a non-null value will effectively short-circuit the function.
-	 *
-	 * Possible filter names include:
-	 *
-	 *  - `get_blog_metadata`
-	 *  - `get_post_metadata`
-	 *  - `get_comment_metadata`
-	 *  - `get_term_metadata`
-	 *  - `get_user_metadata`
-	 *
-	 * @since 3.1.0
-	 * @since 5.5.0 Added the `$meta_type` parameter.
-	 *
-	 * @param mixed  $value     The value to return, either a single metadata value or an array
-	 *                          of values depending on the value of `$single`. Default null.
-	 * @param int    $object_id ID of the object metadata is for.
-	 * @param string $meta_key  Metadata key.
-	 * @param bool   $single    Whether to return only the first value of the specified `$meta_key`.
-	 * @param string $meta_type Type of object metadata is for. Accepts 'blog', 'post', 'comment', 'term',
-	 *                          'user', or any other object type with an associated meta table.
+	/*
+	 * Performance optimization: skip apply_filters() overhead when no callbacks
+	 * are registered for this meta type's filter. The has_filter() check is a
+	 * lightweight isset() on the global $wp_filter array, avoiding the variadic
+	 * argument packing cost of apply_filters() on the most common code path.
 	 */
-	$check = apply_filters( "get_{$meta_type}_metadata", null, $object_id, $meta_key, $single, $meta_type );
-	if ( null !== $check ) {
-		if ( $single && is_array( $check ) ) {
-			return $check[0];
-		} else {
-			return $check;
+	$get_filter_name = "get_{$meta_type}_metadata";
+	if ( has_filter( $get_filter_name ) ) {
+		/**
+		 * Short-circuits the return value of a meta field.
+		 *
+		 * The dynamic portion of the hook name, `$meta_type`, refers to the meta object type
+		 * (blog, post, comment, term, user, or any other type with an associated meta table).
+		 * Returning a non-null value will effectively short-circuit the function.
+		 *
+		 * Possible filter names include:
+		 *
+		 *  - `get_blog_metadata`
+		 *  - `get_post_metadata`
+		 *  - `get_comment_metadata`
+		 *  - `get_term_metadata`
+		 *  - `get_user_metadata`
+		 *
+		 * @since 3.1.0
+		 * @since 5.5.0 Added the `$meta_type` parameter.
+		 *
+		 * @param mixed  $value     The value to return, either a single metadata value or an array
+		 *                          of values depending on the value of `$single`. Default null.
+		 * @param int    $object_id ID of the object metadata is for.
+		 * @param string $meta_key  Metadata key.
+		 * @param bool   $single    Whether to return only the first value of the specified `$meta_key`.
+		 * @param string $meta_type Type of object metadata is for. Accepts 'blog', 'post', 'comment', 'term',
+		 *                          'user', or any other object type with an associated meta table.
+		 */
+		$check = apply_filters( $get_filter_name, null, $object_id, $meta_key, $single, $meta_type );
+		if ( null !== $check ) {
+			if ( $single && is_array( $check ) ) {
+				return $check[0];
+			} else {
+				return $check;
+			}
 		}
 	}
 
@@ -716,6 +725,17 @@ function get_metadata_default( $meta_type, $object_id, $meta_key, $single = fals
 		$value = array();
 	}
 
+	/*
+	 * Performance optimization: the default_{$meta_type}_metadata filter is only
+	 * registered when register_meta() is called with a 'default' argument. For
+	 * the common case where no defaults are registered, skip the apply_filters()
+	 * overhead entirely and return the standard empty value immediately.
+	 */
+	$default_filter_name = "default_{$meta_type}_metadata";
+	if ( ! has_filter( $default_filter_name ) ) {
+		return $value;
+	}
+
 	/**
 	 * Filters the default metadata value for a specified meta key and object.
 	 *
@@ -740,7 +760,7 @@ function get_metadata_default( $meta_type, $object_id, $meta_key, $single = fals
 	 * @param string $meta_type Type of object metadata is for. Accepts 'blog', 'post', 'comment', 'term',
 	 *                          'user', or any other object type with an associated meta table.
 	 */
-	$value = apply_filters( "default_{$meta_type}_metadata", $value, $object_id, $meta_key, $single, $meta_type );
+	$value = apply_filters( $default_filter_name, $value, $object_id, $meta_key, $single, $meta_type );
 
 	if ( ! $single && ! wp_is_numeric_array( $value ) ) {
 		$value = array( $value );
@@ -770,10 +790,17 @@ function metadata_exists( $meta_type, $object_id, $meta_key ) {
 		return false;
 	}
 
-	/** This filter is documented in wp-includes/meta.php */
-	$check = apply_filters( "get_{$meta_type}_metadata", null, $object_id, $meta_key, true, $meta_type );
-	if ( null !== $check ) {
-		return (bool) $check;
+	/*
+	 * Performance optimization: only invoke the filter when callbacks are
+	 * registered, avoiding variadic argument packing overhead on every call.
+	 */
+	$get_filter_name = "get_{$meta_type}_metadata";
+	if ( has_filter( $get_filter_name ) ) {
+		/** This filter is documented in wp-includes/meta.php */
+		$check = apply_filters( $get_filter_name, null, $object_id, $meta_key, true, $meta_type );
+		if ( null !== $check ) {
+			return (bool) $check;
+		}
 	}
 
 	$meta_cache = wp_cache_get( $object_id, $meta_type . '_meta' );
@@ -1198,27 +1225,42 @@ function update_meta_cache( $meta_type, $object_ids ) {
 	}
 
 	// Get meta info.
-	$id_list   = implode( ',', $non_cached_ids );
 	$id_column = ( 'user' === $meta_type ) ? 'umeta_id' : 'meta_id';
 
-	$meta_list = $wpdb->get_results( "SELECT $column, meta_key, meta_value FROM $table WHERE $column IN ($id_list) ORDER BY $id_column ASC", ARRAY_A );
+	/*
+	 * Performance optimization: chunk large ID sets to avoid oversized IN (...)
+	 * clauses that can hit MySQL max_allowed_packet limits and degrade query
+	 * optimizer performance. For the common case of small ID sets, a single
+	 * query is executed with no overhead from array_chunk().
+	 */
+	$chunk_size = 500;
+	if ( count( $non_cached_ids ) > $chunk_size ) {
+		$id_chunks = array_chunk( $non_cached_ids, $chunk_size );
+	} else {
+		$id_chunks = array( $non_cached_ids );
+	}
 
-	if ( ! empty( $meta_list ) ) {
-		foreach ( $meta_list as $metarow ) {
-			$mpid = (int) $metarow[ $column ];
-			$mkey = $metarow['meta_key'];
-			$mval = $metarow['meta_value'];
+	foreach ( $id_chunks as $chunk_ids ) {
+		$id_list   = implode( ',', $chunk_ids );
+		$meta_list = $wpdb->get_results( "SELECT $column, meta_key, meta_value FROM $table WHERE $column IN ($id_list) ORDER BY $id_column ASC", ARRAY_A );
 
-			// Force subkeys to be array type.
-			if ( ! isset( $cache[ $mpid ] ) || ! is_array( $cache[ $mpid ] ) ) {
-				$cache[ $mpid ] = array();
+		if ( ! empty( $meta_list ) ) {
+			foreach ( $meta_list as $metarow ) {
+				$mpid = (int) $metarow[ $column ];
+				$mkey = $metarow['meta_key'];
+				$mval = $metarow['meta_value'];
+
+				// Force subkeys to be array type.
+				if ( ! isset( $cache[ $mpid ] ) || ! is_array( $cache[ $mpid ] ) ) {
+					$cache[ $mpid ] = array();
+				}
+				if ( ! isset( $cache[ $mpid ][ $mkey ] ) || ! is_array( $cache[ $mpid ][ $mkey ] ) ) {
+					$cache[ $mpid ][ $mkey ] = array();
+				}
+
+				// Add a value to the current pid/key.
+				$cache[ $mpid ][ $mkey ][] = $mval;
 			}
-			if ( ! isset( $cache[ $mpid ][ $mkey ] ) || ! is_array( $cache[ $mpid ][ $mkey ] ) ) {
-				$cache[ $mpid ][ $mkey ] = array();
-			}
-
-			// Add a value to the current pid/key.
-			$cache[ $mpid ][ $mkey ][] = $mval;
 		}
 	}
 
@@ -1232,6 +1274,47 @@ function update_meta_cache( $meta_type, $object_ids ) {
 	wp_cache_add_multiple( $data, $cache_group );
 
 	return $cache;
+}
+
+/**
+ * Primes meta caches for multiple object types in a single call.
+ *
+ * Accepts a mapping of meta types to object ID arrays and primes the object
+ * cache for each type by delegating to update_meta_cache(). This eliminates
+ * N+1 query patterns when code needs metadata for objects of different types
+ * (e.g., posts, terms, and users in a single template loop or REST response).
+ *
+ * Already-cached objects are automatically skipped by update_meta_cache(),
+ * so calling this function is always safe and idempotent.
+ *
+ * Example usage:
+ *
+ *     wp_prime_meta_caches( array(
+ *         'post' => array( 1, 2, 3 ),
+ *         'term' => array( 10, 20 ),
+ *         'user' => array( 5, 6 ),
+ *     ) );
+ *
+ * @since 7.0.0
+ *
+ * @param array $priming_map {
+ *     Array of meta type to object IDs mapping.
+ *
+ *     @type int[] $meta_type Array of object IDs keyed by their meta type.
+ *                            Accepted meta types include 'blog', 'post', 'comment',
+ *                            'term', 'user', or any type with an associated meta table.
+ * }
+ */
+function wp_prime_meta_caches( $priming_map ) {
+	if ( ! is_array( $priming_map ) || empty( $priming_map ) ) {
+		return;
+	}
+
+	foreach ( $priming_map as $meta_type => $object_ids ) {
+		if ( ! empty( $object_ids ) && is_string( $meta_type ) && '' !== $meta_type ) {
+			update_meta_cache( $meta_type, $object_ids );
+		}
+	}
 }
 
 /**
