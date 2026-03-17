@@ -27,6 +27,10 @@ if ( ! function_exists( 'wp_cache_add_multiple' ) ) :
 	 *                true on success, or false if cache key and group already exist.
 	 */
 	function wp_cache_add_multiple( array $data, $group = '', $expire = 0 ) {
+		if ( ! $data ) {
+			return array();
+		}
+
 		$values = array();
 
 		foreach ( $data as $key => $value ) {
@@ -58,6 +62,10 @@ if ( ! function_exists( 'wp_cache_set_multiple' ) ) :
 	 *                true on success, or false on failure.
 	 */
 	function wp_cache_set_multiple( array $data, $group = '', $expire = 0 ) {
+		if ( ! $data ) {
+			return array();
+		}
+
 		$values = array();
 
 		foreach ( $data as $key => $value ) {
@@ -87,6 +95,10 @@ if ( ! function_exists( 'wp_cache_get_multiple' ) ) :
 	 *               the cache contents on success, or false on failure.
 	 */
 	function wp_cache_get_multiple( $keys, $group = '', $force = false ) {
+		if ( ! $keys ) {
+			return array();
+		}
+
 		$values = array();
 
 		foreach ( $keys as $key ) {
@@ -114,6 +126,10 @@ if ( ! function_exists( 'wp_cache_delete_multiple' ) ) :
 	 *                true on success, or false if the contents were not deleted.
 	 */
 	function wp_cache_delete_multiple( array $keys, $group = '' ) {
+		if ( ! $keys ) {
+			return array();
+		}
+
 		$values = array();
 
 		foreach ( $keys as $key ) {
@@ -188,6 +204,9 @@ if ( ! function_exists( 'wp_cache_supports' ) ) :
 	/**
 	 * Determines whether the object cache implementation supports a particular feature.
 	 *
+	 * Results are cached in a static variable since supported features do not
+	 * change within a single request, avoiding repeated evaluation overhead.
+	 *
 	 * @since 6.1.0
 	 *
 	 * @param string $feature Name of the feature to check for. Possible values include:
@@ -196,6 +215,13 @@ if ( ! function_exists( 'wp_cache_supports' ) ) :
 	 * @return bool True if the feature is supported, false otherwise.
 	 */
 	function wp_cache_supports( $feature ) {
+		static $supports_cache = array();
+
+		if ( isset( $supports_cache[ $feature ] ) ) {
+			return $supports_cache[ $feature ];
+		}
+
+		$supports_cache[ $feature ] = false;
 		return false;
 	}
 endif;
@@ -219,7 +245,8 @@ if ( ! function_exists( 'wp_cache_get_salted' ) ) :
 			return false;
 		}
 
-		if ( ! isset( $cache['salt'] ) || ! isset( $cache['data'] ) || $salt !== $cache['salt'] ) {
+		// Use multi-argument isset() for a single opcode evaluation.
+		if ( ! isset( $cache['salt'], $cache['data'] ) || $salt !== $cache['salt'] ) {
 			return false;
 		}
 
@@ -330,8 +357,17 @@ if ( ! function_exists( 'wp_cache_switch_to_blog' ) ) :
 	function wp_cache_switch_to_blog( $blog_id ) {
 		global $wp_object_cache;
 
-		// Attempt to use the drop-in object cache method if it exists.
-		if ( method_exists( $wp_object_cache, 'switch_to_blog' ) ) {
+		/*
+		 * Cache the method_exists() result to avoid repeated reflection
+		 * lookups on multisite blog switches within the same request.
+		 */
+		static $has_switch_method = null;
+
+		if ( null === $has_switch_method ) {
+			$has_switch_method = method_exists( $wp_object_cache, 'switch_to_blog' );
+		}
+
+		if ( $has_switch_method ) {
 			$wp_object_cache->switch_to_blog( $blog_id );
 			return;
 		}
