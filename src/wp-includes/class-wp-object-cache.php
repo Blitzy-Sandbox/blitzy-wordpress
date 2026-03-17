@@ -565,6 +565,19 @@ class WP_Object_Cache {
 			return 0;
 		}
 
+		/*
+		 * On multisite, non-global group keys are stored with the blog
+		 * prefix prepended (e.g. "1:some_key"). Prepend the same prefix
+		 * to the search string so the strncmp match works correctly.
+		 * This is consistent with how get(), set(), delete(), add(),
+		 * replace(), incr(), and decr() handle multisite key prefixing.
+		 *
+		 * @since 7.0.0
+		 */
+		if ( $this->multisite && ! isset( $this->global_groups[ $group ] ) ) {
+			$prefix_str = $this->blog_prefix . $prefix_str;
+		}
+
 		$count      = 0;
 		$prefix_len = strlen( $prefix_str );
 

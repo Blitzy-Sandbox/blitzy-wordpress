@@ -379,3 +379,82 @@ if ( ! function_exists( 'wp_cache_switch_to_blog' ) ) :
 		wp_cache_switch_to_blog_fallback( $blog_id );
 	}
 endif;
+
+if ( ! function_exists( 'wp_cache_delete_by_prefix' ) ) :
+	/**
+	 * Deletes all cache keys in a group that match a given prefix.
+	 *
+	 * Compat function to mimic wp_cache_delete_by_prefix().
+	 *
+	 * Provides granular key-level invalidation as an alternative to
+	 * flushing an entire cache group. External object cache backends
+	 * (Redis, Memcached plugins) that do not implement this method
+	 * will use this fallback, which iterates the in-memory cache.
+	 *
+	 * @ignore
+	 * @since 7.0.0
+	 *
+	 * @see WP_Object_Cache::delete_by_prefix()
+	 *
+	 * @param string $prefix The key prefix to match against.
+	 * @param string $group  Optional. The cache group to search within. Default 'default'.
+	 * @return int The number of keys deleted.
+	 */
+	function wp_cache_delete_by_prefix( $prefix, $group = 'default' ) {
+		global $wp_object_cache;
+
+		if ( ! is_object( $wp_object_cache ) ) {
+			return 0;
+		}
+
+		if ( method_exists( $wp_object_cache, 'delete_by_prefix' ) ) {
+			return $wp_object_cache->delete_by_prefix( $prefix, $group );
+		}
+
+		return 0;
+	}
+endif;
+
+if ( ! function_exists( 'wp_cache_get_stats' ) ) :
+	/**
+	 * Retrieves cache statistics for the current request.
+	 *
+	 * Compat function to mimic wp_cache_get_stats().
+	 *
+	 * Returns an associative array of cache metrics including total
+	 * hits, misses, and per-group breakdowns when available. This is
+	 * used by the Server-Timing instrumentation to report cache
+	 * efficiency metrics.
+	 *
+	 * External object cache backends that do not implement a
+	 * get_stats() method will receive an empty statistics array.
+	 *
+	 * @ignore
+	 * @since 7.0.0
+	 *
+	 * @see WP_Object_Cache::get_stats()
+	 *
+	 * @return array {
+	 *     Cache statistics array.
+	 *
+	 *     @type int   $hits        Total cache hits.
+	 *     @type int   $misses      Total cache misses.
+	 *     @type array $group_hits   Per-group hit counts.
+	 *     @type array $group_misses Per-group miss counts.
+	 * }
+	 */
+	function wp_cache_get_stats() {
+		global $wp_object_cache;
+
+		if ( is_object( $wp_object_cache ) && method_exists( $wp_object_cache, 'get_stats' ) ) {
+			return $wp_object_cache->get_stats();
+		}
+
+		return array(
+			'hits'         => 0,
+			'misses'       => 0,
+			'group_hits'   => array(),
+			'group_misses' => array(),
+		);
+	}
+endif;

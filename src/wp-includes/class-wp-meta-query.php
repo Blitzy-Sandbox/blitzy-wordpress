@@ -404,7 +404,7 @@ class WP_Meta_Query {
 		 */
 		static $sql_cache = array();
 
-		$cache_key = $this->get_sql_cache_key( $type, $primary_table, $primary_id_column );
+		$cache_key = $this->get_sql_cache_key( $type, $primary_table, $primary_id_column, $context );
 
 		if ( isset( $sql_cache[ $cache_key ] ) ) {
 			$cached              = $sql_cache[ $cache_key ];
@@ -482,13 +482,41 @@ class WP_Meta_Query {
 	 *
 	 * @since 7.0.0
 	 *
-	 * @param string $type              Meta type.
-	 * @param string $primary_table     Primary table name.
-	 * @param string $primary_id_column Primary ID column.
+	 * @param string      $type              Meta type.
+	 * @param string      $primary_table     Primary table name.
+	 * @param string      $primary_id_column Primary ID column.
+	 * @param object|null $context           Optional. The main query object. Used to
+	 *                                       fingerprint orderby-related vars that affect
+	 *                                       EXISTS vs JOIN SQL generation. Default null.
 	 * @return string Cache key.
 	 */
-	private function get_sql_cache_key( $type, $primary_table, $primary_id_column ) {
-		return md5( serialize( $this->queries ) . '|' . $type . '|' . $primary_table . '|' . $primary_id_column );
+	private function get_sql_cache_key( $type, $primary_table, $primary_id_column, $context = null ) {
+		/*
+		 * The context determines whether the EXISTS subquery optimisation is
+		 * used (via should_use_exists_subquery()). Different contexts — e.g.
+		 * one query ordering by meta_value and another ordering by date —
+		 * produce structurally different SQL (JOIN vs EXISTS). Including
+		 * a context fingerprint in the key prevents a cached EXISTS result
+		 * from being returned for a caller that needs a JOIN-based SQL.
+		 *
+		 * Only the orderby-related portion of the context is relevant; the
+		 * full context object is not serialised to keep the key lightweight.
+		 *
+		 * @since 7.0.0
+		 */
+		$context_fingerprint = '';
+		if ( null !== $context ) {
+			if ( isset( $context->query_vars['orderby'] ) ) {
+				$context_fingerprint .= '|ob:' . ( is_array( $context->query_vars['orderby'] )
+					? serialize( $context->query_vars['orderby'] )
+					: (string) $context->query_vars['orderby'] );
+			}
+			if ( isset( $context->query_vars['meta_key'] ) ) {
+				$context_fingerprint .= '|mk:' . (string) $context->query_vars['meta_key'];
+			}
+		}
+
+		return md5( serialize( $this->queries ) . '|' . $type . '|' . $primary_table . '|' . $primary_id_column . $context_fingerprint );
 	}
 
 	/**

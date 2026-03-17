@@ -2430,6 +2430,55 @@ class wpdb {
 		// Keep track of the last query for debug.
 		$this->last_query = $query;
 
+		/*
+		 * Query result caching: for SELECT statements, check whether an
+		 * identical query has already been executed during this request.
+		 * Returning the cached result set avoids a database roundtrip.
+		 *
+		 * Only pure SELECT queries are cached. DDL and DML statements
+		 * invalidate the cache (handled below). Non-standard statements
+		 * (SET, LOCK, CALL, etc.) also trigger invalidation.
+		 *
+		 * Queries containing SQL_CALC_FOUND_ROWS or FOUND_ROWS() are
+		 * excluded. FOUND_ROWS() is a MySQL session-level function whose
+		 * return value depends on the preceding SQL_CALC_FOUND_ROWS
+		 * query actually being executed. Caching either the calc query
+		 * or the FOUND_ROWS() call would produce stale counts.
+		 *
+		 * @since 7.0.0
+		 */
+		$is_cacheable_select = ( $this->query_cache_max_size > 0
+			&& preg_match( '/^\s*SELECT\s/i', $query )
+			&& false === stripos( $query, 'SQL_CALC_FOUND_ROWS' )
+			&& false === stripos( $query, 'FOUND_ROWS()' ) );
+
+		if ( $is_cacheable_select ) {
+			$qc_key = md5( $query );
+
+			if ( isset( $this->query_cache[ $qc_key ] ) ) {
+				$cached            = $this->query_cache[ $qc_key ];
+				$this->last_result = $cached['last_result'];
+				$this->num_rows    = $cached['num_rows'];
+
+				++$this->query_cache_hits;
+				++$this->num_queries;
+
+				if ( defined( 'SAVEQUERIES' ) && SAVEQUERIES ) {
+					$this->log_query(
+						$query,
+						0.0,
+						$this->get_caller(),
+						microtime( true ),
+						array( 'query_cache' => 'hit' )
+					);
+				}
+
+				return $this->num_rows;
+			}
+
+			++$this->query_cache_misses;
+		}
+
 		$this->_do_query( $query );
 
 		// Database server has gone away, try to reconnect.
@@ -2512,6 +2561,28 @@ class wpdb {
 			// Log and return the number of rows selected.
 			$this->num_rows = $num_rows;
 			$return_val     = $num_rows;
+
+			/*
+			 * Store the SELECT result in the query cache for reuse by
+			 * identical queries later in the same request. Uses FIFO
+			 * eviction when the cache reaches its maximum size to cap
+			 * memory consumption on long-running processes.
+			 *
+			 * @since 7.0.0
+			 */
+			if ( $is_cacheable_select ) {
+				if ( $this->query_cache_size >= $this->query_cache_max_size ) {
+					reset( $this->query_cache );
+					unset( $this->query_cache[ key( $this->query_cache ) ] );
+				} else {
+					++$this->query_cache_size;
+				}
+
+				$this->query_cache[ $qc_key ] = array(
+					'last_result' => $this->last_result,
+					'num_rows'    => $num_rows,
+				);
+			}
 		}
 
 		return $return_val;
@@ -3221,11 +3292,25 @@ class wpdb {
 
 		// Extract var out of cached results based on x,y vals.
 		if ( ! empty( $this->last_result[ $y ] ) ) {
+			/*
+			 * Fast path for the overwhelmingly common case: first column
+			 * of the requested row (x = 0). Avoids the overhead of
+			 * get_object_vars() + array_values() by using a foreach that
+			 * returns the first property value immediately.
+			 *
+			 * @since 7.0.0
+			 */
+			if ( 0 === $x ) {
+				foreach ( $this->last_result[ $y ] as $value ) {
+					return ( '' !== $value ) ? $value : null;
+				}
+			}
+
 			$values = array_values( get_object_vars( $this->last_result[ $y ] ) );
+			return ( isset( $values[ $x ] ) && '' !== $values[ $x ] ) ? $values[ $x ] : null;
 		}
 
-		// If there is a value return it, else return null.
-		return ( isset( $values[ $x ] ) && '' !== $values[ $x ] ) ? $values[ $x ] : null;
+		return null;
 	}
 
 	/**
@@ -3259,18 +3344,36 @@ class wpdb {
 			return null;
 		}
 
-		if ( OBJECT === $output ) {
-			return $this->last_result[ $y ] ? $this->last_result[ $y ] : null;
-		} elseif ( ARRAY_A === $output ) {
-			return $this->last_result[ $y ] ? get_object_vars( $this->last_result[ $y ] ) : null;
-		} elseif ( ARRAY_N === $output ) {
-			return $this->last_result[ $y ] ? array_values( get_object_vars( $this->last_result[ $y ] ) ) : null;
-		} elseif ( OBJECT === strtoupper( $output ) ) {
-			// Back compat for OBJECT being previously case-insensitive.
-			return $this->last_result[ $y ] ? $this->last_result[ $y ] : null;
-		} else {
-			$this->print_error( ' $db->get_row(string query, output type, int offset) -- Output type must be one of: OBJECT, ARRAY_A, ARRAY_N' );
+		$row = $this->last_result[ $y ];
+		if ( ! $row ) {
+			return null;
 		}
+
+		/*
+		 * Optimised output conversion: the OBJECT case (overwhelmingly
+		 * the most common) returns directly without any conversion.
+		 * ARRAY_A and ARRAY_N share a single get_object_vars() call.
+		 *
+		 * @since 7.0.0
+		 */
+		if ( OBJECT === $output ) {
+			return $row;
+		}
+
+		if ( ARRAY_A === $output ) {
+			return get_object_vars( $row );
+		}
+
+		if ( ARRAY_N === $output ) {
+			return array_values( get_object_vars( $row ) );
+		}
+
+		if ( OBJECT === strtoupper( $output ) ) {
+			// Back compat for OBJECT being previously case-insensitive.
+			return $row;
+		}
+
+		$this->print_error( ' $db->get_row(string query, output type, int offset) -- Output type must be one of: OBJECT, ARRAY_A, ARRAY_N' );
 	}
 
 	/**
@@ -3298,8 +3401,32 @@ class wpdb {
 		$new_array = array();
 		// Extract the column values.
 		if ( $this->last_result ) {
-			for ( $i = 0, $j = count( $this->last_result ); $i < $j; $i++ ) {
-				$new_array[ $i ] = $this->get_var( null, $x, $i );
+			/*
+			 * Optimised column extraction: for the overwhelmingly common
+			 * case of x=0, extract the first property value from each row
+			 * object directly, avoiding the overhead of calling get_var()
+			 * (which itself calls get_object_vars + array_values) per row.
+			 *
+			 * For x>0, use a single array_values() lookup per row instead
+			 * of the nested get_var() call chain.
+			 *
+			 * Both paths preserve the get_var() contract: empty-string
+			 * values and missing column indices resolve to null.
+			 *
+			 * @since 7.0.0
+			 */
+			if ( 0 === $x ) {
+				foreach ( $this->last_result as $row ) {
+					foreach ( $row as $value ) {
+						$new_array[] = ( '' !== $value ) ? $value : null;
+						break;
+					}
+				}
+			} else {
+				foreach ( $this->last_result as $row ) {
+					$values = array_values( get_object_vars( $row ) );
+					$new_array[] = ( isset( $values[ $x ] ) && '' !== $values[ $x ] ) ? $values[ $x ] : null;
+				}
 			}
 		}
 		return $new_array;
@@ -3336,45 +3463,69 @@ class wpdb {
 			return null;
 		}
 
-		$new_array = array();
+		/*
+		 * Optimised result conversion.
+		 *
+		 * – OBJECT (the default and most frequent caller) returns the
+		 *   internal last_result array directly — zero conversion cost.
+		 * – OBJECT_K extracts the first column value via a foreach-break
+		 *   instead of get_object_vars() + array_shift() per row.
+		 * – ARRAY_A and ARRAY_N iterate last_result directly instead of
+		 *   casting through (array) which would copy the array.
+		 *
+		 * @since 7.0.0
+		 */
 		if ( OBJECT === $output ) {
 			// Return an integer-keyed array of row objects.
 			return $this->last_result;
-		} elseif ( OBJECT_K === $output ) {
+		}
+
+		$new_array = array();
+
+		if ( OBJECT_K === $output ) {
 			/*
 			 * Return an array of row objects with keys from column 1.
 			 * (Duplicates are discarded.)
 			 */
 			if ( $this->last_result ) {
 				foreach ( $this->last_result as $row ) {
-					$var_by_ref = get_object_vars( $row );
-					$key        = array_shift( $var_by_ref );
-					if ( ! isset( $new_array[ $key ] ) ) {
-						$new_array[ $key ] = $row;
+					// Extract first property value without get_object_vars() overhead.
+					foreach ( $row as $key_value ) {
+						if ( ! isset( $new_array[ $key_value ] ) ) {
+							$new_array[ $key_value ] = $row;
+						}
+						break;
 					}
 				}
 			}
 			return $new_array;
-		} elseif ( ARRAY_A === $output || ARRAY_N === $output ) {
-			// Return an integer-keyed array of...
+		}
+
+		if ( ARRAY_A === $output ) {
 			if ( $this->last_result ) {
-				if ( ARRAY_N === $output ) {
-					foreach ( (array) $this->last_result as $row ) {
-						// ...integer-keyed row arrays.
-						$new_array[] = array_values( get_object_vars( $row ) );
-					}
-				} else {
-					foreach ( (array) $this->last_result as $row ) {
-						// ...column name-keyed row arrays.
-						$new_array[] = get_object_vars( $row );
-					}
+				foreach ( $this->last_result as $row ) {
+					// ...column name-keyed row arrays.
+					$new_array[] = get_object_vars( $row );
 				}
 			}
 			return $new_array;
-		} elseif ( strtoupper( $output ) === OBJECT ) {
+		}
+
+		if ( ARRAY_N === $output ) {
+			if ( $this->last_result ) {
+				foreach ( $this->last_result as $row ) {
+					// ...integer-keyed row arrays.
+					$new_array[] = array_values( get_object_vars( $row ) );
+				}
+			}
+			return $new_array;
+		}
+
+		if ( OBJECT === strtoupper( $output ) ) {
 			// Back compat for OBJECT being previously case-insensitive.
 			return $this->last_result;
 		}
+
 		return null;
 	}
 

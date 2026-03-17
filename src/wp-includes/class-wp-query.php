@@ -2294,10 +2294,21 @@ class WP_Query {
 		if ( ! $this->is_singular ) {
 			$this->parse_tax_query( $query_vars );
 
-			$clauses = $this->tax_query->get_sql( $wpdb->posts, 'ID' );
+			/*
+			 * Simple query fast path: skip the taxonomy SQL generation when
+			 * there are no taxonomy query clauses. This avoids the overhead
+			 * of WP_Tax_Query::get_sql() constructing empty JOIN/WHERE
+			 * strings for the very common case of queries with no taxonomy
+			 * conditions (e.g., simple "get recent posts" queries).
+			 *
+			 * @since 7.0.0
+			 */
+			if ( ! empty( $this->tax_query->queries ) ) {
+				$clauses = $this->tax_query->get_sql( $wpdb->posts, 'ID' );
 
-			$join  .= $clauses['join'];
-			$where .= $clauses['where'];
+				$join  .= $clauses['join'];
+				$where .= $clauses['where'];
+			}
 		}
 
 		if ( $this->is_tax ) {
@@ -3175,18 +3186,35 @@ class WP_Query {
 		}
 
 		/*
-		 * Beginning of the string is on a new line to prevent leading whitespace.
+		 * Optimised SQL assembly: build the SELECT preamble using an array
+		 * of non-empty tokens joined by a single space, then assemble the
+		 * remaining clauses with the canonical formatting that downstream
+		 * cache-key generators expect.
 		 *
-		 * The additional indentation of subsequent lines is to ensure the SQL
-		 * queries are identical to those generated when splitting queries. This
-		 * improves caching of the query by ensuring the same cache key is
-		 * generated for the same database queries functionally.
+		 * This replaces the previous double-quoted string interpolation
+		 * which unconditionally embedded potentially-empty variables
+		 * ($found_rows, $distinct, $join, $groupby, $orderby, $limits)
+		 * producing extra whitespace that downstream code would have to
+		 * normalise.
 		 *
-		 * See https://core.trac.wordpress.org/ticket/56841.
-		 * See https://github.com/WordPress/wordpress-develop/pull/6393#issuecomment-2088217429
+		 * The indentation of FROM / WHERE / GROUP BY / ORDER BY / LIMIT
+		 * lines is deliberately preserved for query-string cache-key
+		 * compatibility — see https://core.trac.wordpress.org/ticket/56841.
+		 *
+		 * @since 7.0.0
 		 */
+		$select_parts = array( 'SELECT' );
+		if ( '' !== $found_rows ) {
+			$select_parts[] = $found_rows;
+		}
+		if ( '' !== $distinct ) {
+			$select_parts[] = $distinct;
+		}
+		$select_parts[] = $fields;
+		$select_preamble = implode( ' ', $select_parts );
+
 		$old_request =
-			"SELECT $found_rows $distinct $fields
+			"$select_preamble
 					 FROM {$wpdb->posts} $join
 					 WHERE 1=1 $where
 					 $groupby
@@ -3406,9 +3434,26 @@ class WP_Query {
 			if ( $split_the_query ) {
 				// First get the IDs and then fill in the objects.
 
+				/*
+				 * Optimised preamble for the ID-only split query.
+				 * Reuses the array-based token assembly pattern from
+				 * the main query to avoid interpolating empty variables.
+				 *
+				 * @since 7.0.0
+				 */
+				$id_select_parts = array( 'SELECT' );
+				if ( '' !== $found_rows ) {
+					$id_select_parts[] = $found_rows;
+				}
+				if ( '' !== $distinct ) {
+					$id_select_parts[] = $distinct;
+				}
+				$id_select_parts[] = "{$wpdb->posts}.ID";
+				$id_select_preamble = implode( ' ', $id_select_parts );
+
 				// Beginning of the string is on a new line to prevent leading whitespace. See https://core.trac.wordpress.org/ticket/56841.
 				$this->request =
-					"SELECT $found_rows $distinct {$wpdb->posts}.ID
+					"$id_select_preamble
 					 FROM {$wpdb->posts} $join
 					 WHERE 1=1 $where
 					 $groupby
