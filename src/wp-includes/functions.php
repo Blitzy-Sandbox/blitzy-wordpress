@@ -4961,10 +4961,16 @@ function smilies_init() {
  * @return array Merged user defined values with defaults.
  */
 function wp_parse_args( $args, $defaults = array() ) {
+	// Fast path: array input is the most common case.
+	if ( is_array( $args ) ) {
+		if ( is_array( $defaults ) && $defaults ) {
+			return array_merge( $defaults, $args );
+		}
+		return $args;
+	}
+
 	if ( is_object( $args ) ) {
 		$parsed_args = get_object_vars( $args );
-	} elseif ( is_array( $args ) ) {
-		$parsed_args =& $args;
 	} else {
 		wp_parse_str( $args, $parsed_args );
 	}
@@ -5294,10 +5300,13 @@ function wp_is_numeric_array( $data ) {
 		return false;
 	}
 
-	$keys        = array_keys( $data );
-	$string_keys = array_filter( $keys, 'is_string' );
-
-	return count( $string_keys ) === 0;
+	// Early-exit loop avoids allocating intermediate arrays via array_keys() and array_filter().
+	foreach ( $data as $key => $unused ) {
+		if ( is_string( $key ) ) {
+			return false;
+		}
+	}
+	return true;
 }
 
 /**
@@ -5395,6 +5404,32 @@ function wp_list_filter( $input_list, $args = array(), $operator = 'AND' ) {
 function wp_list_pluck( $input_list, $field, $index_key = null ) {
 	if ( ! is_array( $input_list ) ) {
 		return array();
+	}
+
+	if ( ! $input_list ) {
+		return array();
+	}
+
+	/*
+	 * Fast path for arrays of arrays: avoids WP_List_Util object allocation
+	 * and the two internal array copies it creates. Uses native array_column()
+	 * when an index key is specified, which is implemented in C and significantly
+	 * faster than PHP-level iteration for large lists.
+	 */
+	$first = reset( $input_list );
+	if ( is_array( $first ) ) {
+		if ( null !== $index_key ) {
+			return array_column( $input_list, $field, $index_key );
+		}
+
+		// Preserve original array keys when $index_key is null.
+		$newlist = array();
+		foreach ( $input_list as $key => $value ) {
+			if ( is_array( $value ) ) {
+				$newlist[ $key ] = $value[ $field ];
+			}
+		}
+		return $newlist;
 	}
 
 	$util = new WP_List_Util( $input_list );
