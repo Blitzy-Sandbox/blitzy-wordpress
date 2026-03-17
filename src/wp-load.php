@@ -16,9 +16,52 @@
  * @package WordPress
  */
 
+/*
+ * Record the bootstrap start time for performance observability.
+ *
+ * This timestamp is consumed by the Server-Timing instrumentation to calculate
+ * the wp-bootstrap duration metric, providing visibility into the time spent
+ * from initial entry through wp-settings.php completion.
+ *
+ * @since 7.0.0
+ */
+$GLOBALS['_wp_load_start'] = microtime( true );
+
 /** Define ABSPATH as this file's directory */
 if ( ! defined( 'ABSPATH' ) ) {
 	define( 'ABSPATH', __DIR__ . '/' );
+}
+
+/*
+ * OPcache preload hints for critical bootstrap files.
+ *
+ * When OPcache is available and enabled, proactively compile the critical files
+ * that wp-settings.php will require shortly after this point. This reduces
+ * cold-start latency by ensuring these files are already in the opcode cache
+ * before they are included. Files already cached are skipped to avoid redundant
+ * compilation. The @ operator suppresses errors on restricted environments where
+ * opcache_compile_file() may be disabled via disable_functions.
+ *
+ * @since 7.0.0
+ */
+if ( function_exists( 'opcache_compile_file' ) && ini_get( 'opcache.enable' ) ) {
+	$_wp_opcache_preload_files = array(
+		ABSPATH . 'wp-settings.php',
+		ABSPATH . 'wp-includes/load.php',
+		ABSPATH . 'wp-includes/plugin.php',
+		ABSPATH . 'wp-includes/class-wp-hook.php',
+		ABSPATH . 'wp-includes/formatting.php',
+		ABSPATH . 'wp-includes/functions.php',
+	);
+
+	foreach ( $_wp_opcache_preload_files as $_wp_opcache_file ) {
+		if ( function_exists( 'opcache_is_script_cached' ) && opcache_is_script_cached( $_wp_opcache_file ) ) {
+			continue;
+		}
+		@opcache_compile_file( $_wp_opcache_file );
+	}
+
+	unset( $_wp_opcache_preload_files, $_wp_opcache_file );
 }
 
 /*
@@ -43,16 +86,23 @@ if ( function_exists( 'error_reporting' ) ) {
  * and /blog/ is WordPress(b).
  *
  * If neither set of conditions is true, initiate loading the setup process.
+ *
+ * The parent directory path is cached in a local variable to avoid three redundant
+ * dirname() calls in the fallback branch. On the common path (config in ABSPATH),
+ * the variable is computed but the cost is a single function call versus the savings
+ * of eliminating repeated calls when the parent-directory fallback is evaluated.
  */
+$_wp_abspath_parent = dirname( ABSPATH );
+
 if ( file_exists( ABSPATH . 'wp-config.php' ) ) {
 
 	/** The config file resides in ABSPATH */
 	require_once ABSPATH . 'wp-config.php';
 
-} elseif ( @file_exists( dirname( ABSPATH ) . '/wp-config.php' ) && ! @file_exists( dirname( ABSPATH ) . '/wp-settings.php' ) ) {
+} elseif ( @file_exists( $_wp_abspath_parent . '/wp-config.php' ) && ! @file_exists( $_wp_abspath_parent . '/wp-settings.php' ) ) {
 
 	/** The config file resides one level above ABSPATH but is not part of another installation */
-	require_once dirname( ABSPATH ) . '/wp-config.php';
+	require_once $_wp_abspath_parent . '/wp-config.php';
 
 } else {
 
