@@ -334,13 +334,35 @@ final class WP_Hook implements Iterator, ArrayAccess {
 					$args[0] = $value;
 				}
 
-				// Avoid the array_slice() if possible.
+				/*
+				 * Avoid the array_slice() if possible, and use direct invocation
+				 * instead of call_user_func/call_user_func_array for the most
+				 * common argument counts. Direct invocation bypasses the C-level
+				 * function dispatch overhead of call_user_func_array(). With
+				 * 2,000+ hook dispatch points per typical WordPress request,
+				 * microsecond savings per dispatch compound significantly across
+				 * the request lifecycle. Covers closures, named functions, and
+				 * array callables ([$object, 'method']) on PHP 7.4+.
+				 *
+				 * @since 7.0.0
+				 */
+				$callback = $the_['function'];
+
 				if ( 0 === $the_['accepted_args'] ) {
-					$value = call_user_func( $the_['function'] );
+					$value = $callback();
 				} elseif ( $the_['accepted_args'] >= $num_args ) {
-					$value = call_user_func_array( $the_['function'], $args );
+					// Direct invocation for the most common argument counts.
+					if ( 1 === $num_args ) {
+						$value = $callback( $args[0] );
+					} elseif ( 2 === $num_args ) {
+						$value = $callback( $args[0], $args[1] );
+					} elseif ( 3 === $num_args ) {
+						$value = $callback( $args[0], $args[1], $args[2] );
+					} else {
+						$value = call_user_func_array( $callback, $args );
+					}
 				} else {
-					$value = call_user_func_array( $the_['function'], array_slice( $args, 0, $the_['accepted_args'] ) );
+					$value = call_user_func_array( $callback, array_slice( $args, 0, $the_['accepted_args'] ) );
 				}
 			}
 		} while ( false !== next( $this->iterations[ $nesting_level ] ) );
@@ -380,12 +402,28 @@ final class WP_Hook implements Iterator, ArrayAccess {
 	public function do_all_hook( &$args ) {
 		$nesting_level                      = $this->nesting_level++;
 		$this->iterations[ $nesting_level ] = $this->priorities;
+		$num_args                           = count( $args );
 
 		do {
 			$priority = current( $this->iterations[ $nesting_level ] );
 
 			foreach ( $this->callbacks[ $priority ] as $the_ ) {
-				call_user_func_array( $the_['function'], $args );
+				/*
+				 * Direct invocation for common argument counts used by the
+				 * 'all' debug hook, avoiding call_user_func_array() overhead.
+				 *
+				 * @since 7.0.0
+				 */
+				$callback = $the_['function'];
+				if ( 1 === $num_args ) {
+					$callback( $args[0] );
+				} elseif ( 2 === $num_args ) {
+					$callback( $args[0], $args[1] );
+				} elseif ( 3 === $num_args ) {
+					$callback( $args[0], $args[1], $args[2] );
+				} else {
+					call_user_func_array( $callback, $args );
+				}
 			}
 		} while ( false !== next( $this->iterations[ $nesting_level ] ) );
 
