@@ -49,6 +49,30 @@ class WP_Object_Cache {
 	public $cache_misses = 0;
 
 	/**
+	 * Per-group cache hit counters for observability.
+	 *
+	 * Tracks the number of cache hits per cache group, enabling
+	 * fine-grained performance monitoring via Server-Timing headers
+	 * and diagnostic tooling.
+	 *
+	 * @since 7.0.0
+	 * @var array<string, int>
+	 */
+	public $group_hits = array();
+
+	/**
+	 * Per-group cache miss counters for observability.
+	 *
+	 * Tracks the number of cache misses per cache group, enabling
+	 * identification of poorly-cached hot paths and cache strategy
+	 * tuning.
+	 *
+	 * @since 7.0.0
+	 * @var array<string, int>
+	 */
+	public $group_misses = array();
+
+	/**
 	 * List of global cache groups.
 	 *
 	 * @since 3.0.0
@@ -322,7 +346,11 @@ class WP_Object_Cache {
 	/**
 	 * Sets multiple values to the cache in one call.
 	 *
+	 * Optimized to normalize group and blog prefix once, then
+	 * perform direct array assignments for each key-value pair.
+	 *
 	 * @since 6.0.0
+	 * @since 7.0.0 Optimized with inlined cache storage for reduced overhead.
 	 *
 	 * @param array  $data   Array of key and value to be set.
 	 * @param string $group  Optional. Where the cache contents are grouped. Default empty.
@@ -331,10 +359,27 @@ class WP_Object_Cache {
 	 * @return bool[] Array of return values, grouped by key. Each value is always true.
 	 */
 	public function set_multiple( array $data, $group = '', $expire = 0 ) {
-		$values = array();
+		if ( empty( $group ) ) {
+			$group = 'default';
+		}
+
+		$values     = array();
+		$use_prefix = $this->multisite && ! isset( $this->global_groups[ $group ] );
 
 		foreach ( $data as $key => $value ) {
-			$values[ $key ] = $this->set( $key, $value, $group, $expire );
+			if ( ! $this->is_valid_key( $key ) ) {
+				$values[ $key ] = false;
+				continue;
+			}
+
+			$id = $use_prefix ? $this->blog_prefix . $key : $key;
+
+			if ( is_object( $value ) ) {
+				$value = clone $value;
+			}
+
+			$this->cache[ $group ][ $id ] = $value;
+			$values[ $key ]               = true;
 		}
 
 		return $values;
@@ -375,6 +420,7 @@ class WP_Object_Cache {
 		if ( $this->_exists( $key, $group ) ) {
 			$found             = true;
 			$this->cache_hits += 1;
+			$this->group_hits[ $group ] = ( $this->group_hits[ $group ] ?? 0 ) + 1;
 			if ( is_object( $this->cache[ $group ][ $key ] ) ) {
 				return clone $this->cache[ $group ][ $key ];
 			} else {
@@ -384,13 +430,19 @@ class WP_Object_Cache {
 
 		$found               = false;
 		$this->cache_misses += 1;
+		$this->group_misses[ $group ] = ( $this->group_misses[ $group ] ?? 0 ) + 1;
 		return false;
 	}
 
 	/**
 	 * Retrieves multiple values from the cache in one call.
 	 *
+	 * Optimized to avoid per-key method call overhead by normalizing
+	 * the group and blog prefix once, then performing direct array
+	 * lookups for each key.
+	 *
 	 * @since 5.5.0
+	 * @since 7.0.0 Optimized with inlined cache lookups for reduced overhead.
 	 *
 	 * @param array  $keys  Array of keys under which the cache contents are stored.
 	 * @param string $group Optional. Where the cache contents are grouped. Default 'default'.
@@ -400,10 +452,33 @@ class WP_Object_Cache {
 	 *               the cache contents on success, or false on failure.
 	 */
 	public function get_multiple( $keys, $group = 'default', $force = false ) {
-		$values = array();
+		if ( empty( $group ) ) {
+			$group = 'default';
+		}
+
+		$values     = array();
+		$use_prefix = $this->multisite && ! isset( $this->global_groups[ $group ] );
+		$group_data = isset( $this->cache[ $group ] ) ? $this->cache[ $group ] : null;
 
 		foreach ( $keys as $key ) {
-			$values[ $key ] = $this->get( $key, $group, $force );
+			if ( ! $this->is_valid_key( $key ) ) {
+				$values[ $key ] = false;
+				continue;
+			}
+
+			$id = $use_prefix ? $this->blog_prefix . $key : $key;
+
+			if ( null !== $group_data && ( isset( $group_data[ $id ] ) || array_key_exists( $id, $group_data ) ) ) {
+				$this->cache_hits += 1;
+				$this->group_hits[ $group ] = ( $this->group_hits[ $group ] ?? 0 ) + 1;
+				$values[ $key ] = is_object( $group_data[ $id ] )
+					? clone $group_data[ $id ]
+					: $group_data[ $id ];
+			} else {
+				$this->cache_misses += 1;
+				$this->group_misses[ $group ] = ( $this->group_misses[ $group ] ?? 0 ) + 1;
+				$values[ $key ] = false;
+			}
 		}
 
 		return $values;
@@ -460,6 +535,47 @@ class WP_Object_Cache {
 		}
 
 		return $values;
+	}
+
+	/**
+	 * Deletes all cache keys in a group that match a given prefix.
+	 *
+	 * Provides granular key-level invalidation as an alternative to
+	 * flushing an entire cache group. This enables targeted cache
+	 * clearing — for example, invalidating all keys prefixed with
+	 * a specific post ID without affecting unrelated group entries.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @param string $prefix The key prefix to match against.
+	 * @param string $group  Optional. The cache group to search within. Default 'default'.
+	 * @return int The number of keys deleted.
+	 */
+	public function delete_by_prefix( $prefix, $group = 'default' ) {
+		if ( empty( $group ) ) {
+			$group = 'default';
+		}
+
+		if ( ! isset( $this->cache[ $group ] ) ) {
+			return 0;
+		}
+
+		$prefix_str = (string) $prefix;
+		if ( '' === $prefix_str ) {
+			return 0;
+		}
+
+		$count      = 0;
+		$prefix_len = strlen( $prefix_str );
+
+		foreach ( array_keys( $this->cache[ $group ] ) as $key ) {
+			if ( 0 === strncmp( (string) $key, $prefix_str, $prefix_len ) ) {
+				unset( $this->cache[ $group ][ $key ] );
+				++$count;
+			}
+		}
+
+		return $count;
 	}
 
 	/**
@@ -640,5 +756,44 @@ class WP_Object_Cache {
 			echo '<li><strong>Group:</strong> ' . esc_html( $group ) . ' - ( ' . number_format( strlen( serialize( $cache ) ) / KB_IN_BYTES, 2 ) . 'k )</li>';
 		}
 		echo '</ul>';
+	}
+
+	/**
+	 * Returns structured cache statistics for programmatic consumption.
+	 *
+	 * Provides per-group hit/miss counters and group metadata suitable
+	 * for integration with Server-Timing headers, structured logging,
+	 * and performance monitoring dashboards. Unlike stats(), which
+	 * outputs HTML, this method returns a structured array.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @return array {
+	 *     Cache performance statistics.
+	 *
+	 *     @type int               $hits         Total cache hits across all groups.
+	 *     @type int               $misses       Total cache misses across all groups.
+	 *     @type float             $hit_ratio     Cache hit ratio (0.0–1.0), or 0 if no lookups.
+	 *     @type array<string,int> $group_hits   Per-group hit counts keyed by group name.
+	 *     @type array<string,int> $group_misses Per-group miss counts keyed by group name.
+	 *     @type array<string,int> $group_count  Number of cached keys per group.
+	 * }
+	 */
+	public function get_stats() {
+		$total = $this->cache_hits + $this->cache_misses;
+
+		$group_count = array();
+		foreach ( $this->cache as $group => $entries ) {
+			$group_count[ $group ] = count( $entries );
+		}
+
+		return array(
+			'hits'         => $this->cache_hits,
+			'misses'       => $this->cache_misses,
+			'hit_ratio'    => $total > 0 ? (float) $this->cache_hits / $total : 0.0,
+			'group_hits'   => $this->group_hits,
+			'group_misses' => $this->group_misses,
+			'group_count'  => $group_count,
+		);
 	}
 }
