@@ -42,9 +42,12 @@ function wp_initial_constants() {
 	$current_limit     = ini_get( 'memory_limit' );
 	$current_limit_int = wp_convert_hr_to_bytes( $current_limit );
 
+	// Cache the changeability check to avoid a redundant function call below.
+	$memory_limit_changeable = wp_is_ini_value_changeable( 'memory_limit' );
+
 	// Define memory limits.
 	if ( ! defined( 'WP_MEMORY_LIMIT' ) ) {
-		if ( false === wp_is_ini_value_changeable( 'memory_limit' ) ) {
+		if ( false === $memory_limit_changeable ) {
 			define( 'WP_MEMORY_LIMIT', $current_limit );
 		} elseif ( is_multisite() ) {
 			define( 'WP_MEMORY_LIMIT', '64M' );
@@ -54,11 +57,11 @@ function wp_initial_constants() {
 	}
 
 	if ( ! defined( 'WP_MAX_MEMORY_LIMIT' ) ) {
-		if ( false === wp_is_ini_value_changeable( 'memory_limit' ) ) {
+		if ( false === $memory_limit_changeable ) {
 			define( 'WP_MAX_MEMORY_LIMIT', $current_limit );
-		} elseif ( -1 === $current_limit_int || $current_limit_int > 256 * MB_IN_BYTES ) {
+		} elseif ( -1 === $current_limit_int || $current_limit_int > 268435456 ) {
 			define( 'WP_MAX_MEMORY_LIMIT', $current_limit );
-		} elseif ( wp_convert_hr_to_bytes( WP_MEMORY_LIMIT ) > 256 * MB_IN_BYTES ) {
+		} elseif ( wp_convert_hr_to_bytes( WP_MEMORY_LIMIT ) > 268435456 ) {
 			define( 'WP_MAX_MEMORY_LIMIT', WP_MEMORY_LIMIT );
 		} else {
 			define( 'WP_MAX_MEMORY_LIMIT', '256M' );
@@ -297,18 +300,21 @@ function wp_cookie_constants() {
 		define( 'TEST_COOKIE', 'wordpress_test_cookie' );
 	}
 
+	// Cache the URL-stripping regex pattern used by multiple cookie path constants.
+	$cookie_url_pattern = '|https?://[^/]+|i';
+
 	/**
 	 * @since 1.2.0
 	 */
 	if ( ! defined( 'COOKIEPATH' ) ) {
-		define( 'COOKIEPATH', preg_replace( '|https?://[^/]+|i', '', get_option( 'home' ) . '/' ) );
+		define( 'COOKIEPATH', preg_replace( $cookie_url_pattern, '', get_option( 'home' ) . '/' ) );
 	}
 
 	/**
 	 * @since 1.5.0
 	 */
 	if ( ! defined( 'SITECOOKIEPATH' ) ) {
-		define( 'SITECOOKIEPATH', preg_replace( '|https?://[^/]+|i', '', get_option( 'siteurl' ) . '/' ) );
+		define( 'SITECOOKIEPATH', preg_replace( $cookie_url_pattern, '', get_option( 'siteurl' ) . '/' ) );
 	}
 
 	/**
@@ -322,7 +328,7 @@ function wp_cookie_constants() {
 	 * @since 2.6.0
 	 */
 	if ( ! defined( 'PLUGINS_COOKIE_PATH' ) ) {
-		define( 'PLUGINS_COOKIE_PATH', preg_replace( '|https?://[^/]+|i', '', WP_PLUGIN_URL ) );
+		define( 'PLUGINS_COOKIE_PATH', preg_replace( $cookie_url_pattern, '', WP_PLUGIN_URL ) );
 	}
 
 	/**
