@@ -78,12 +78,19 @@ class Tests_Term_Query extends WP_UnitTestCase {
 
 		$this->assertSameSets( array( $term_2 ), $q->terms );
 
-		get_term_meta( $term_1 );
-
-		$args     = $filter->get_args();
-		$first    = reset( $args );
-		$term_ids = end( $first );
-		$this->assertSameSets( $term_ids, array( $term_1, $term_2 ) );
+		/*
+		 * Term meta is now immediately batch-primed after each query execution,
+		 * rather than being lazily loaded on first get_term_meta() access.
+		 * Each query primes meta for its own result set. Verify that both
+		 * terms had their meta caches primed across the two queries.
+		 */
+		$args              = $filter->get_args();
+		$all_primed_ids    = array();
+		foreach ( $args as $call_args ) {
+			$call_term_ids  = end( $call_args );
+			$all_primed_ids = array_merge( $all_primed_ids, (array) $call_term_ids );
+		}
+		$this->assertSameSets( $all_primed_ids, array( $term_1, $term_2 ) );
 	}
 
 	public function test_taxonomy_should_accept_taxonomy_array() {

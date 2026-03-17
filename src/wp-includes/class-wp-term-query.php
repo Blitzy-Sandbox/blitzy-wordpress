@@ -372,6 +372,7 @@ class WP_Term_Query {
 			foreach ( $taxonomies as $_tax ) {
 				if ( is_taxonomy_hierarchical( $_tax ) ) {
 					$has_hierarchical_tax = true;
+					break; // No need to check remaining taxonomies.
 				}
 			}
 		} else {
@@ -454,8 +455,16 @@ class WP_Term_Query {
 		$order = $this->parse_order( $this->query_vars['order'] );
 
 		if ( $taxonomies ) {
-			$this->sql_clauses['where']['taxonomy'] =
-				"tt.taxonomy IN ('" . implode( "', '", array_map( 'esc_sql', $taxonomies ) ) . "')";
+			/*
+			 * Optimize for single-taxonomy queries (most common case):
+			 * use equality operator instead of IN() for better index utilization.
+			 */
+			if ( 1 === count( $taxonomies ) ) {
+				$this->sql_clauses['where']['taxonomy'] = "tt.taxonomy = '" . esc_sql( reset( $taxonomies ) ) . "'";
+			} else {
+				$this->sql_clauses['where']['taxonomy'] =
+					"tt.taxonomy IN ('" . implode( "', '", array_map( 'esc_sql', $taxonomies ) ) . "')";
+			}
 		}
 
 		if ( empty( $args['exclude'] ) ) {
@@ -872,10 +881,10 @@ class WP_Term_Query {
 			}
 		}
 
-		// Prime termmeta cache.
+		// Prime termmeta cache with immediate batch loading to eliminate N+1 queries.
 		if ( $args['update_term_meta_cache'] ) {
 			$term_ids = wp_list_pluck( $term_objects, 'term_id' );
-			wp_lazyload_term_meta( $term_ids );
+			update_meta_cache( 'term', $term_ids );
 		}
 
 		if ( 'all_with_object_id' === $_fields && ! empty( $args['object_ids'] ) ) {

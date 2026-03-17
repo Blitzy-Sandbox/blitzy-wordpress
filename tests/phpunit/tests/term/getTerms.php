@@ -2771,7 +2771,9 @@ class Tests_Term_getTerms extends WP_UnitTestCase {
 			$this->assertSame( 'bar', get_term_meta( $t, 'foo', true ) );
 		}
 
-		$this->assertSame( $num_queries + 1, get_num_queries() );
+		// Term meta is now immediately batch-primed during the query, so no
+		// additional queries are needed when accessing cached meta afterward.
+		$this->assertSame( $num_queries, get_num_queries() );
 	}
 
 	/**
