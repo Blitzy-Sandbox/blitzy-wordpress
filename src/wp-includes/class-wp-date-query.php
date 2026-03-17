@@ -59,6 +59,17 @@ class WP_Date_Query {
 	public $time_keys = array( 'after', 'before', 'year', 'month', 'monthnum', 'week', 'w', 'dayofyear', 'day', 'dayofweek', 'dayofweek_iso', 'hour', 'minute', 'second' );
 
 	/**
+	 * Cached result of get_sql_clauses() for this instance.
+	 *
+	 * Avoids redundant SQL generation when get_sql() is called multiple times
+	 * on the same WP_Date_Query instance.
+	 *
+	 * @since 7.0.0
+	 * @var array|null
+	 */
+	private $sql_clauses_cache = null;
+
+	/**
 	 * Constructor.
 	 *
 	 * Time-related parameters that normally require integer values ('year', 'month', 'week', 'dayofyear', 'day',
@@ -589,12 +600,17 @@ class WP_Date_Query {
 	 * }
 	 */
 	protected function get_sql_clauses() {
+		if ( null !== $this->sql_clauses_cache ) {
+			return $this->sql_clauses_cache;
+		}
+
 		$sql = $this->get_sql_for_query( $this->queries );
 
 		if ( ! empty( $sql['where'] ) ) {
 			$sql['where'] = ' AND ' . $sql['where'];
 		}
 
+		$this->sql_clauses_cache = $sql;
 		return $sql;
 	}
 
@@ -748,6 +764,45 @@ class WP_Date_Query {
 		if ( ! empty( $query['before'] ) ) {
 			$where_parts[] = $wpdb->prepare( "$column $lt %s", $this->build_mysql_datetime( $query['before'], $inclusive ) );
 		}
+
+		/*
+		 * Performance optimization: Convert simple year/month/day equality queries
+		 * to index-friendly range queries.
+		 *
+		 * Column functions like YEAR(), MONTH(), DAYOFMONTH() prevent MySQL from using
+		 * indexes on the date column. When a year is present with '=' comparison, the
+		 * query can be rewritten as a range (e.g., col >= '2024-01-01' AND col < '2025-01-01')
+		 * which allows MySQL to leverage the index on the date column.
+		 *
+		 * @since 7.0.0
+		 */
+		$range_handled_units = array();
+		if ( '=' === $compare
+			&& isset( $query['year'] ) && is_numeric( $query['year'] )
+		) {
+			/**
+			 * Filters whether to use index-friendly range queries for date comparisons.
+			 *
+			 * When enabled, simple year/month/day equality queries are converted from
+			 * column function patterns (e.g., YEAR(post_date) = 2024) to range queries
+			 * (e.g., post_date >= '2024-01-01' AND post_date < '2025-01-01'), which
+			 * allows MySQL to use indexes on the date column.
+			 *
+			 * @since 7.0.0
+			 *
+			 * @param bool   $use_range Whether to use index-friendly range queries. Default true.
+			 * @param array  $query     The date query clause.
+			 * @param string $column    The validated column name.
+			 */
+			if ( apply_filters( 'date_query_use_index_friendly_sql', true, $query, $column ) ) {
+				$range_result = $this->build_index_friendly_range( $query, $column, $wpdb );
+				if ( false !== $range_result ) {
+					$where_parts[]       = $range_result['sql'];
+					$range_handled_units = $range_result['handled'];
+				}
+			}
+		}
+
 		// Specific value queries.
 
 		$date_units = array(
@@ -762,6 +817,21 @@ class WP_Date_Query {
 
 		// Check of the possible date units and add them to the query.
 		foreach ( $date_units as $sql_part => $query_parts ) {
+
+			// Skip date units already handled by the index-friendly range optimization.
+			if ( ! empty( $range_handled_units ) ) {
+				$handled_by_range = false;
+				foreach ( $query_parts as $qp ) {
+					if ( in_array( $qp, $range_handled_units, true ) ) {
+						$handled_by_range = true;
+						break;
+					}
+				}
+				if ( $handled_by_range ) {
+					continue;
+				}
+			}
+
 			foreach ( $query_parts as $query_part ) {
 				if ( isset( $query[ $query_part ] ) ) {
 					$value = $this->build_value( $compare, $query[ $query_part ] );
@@ -883,39 +953,33 @@ class WP_Date_Query {
 		if ( ! is_array( $datetime ) ) {
 
 			/*
-			 * Try to parse some common date formats, so we can detect
-			 * the level of precision and support the 'inclusive' parameter.
+			 * Try to parse common date formats using a single consolidated regex.
+			 * Detects: Y, Y-m, Y-m-d, Y-m-d H:i — matching the level of precision
+			 * to support the 'inclusive' parameter and default_to_max behavior.
+			 *
+			 * Optimized from four separate preg_match() calls to one, reducing
+			 * regex compilation overhead especially for non-matching strings
+			 * that previously traversed all four patterns.
+			 *
+			 * @since 7.0.0 Consolidated regex pattern.
 			 */
-			if ( preg_match( '/^(\d{4})$/', $datetime, $matches ) ) {
-				// Y
+			if ( preg_match( '/^(\d{4})(?:-(\d{2})(?:-(\d{2})(?: (\d{2}):(\d{2}))?)?)?$/', $datetime, $matches ) ) {
 				$datetime = array(
 					'year' => (int) $matches[1],
 				);
 
-			} elseif ( preg_match( '/^(\d{4})\-(\d{2})$/', $datetime, $matches ) ) {
-				// Y-m
-				$datetime = array(
-					'year'  => (int) $matches[1],
-					'month' => (int) $matches[2],
-				);
-
-			} elseif ( preg_match( '/^(\d{4})\-(\d{2})\-(\d{2})$/', $datetime, $matches ) ) {
-				// Y-m-d
-				$datetime = array(
-					'year'  => (int) $matches[1],
-					'month' => (int) $matches[2],
-					'day'   => (int) $matches[3],
-				);
-
-			} elseif ( preg_match( '/^(\d{4})\-(\d{2})\-(\d{2}) (\d{2}):(\d{2})$/', $datetime, $matches ) ) {
-				// Y-m-d H:i
-				$datetime = array(
-					'year'   => (int) $matches[1],
-					'month'  => (int) $matches[2],
-					'day'    => (int) $matches[3],
-					'hour'   => (int) $matches[4],
-					'minute' => (int) $matches[5],
-				);
+				if ( isset( $matches[2] ) ) {
+					$datetime['month'] = (int) $matches[2];
+				}
+				if ( isset( $matches[3] ) ) {
+					$datetime['day'] = (int) $matches[3];
+				}
+				if ( isset( $matches[4] ) ) {
+					$datetime['hour'] = (int) $matches[4];
+				}
+				if ( isset( $matches[5] ) ) {
+					$datetime['minute'] = (int) $matches[5];
+				}
 			}
 
 			// If no match is found, we don't support default_to_max.
@@ -960,6 +1024,111 @@ class WP_Date_Query {
 		}
 
 		return sprintf( '%04d-%02d-%02d %02d:%02d:%02d', $datetime['year'], $datetime['month'], $datetime['day'], $datetime['hour'], $datetime['minute'], $datetime['second'] );
+	}
+
+	/**
+	 * Builds an index-friendly range SQL clause for year/month/day equality queries.
+	 *
+	 * Converts column function patterns like YEAR(col) = 2024 AND MONTH(col) = 1
+	 * to range-based queries like col >= '2024-01-01 00:00:00' AND col < '2024-02-01 00:00:00',
+	 * which allows MySQL to use indexes on the date column instead of performing a full table scan.
+	 *
+	 * Only converts the year, month, and day components that are present. Other date units
+	 * (week, dayofyear, dayofweek, etc.) continue to use column functions and are handled
+	 * separately in the caller. Day is only included in the range when month is also present,
+	 * as a day-only range without a month cannot be meaningfully constructed.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @param array  $query  The date query clause containing year (required), and optionally month/monthnum and day.
+	 * @param string $column The validated and prefixed column name (e.g., 'wp_posts.post_date').
+	 * @param wpdb   $wpdb   The WordPress database abstraction object.
+	 * @return array{sql: string, handled: string[]}|false Array with 'sql' (the range SQL fragment) and
+	 *                                                      'handled' (query keys consumed by the range),
+	 *                                                      or false if the query cannot be converted.
+	 */
+	private function build_index_friendly_range( $query, $column, $wpdb ) {
+		$year = (int) $query['year'];
+		if ( $year < 1 || $year > 9999 ) {
+			return false;
+		}
+
+		// Determine month value (month has priority over monthnum, mirroring the date_units loop).
+		$month_val = null;
+		if ( isset( $query['month'] ) && is_numeric( $query['month'] ) ) {
+			$month_val = (int) $query['month'];
+		} elseif ( isset( $query['monthnum'] ) && is_numeric( $query['monthnum'] ) ) {
+			$month_val = (int) $query['monthnum'];
+		}
+
+		if ( null !== $month_val && ( $month_val < 1 || $month_val > 12 ) ) {
+			return false;
+		}
+
+		// Determine day value — only usable when month is also present.
+		$day_val = null;
+		if ( null !== $month_val && isset( $query['day'] ) && is_numeric( $query['day'] ) ) {
+			$day_val = (int) $query['day'];
+			if ( $day_val < 1 || $day_val > 31 ) {
+				return false;
+			}
+		}
+
+		// Build start and end boundaries based on available precision level.
+		// Track the computed end year to validate against MySQL DATETIME maximum.
+		$end_year = $year;
+
+		if ( null !== $day_val ) {
+			// Year + Month + Day: single day range.
+			$start         = sprintf( '%04d-%02d-%02d 00:00:00', $year, $month_val, $day_val );
+			$days_in_month = (int) gmdate( 't', mktime( 0, 0, 0, $month_val, 1, $year ) );
+
+			if ( $day_val >= $days_in_month ) {
+				// Last day of month: end boundary rolls to first day of next month.
+				$end_month = $month_val + 1;
+				if ( $end_month > 12 ) {
+					$end_month = 1;
+					++$end_year;
+				}
+				$end = sprintf( '%04d-%02d-01 00:00:00', $end_year, $end_month );
+			} else {
+				$end = sprintf( '%04d-%02d-%02d 00:00:00', $year, $month_val, $day_val + 1 );
+			}
+		} elseif ( null !== $month_val ) {
+			// Year + Month: full month range.
+			$start     = sprintf( '%04d-%02d-01 00:00:00', $year, $month_val );
+			$end_month = $month_val + 1;
+			if ( $end_month > 12 ) {
+				$end_month = 1;
+				++$end_year;
+			}
+			$end = sprintf( '%04d-%02d-01 00:00:00', $end_year, $end_month );
+		} else {
+			// Year only: full year range.
+			$start    = sprintf( '%04d-01-01 00:00:00', $year );
+			$end_year = $year + 1;
+			$end      = sprintf( '%04d-01-01 00:00:00', $end_year );
+		}
+
+		// Ensure end date does not exceed MySQL DATETIME maximum (9999-12-31 23:59:59).
+		if ( $end_year > 9999 ) {
+			return false;
+		}
+
+		// Track which query keys were consumed by this range optimization.
+		$handled = array( 'year' );
+		if ( null !== $month_val ) {
+			$handled[] = 'month';
+			$handled[] = 'monthnum';
+			if ( null !== $day_val ) {
+				$handled[] = 'day';
+			}
+		}
+
+		return array(
+			'sql'     => $wpdb->prepare( "$column >= %s AND $column < %s", $start, $end ),
+			'handled' => $handled,
+		);
 	}
 
 	/**
