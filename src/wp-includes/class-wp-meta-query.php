@@ -96,6 +96,18 @@ class WP_Meta_Query {
 	protected $has_or_relation = false;
 
 	/**
+	 * Whether EXISTS subquery optimization is active for the current get_sql() call.
+	 *
+	 * When true, eligible single-clause meta queries use a correlated EXISTS subquery
+	 * instead of a JOIN, which avoids adding a table to the FROM clause and allows
+	 * MySQL to short-circuit via index lookup on (meta_id_column, meta_key).
+	 *
+	 * @since 7.0.0
+	 * @var bool
+	 */
+	private $use_exists_subquery = false;
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 3.2.0
@@ -321,9 +333,23 @@ class WP_Meta_Query {
 			return 'CHAR';
 		}
 
+		/*
+		 * Static cache eliminates repeated regex evaluation for the same type string.
+		 * Common in loops where multiple clauses share identical type declarations
+		 * (e.g., 'NUMERIC' or 'DECIMAL(10,2)').
+		 *
+		 * @since 7.0.0
+		 */
+		static $cast_cache = array();
+
+		if ( isset( $cast_cache[ $type ] ) ) {
+			return $cast_cache[ $type ];
+		}
+
 		$meta_type = strtoupper( $type );
 
 		if ( ! preg_match( '/^(?:BINARY|CHAR|DATE|DATETIME|SIGNED|UNSIGNED|TIME|NUMERIC(?:\(\d+(?:,\s?\d+)?\))?|DECIMAL(?:\(\d+(?:,\s?\d+)?\))?)$/', $meta_type ) ) {
+			$cast_cache[ $type ] = 'CHAR';
 			return 'CHAR';
 		}
 
@@ -331,6 +357,7 @@ class WP_Meta_Query {
 			$meta_type = 'SIGNED';
 		}
 
+		$cast_cache[ $type ] = $meta_type;
 		return $meta_type;
 	}
 
@@ -360,22 +387,73 @@ class WP_Meta_Query {
 			return false;
 		}
 
-		$this->table_aliases = array();
-
 		$this->meta_table     = $meta_table;
 		$this->meta_id_column = sanitize_key( $type . '_id' );
 
 		$this->primary_table     = $primary_table;
 		$this->primary_id_column = $primary_id_column;
 
-		$sql = $this->get_sql_clauses();
-
 		/*
-		 * If any JOINs are LEFT JOINs (as in the case of NOT EXISTS), then all JOINs should
-		 * be LEFT. Otherwise posts with no metadata will be excluded from results.
+		 * Static cache for identical meta query specifications within a request.
+		 *
+		 * REST API collection responses and template loops often execute multiple
+		 * queries sharing the same meta_query structure. Caching the generated SQL
+		 * (pre-filter) and internal state avoids redundant clause construction.
+		 *
+		 * @since 7.0.0
 		 */
-		if ( str_contains( $sql['join'], 'LEFT JOIN' ) ) {
-			$sql['join'] = str_replace( 'INNER JOIN', 'LEFT JOIN', $sql['join'] );
+		static $sql_cache = array();
+
+		$cache_key = $this->get_sql_cache_key( $type, $primary_table, $primary_id_column );
+
+		if ( isset( $sql_cache[ $cache_key ] ) ) {
+			$cached              = $sql_cache[ $cache_key ];
+			$sql                 = $cached['sql'];
+			$this->table_aliases = $cached['table_aliases'];
+			$this->clauses       = $cached['clauses'];
+		} else {
+			$this->table_aliases = array();
+
+			/*
+			 * Determine whether the EXISTS subquery optimization can be safely applied.
+			 *
+			 * The optimization replaces a JOIN + WHERE pattern with a correlated EXISTS
+			 * subquery for simple single-clause meta queries (= or IN on key and value).
+			 * It is disabled when:
+			 *  - The query contains multiple first-order clauses or nested sub-queries.
+			 *  - The context query orders by meta_value / meta_value_num (needs the JOIN alias).
+			 *  - An OR relation is present.
+			 *  - A filter is attached to 'meta_query_find_compatible_table_alias'.
+			 *
+			 * @since 7.0.0
+			 */
+			$this->use_exists_subquery = $this->should_use_exists_subquery( $context );
+
+			$sql = $this->get_sql_clauses();
+
+			/*
+			 * If any JOINs are LEFT JOINs (as in the case of NOT EXISTS), then all JOINs should
+			 * be LEFT. Otherwise posts with no metadata will be excluded from results.
+			 */
+			if ( str_contains( $sql['join'], 'LEFT JOIN' ) ) {
+				$sql['join'] = str_replace( 'INNER JOIN', 'LEFT JOIN', $sql['join'] );
+			}
+
+			// Reset the flag after SQL generation.
+			$this->use_exists_subquery = false;
+
+			/*
+			 * Bound cache to a reasonable size to prevent memory growth on long-running
+			 * processes (e.g., WP-CLI bulk imports). 50 entries covers typical REST
+			 * collection diversity without unbounded accumulation.
+			 */
+			if ( count( $sql_cache ) < 50 ) {
+				$sql_cache[ $cache_key ] = array(
+					'sql'           => $sql,
+					'table_aliases' => $this->table_aliases,
+					'clauses'       => $this->clauses,
+				);
+			}
 		}
 
 		/**
@@ -393,6 +471,168 @@ class WP_Meta_Query {
 		 *                                    example a `WP_Query`, `WP_User_Query`, or `WP_Site_Query`.
 		 */
 		return apply_filters_ref_array( 'get_meta_sql', array( $sql, $this->queries, $type, $primary_table, $primary_id_column, $context ) );
+	}
+
+	/**
+	 * Generates a cache key for get_sql() result caching.
+	 *
+	 * Combines the serialised query specification with the table context to
+	 * produce a deterministic key. Uses md5 for speed — this is a runtime
+	 * lookup key, not a cryptographic hash.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @param string $type              Meta type.
+	 * @param string $primary_table     Primary table name.
+	 * @param string $primary_id_column Primary ID column.
+	 * @return string Cache key.
+	 */
+	private function get_sql_cache_key( $type, $primary_table, $primary_id_column ) {
+		return md5( serialize( $this->queries ) . '|' . $type . '|' . $primary_table . '|' . $primary_id_column );
+	}
+
+	/**
+	 * Determines whether the EXISTS subquery optimization is applicable.
+	 *
+	 * The EXISTS pattern replaces:
+	 *   INNER JOIN meta_table ON (...) WHERE meta_key = 'x' AND meta_value = 'y'
+	 * with:
+	 *   WHERE EXISTS (SELECT 1 FROM meta_table WHERE id_col = outer.id AND meta_key = 'x' AND meta_value = 'y')
+	 *
+	 * This avoids adding a table to the FROM clause, allowing MySQL to
+	 * short-circuit via an index-only lookup on (id_column, meta_key).
+	 *
+	 * Safety conditions checked:
+	 *  1. Exactly one first-order clause (no nesting, no multi-clause).
+	 *  2. The clause uses '=' key comparison with a scalar key.
+	 *  3. The clause uses '=', 'IN', 'EXISTS' (treated as =), or no value (key-only).
+	 *  4. No OR relation.
+	 *  5. The context query does not order by meta_value / meta_value_num.
+	 *  6. No active filter on 'meta_query_find_compatible_table_alias' that may
+	 *     depend on JOIN aliases.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @param object|null $context The main query object, or null.
+	 * @return bool True if the EXISTS optimization should be used.
+	 */
+	private function should_use_exists_subquery( $context ) {
+		// Must have queries to optimize.
+		if ( empty( $this->queries ) ) {
+			return false;
+		}
+
+		/*
+		 * Context is required to verify ordering safety. Without it we cannot
+		 * determine whether the caller will use the meta JOIN alias in ORDER BY
+		 * (e.g., WP_Term_Query calls get_sql() without context but may still
+		 * order by meta_value via parse_orderby_meta()). Conservative: bail out.
+		 */
+		if ( null === $context || ! isset( $context->query_vars ) ) {
+			return false;
+		}
+
+		// Count first-order clauses — must be exactly one.
+		$first_order_count = 0;
+		$first_clause      = null;
+
+		foreach ( $this->queries as $key => $query ) {
+			if ( 'relation' === $key ) {
+				continue;
+			}
+			if ( ! is_array( $query ) ) {
+				continue;
+			}
+			if ( $this->is_first_order_clause( $query ) ) {
+				++$first_order_count;
+				$first_clause = $query;
+			} else {
+				// Nested sub-query present — bail out.
+				return false;
+			}
+		}
+
+		if ( 1 !== $first_order_count || null === $first_clause ) {
+			return false;
+		}
+
+		// Key must be a scalar string with simple '=' comparison.
+		if ( ! isset( $first_clause['key'] ) || is_array( $first_clause['key'] ) ) {
+			return false;
+		}
+
+		if ( isset( $first_clause['compare_key'] ) && '=' !== strtoupper( $first_clause['compare_key'] ) && 'EXISTS' !== strtoupper( $first_clause['compare_key'] ) ) {
+			return false;
+		}
+
+		// Value comparison must be simple: '=', 'IN', 'EXISTS', or absent (key-only check).
+		if ( isset( $first_clause['compare'] ) ) {
+			$compare = strtoupper( $first_clause['compare'] );
+			if ( ! in_array( $compare, array( '=', 'IN', 'EXISTS' ), true ) ) {
+				return false;
+			}
+		}
+
+		// No OR relation.
+		if ( $this->has_or_relation ) {
+			return false;
+		}
+
+		// Check context for meta-based ordering which requires the JOIN alias.
+		if ( null !== $context && isset( $context->query_vars['orderby'] ) ) {
+			$orderby = $context->query_vars['orderby'];
+
+			/*
+			 * Build a blocklist of orderby values that reference the meta table.
+			 * Multiple callers (WP_Query, WP_Comment_Query, WP_User_Query, etc.)
+			 * generate ORDER BY clauses referencing meta_value via different patterns:
+			 *  - 'meta_value' / 'meta_value_num' keywords
+			 *  - The literal meta_key value (WP_Comment_Query matches orderby == meta_key)
+			 *  - Named clause keys (WP_Query matches orderby against clause key names)
+			 */
+			$meta_orderby_blocklist = array( 'meta_value', 'meta_value_num' );
+
+			if ( ! empty( $context->query_vars['meta_key'] ) ) {
+				$meta_orderby_blocklist[] = $context->query_vars['meta_key'];
+			}
+
+			foreach ( $this->queries as $key => $query ) {
+				if ( 'relation' !== $key && is_string( $key ) ) {
+					$meta_orderby_blocklist[] = $key;
+				}
+			}
+
+			/*
+			 * Normalize orderby into a flat list for checking. Orderby can be:
+			 *  - A string: 'meta_value', 'date', 'foo_clause', etc.
+			 *  - An associative array: array( 'foo_clause' => 'ASC', 'date' => 'DESC' )
+			 *  - A numeric array: array( 'meta_value', 'date' ) — values are the orderby.
+			 */
+			$orderby_check_values = array();
+			if ( is_string( $orderby ) ) {
+				$orderby_check_values[] = $orderby;
+			} elseif ( is_array( $orderby ) ) {
+				foreach ( $orderby as $ob_key => $ob_val ) {
+					$orderby_check_values[] = is_int( $ob_key ) ? $ob_val : $ob_key;
+				}
+			}
+
+			foreach ( $orderby_check_values as $ob ) {
+				if ( in_array( $ob, $meta_orderby_blocklist, true ) ) {
+					return false;
+				}
+			}
+		}
+
+		/*
+		 * If a filter is registered on 'meta_query_find_compatible_table_alias', external
+		 * code may rely on JOIN aliases existing. Fall back to the standard JOIN path.
+		 */
+		if ( has_filter( 'meta_query_find_compatible_table_alias' ) ) {
+			return false;
+		}
+
+		return true;
 	}
 
 	/**
@@ -584,6 +824,37 @@ class WP_Meta_Query {
 		$meta_compare     = $clause['compare'];
 		$meta_compare_key = $clause['compare_key'];
 
+		// Determine the data type early — needed by both JOIN and EXISTS paths.
+		$_meta_type     = $clause['type'] ?? '';
+		$meta_type      = $this->get_cast_for_type( $_meta_type );
+		$clause['cast'] = $meta_type;
+
+		/*
+		 * EXISTS subquery fast path for simple single-clause meta queries.
+		 *
+		 * When enabled, replaces the standard JOIN + WHERE pattern:
+		 *   INNER JOIN meta_table ON (...) WHERE meta_key = 'x' AND meta_value = 'y'
+		 * with a correlated subquery:
+		 *   WHERE EXISTS (SELECT 1 FROM meta_table WHERE id_col = outer.id AND meta_key = 'x' AND meta_value = 'y')
+		 *
+		 * Benefits: eliminates a table from the FROM clause, allows MySQL to use an
+		 * index-only probe on (id_column, meta_key) and short-circuit after the first match.
+		 *
+		 * Only applied for simple equality / IN comparisons on CHAR-typed values.
+		 * The should_use_exists_subquery() gate has already verified safety.
+		 *
+		 * @since 7.0.0
+		 */
+		if ( $this->use_exists_subquery
+			&& 'CHAR' === $meta_type
+			&& in_array( $meta_compare, array( '=', 'IN', 'EXISTS' ), true )
+			&& in_array( $meta_compare_key, array( '=', 'EXISTS' ), true )
+			&& array_key_exists( 'key', $clause )
+			&& 'NOT EXISTS' !== $meta_compare
+		) {
+			return $this->get_sql_for_clause_exists( $clause, $parent_query, $clause_key, $meta_compare, $meta_type );
+		}
+
 		// First build the JOIN clause, if one is required.
 		$join = '';
 
@@ -617,11 +888,6 @@ class WP_Meta_Query {
 
 		// Save the alias to this clause, for future siblings to find.
 		$clause['alias'] = $alias;
-
-		// Determine the data type.
-		$_meta_type     = $clause['type'] ?? '';
-		$meta_type      = $this->get_cast_for_type( $_meta_type );
-		$clause['cast'] = $meta_type;
 
 		// Fallback for clause keys is the table alias. Key must be a string.
 		if ( is_int( $clause_key ) || ! $clause_key ) {
@@ -789,6 +1055,101 @@ class WP_Meta_Query {
 		if ( 1 < count( $sql_chunks['where'] ) ) {
 			$sql_chunks['where'] = array( '( ' . implode( ' AND ', $sql_chunks['where'] ) . ' )' );
 		}
+
+		return $sql_chunks;
+	}
+
+	/**
+	 * Generates an EXISTS subquery for a single-clause meta query.
+	 *
+	 * Produces a correlated subquery of the form:
+	 *   EXISTS (SELECT 1 FROM meta_table
+	 *           WHERE meta_table.id_col = primary_table.id_col
+	 *             AND meta_table.meta_key = %s
+	 *             [AND meta_table.meta_value {compare} {value}])
+	 *
+	 * The result is returned in the same sql_chunks format as get_sql_for_clause()
+	 * so the caller processes it identically.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @param array  $clause       Query clause (passed by reference from get_sql_for_clause).
+	 * @param array  $parent_query Parent query array.
+	 * @param string $clause_key   Clause key.
+	 * @param string $meta_compare Value comparison operator.
+	 * @param string $meta_type    Cast type (always CHAR when this method is reached).
+	 * @return array SQL chunks with 'join' (empty) and 'where' arrays.
+	 */
+	private function get_sql_for_clause_exists( &$clause, $parent_query, $clause_key, $meta_compare, $meta_type ) {
+		global $wpdb;
+
+		$sql_chunks = array(
+			'where' => array(),
+			'join'  => array(),
+		);
+
+		/*
+		 * Set alias for clause metadata compatibility.
+		 * The alias is recorded so that get_clauses() returns consistent data,
+		 * but no JOIN is created — the meta table is only referenced inside
+		 * the correlated EXISTS subquery.
+		 */
+		$i     = count( $this->table_aliases );
+		$alias = $i ? 'mt' . $i : $this->meta_table;
+
+		$this->table_aliases[] = $alias;
+		$clause['alias']       = $alias;
+
+		// Clause key handling — same logic as the standard path.
+		if ( is_int( $clause_key ) || ! $clause_key ) {
+			$clause_key = $clause['alias'];
+		}
+
+		$iterator        = 1;
+		$clause_key_base = $clause_key;
+		while ( isset( $this->clauses[ $clause_key ] ) ) {
+			$clause_key = $clause_key_base . '-' . $iterator;
+			++$iterator;
+		}
+
+		$this->clauses[ $clause_key ] =& $clause;
+
+		// Build the EXISTS subquery.
+		$exists_conditions = array();
+
+		// Join condition: correlate inner table to outer primary key.
+		$exists_conditions[] = "$this->meta_table.$this->meta_id_column = $this->primary_table.$this->primary_id_column";
+
+		// meta_key condition.
+		$exists_conditions[] = $wpdb->prepare( "$this->meta_table.meta_key = %s", trim( $clause['key'] ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+		// meta_value condition (optional — key-only queries are valid).
+		if ( array_key_exists( 'value', $clause ) ) {
+			$meta_value    = $clause['value'];
+			$eff_compare   = $meta_compare;
+
+			// EXISTS with a value is interpreted as '='.
+			if ( 'EXISTS' === $eff_compare ) {
+				$eff_compare = '=';
+			}
+
+			if ( 'IN' === $eff_compare ) {
+				if ( ! is_array( $meta_value ) ) {
+					$meta_value = preg_split( '/[,\s]+/', $meta_value );
+				}
+				$placeholders      = '(' . substr( str_repeat( ',%s', count( $meta_value ) ), 1 ) . ')';
+				$exists_conditions[] = $wpdb->prepare( "$this->meta_table.meta_value IN $placeholders", $meta_value ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQL.NotPrepared
+			} else {
+				// '=' comparison.
+				if ( is_string( $meta_value ) ) {
+					$meta_value = trim( $meta_value );
+				}
+				$exists_conditions[] = $wpdb->prepare( "$this->meta_table.meta_value = %s", $meta_value ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			}
+		}
+
+		$conditions_sql = implode( ' AND ', $exists_conditions );
+		$sql_chunks['where'][] = "EXISTS (SELECT 1 FROM $this->meta_table WHERE $conditions_sql)"; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
 		return $sql_chunks;
 	}
