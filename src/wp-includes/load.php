@@ -34,12 +34,17 @@ function wp_get_server_protocol() {
 function wp_fix_server_vars() {
 	global $PHP_SELF;
 
-	$default_server_values = array(
-		'SERVER_SOFTWARE' => '',
-		'REQUEST_URI'     => '',
-	);
-
-	$_SERVER = array_merge( $default_server_values, $_SERVER );
+	/*
+	 * Set defaults individually instead of array_merge() to avoid copying
+	 * the entire $_SERVER superglobal on every request. On modern servers
+	 * (Nginx + PHP-FPM, Apache + mod_php), these keys are already present.
+	 */
+	if ( ! isset( $_SERVER['SERVER_SOFTWARE'] ) ) {
+		$_SERVER['SERVER_SOFTWARE'] = '';
+	}
+	if ( ! isset( $_SERVER['REQUEST_URI'] ) ) {
+		$_SERVER['REQUEST_URI'] = '';
+	}
 
 	// Fix for IIS when running with PHP ISAPI.
 	if ( empty( $_SERVER['REQUEST_URI'] )
@@ -155,6 +160,15 @@ function wp_populate_basic_auth_from_authorization_header() {
  * @global string   $wp_version              The WordPress version string.
  */
 function wp_check_php_mysql_versions() {
+	/*
+	 * PHP version and extension requirements do not change within a single
+	 * process. Guard against redundant checks on repeated invocations.
+	 */
+	static $checked = false;
+	if ( $checked ) {
+		return;
+	}
+
 	global $required_php_version, $required_php_extensions, $wp_version;
 
 	$php_version = PHP_VERSION;
@@ -230,6 +244,8 @@ function wp_check_php_mysql_versions() {
 		);
 		exit( 1 );
 	}
+
+	$checked = true;
 }
 
 /**
@@ -1011,6 +1027,17 @@ function wp_get_mu_plugins() {
  * @return string[] Array of paths to plugin files relative to the plugins directory.
  */
 function wp_get_active_and_valid_plugins() {
+	/*
+	 * Cache the validated plugin list within the request. The active_plugins
+	 * option and filesystem state do not change during a single bootstrap,
+	 * so re-validating file_exists() on every call is unnecessary overhead.
+	 */
+	static $cached_plugins = null;
+
+	if ( null !== $cached_plugins ) {
+		return $cached_plugins;
+	}
+
 	$plugins        = array();
 	$active_plugins = (array) get_option( 'active_plugins', array() );
 
@@ -1021,6 +1048,7 @@ function wp_get_active_and_valid_plugins() {
 	}
 
 	if ( empty( $active_plugins ) || wp_installing() ) {
+		$cached_plugins = $plugins;
 		return $plugins;
 	}
 
@@ -1045,6 +1073,7 @@ function wp_get_active_and_valid_plugins() {
 		$plugins = wp_skip_paused_plugins( $plugins );
 	}
 
+	$cached_plugins = $plugins;
 	return $plugins;
 }
 
@@ -1354,10 +1383,26 @@ function is_login() {
  * @return bool True if inside WordPress administration interface, false otherwise.
  */
 function is_admin() {
+	/*
+	 * Performance: cache the WP_ADMIN constant result to avoid repeated
+	 * defined() calls on a value that never changes once set.
+	 * The current_screen check always takes priority when available, and
+	 * false is never cached when WP_ADMIN has not yet been defined,
+	 * because it may be defined later during admin bootstrap.
+	 */
+	static $is_admin = null;
+
 	if ( isset( $GLOBALS['current_screen'] ) ) {
 		return $GLOBALS['current_screen']->in_admin();
-	} elseif ( defined( 'WP_ADMIN' ) ) {
-		return WP_ADMIN;
+	}
+
+	if ( null !== $is_admin ) {
+		return $is_admin;
+	}
+
+	if ( defined( 'WP_ADMIN' ) ) {
+		$is_admin = WP_ADMIN;
+		return $is_admin;
 	}
 
 	return false;
@@ -1446,15 +1491,24 @@ function is_user_admin() {
  * @return bool True if Multisite is enabled, false otherwise.
  */
 function is_multisite() {
-	if ( defined( 'MULTISITE' ) ) {
-		return MULTISITE;
+	/*
+	 * Performance: cache the result to avoid up to four defined() calls
+	 * on every invocation. Multisite constants are set in wp-config.php,
+	 * which is loaded before load.php, so they are immutable by this point.
+	 */
+	static $is_multisite = null;
+
+	if ( null === $is_multisite ) {
+		if ( defined( 'MULTISITE' ) ) {
+			$is_multisite = MULTISITE;
+		} elseif ( defined( 'SUBDOMAIN_INSTALL' ) || defined( 'VHOST' ) || defined( 'SUNRISE' ) ) {
+			$is_multisite = true;
+		} else {
+			$is_multisite = false;
+		}
 	}
 
-	if ( defined( 'SUBDOMAIN_INSTALL' ) || defined( 'VHOST' ) || defined( 'SUNRISE' ) ) {
-		return true;
-	}
-
-	return false;
+	return $is_multisite;
 }
 
 /**
