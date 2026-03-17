@@ -14,7 +14,7 @@ if ( ! isset( $wp_did_header ) ) {
 
 	// Pre-compile template-loader into OPcache before the heavy wp-load bootstrap (PHP 8.1+).
 	if ( function_exists( 'opcache_is_script_cached' ) && ! opcache_is_script_cached( __DIR__ . '/wp-includes/template-loader.php' ) ) {
-		opcache_compile_file( __DIR__ . '/wp-includes/template-loader.php' );
+		@opcache_compile_file( __DIR__ . '/wp-includes/template-loader.php' );
 	}
 
 	// Load the WordPress library.

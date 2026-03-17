@@ -334,62 +334,24 @@ require ABSPATH . WPINC . '/rest-api/endpoints/class-wp-rest-controller.php';
  * @see _wp_load_deferred_platform_subsystems()
  * @since 7.0.0
  */
-require ABSPATH . WPINC . '/class-wp-block-bindings-source.php';
-require ABSPATH . WPINC . '/class-wp-block-bindings-registry.php';
-require ABSPATH . WPINC . '/class-wp-block-editor-context.php';
-require ABSPATH . WPINC . '/class-wp-block-type.php';
-require ABSPATH . WPINC . '/class-wp-block-pattern-categories-registry.php';
-require ABSPATH . WPINC . '/class-wp-block-patterns-registry.php';
-require ABSPATH . WPINC . '/class-wp-block-styles-registry.php';
-require ABSPATH . WPINC . '/class-wp-block-type-registry.php';
-require ABSPATH . WPINC . '/class-wp-block.php';
-require ABSPATH . WPINC . '/class-wp-block-list.php';
-require ABSPATH . WPINC . '/class-wp-block-metadata-registry.php';
-require ABSPATH . WPINC . '/class-wp-block-parser-block.php';
-require ABSPATH . WPINC . '/class-wp-block-parser-frame.php';
-require ABSPATH . WPINC . '/class-wp-block-parser.php';
-require ABSPATH . WPINC . '/class-wp-classic-to-block-menu-converter.php';
-require ABSPATH . WPINC . '/class-wp-navigation-fallback.php';
-require ABSPATH . WPINC . '/block-bindings.php';
-require ABSPATH . WPINC . '/block-bindings/pattern-overrides.php';
-require ABSPATH . WPINC . '/block-bindings/post-data.php';
-require ABSPATH . WPINC . '/block-bindings/post-meta.php';
-require ABSPATH . WPINC . '/block-bindings/term-data.php';
-require ABSPATH . WPINC . '/blocks.php';
-require ABSPATH . WPINC . '/blocks/index.php';
-require ABSPATH . WPINC . '/block-editor.php';
-require ABSPATH . WPINC . '/block-patterns.php';
-require ABSPATH . WPINC . '/class-wp-block-supports.php';
-require ABSPATH . WPINC . '/block-supports/utils.php';
-require ABSPATH . WPINC . '/block-supports/align.php';
-require ABSPATH . WPINC . '/block-supports/auto-register.php';
-require ABSPATH . WPINC . '/block-supports/custom-classname.php';
-require ABSPATH . WPINC . '/block-supports/generated-classname.php';
-require ABSPATH . WPINC . '/block-supports/settings.php';
-require ABSPATH . WPINC . '/block-supports/elements.php';
-require ABSPATH . WPINC . '/block-supports/colors.php';
-require ABSPATH . WPINC . '/block-supports/typography.php';
-require ABSPATH . WPINC . '/block-supports/border.php';
-require ABSPATH . WPINC . '/block-supports/layout.php';
-require ABSPATH . WPINC . '/block-supports/position.php';
-require ABSPATH . WPINC . '/block-supports/spacing.php';
-require ABSPATH . WPINC . '/block-supports/dimensions.php';
-require ABSPATH . WPINC . '/block-supports/duotone.php';
-require ABSPATH . WPINC . '/block-supports/shadow.php';
-require ABSPATH . WPINC . '/block-supports/background.php';
-require ABSPATH . WPINC . '/block-supports/block-style-variations.php';
-require ABSPATH . WPINC . '/block-supports/aria-label.php';
-require ABSPATH . WPINC . '/block-supports/anchor.php';
-require ABSPATH . WPINC . '/block-supports/block-visibility.php';
-require ABSPATH . WPINC . '/block-supports/custom-css.php';
 /*
- * Performance: Style Engine (6 files) and Fonts (6 files) are deferred to
- * 'plugins_loaded' (priority 0). All consumer code — block support functions,
- * theme-json processing, and template rendering — calls these functions inside
- * method bodies during rendering (after 'init'), not at include time. Font-related
- * hooks in default-filters.php (wp_print_font_faces on 'wp_head',
+ * Performance: Block editor infrastructure (48 files) is deferred to 'plugins_loaded'
+ * (priority 0). Block types, block supports, block bindings, block patterns, the block
+ * parser, and block editor functions are loaded before any plugin's default-priority
+ * 'plugins_loaded' callbacks fire. Blocks are registered at 'init', which fires well
+ * after 'plugins_loaded', ensuring all block infrastructure is available when needed.
+ *
+ * This is the single highest-impact deferral: on non-block requests (classic theme
+ * front-end pages that do not parse block content), these 48 files avoid parse/compile
+ * overhead entirely when combined with the class autoloader safety net.
+ *
+ * Style Engine (6 files) and Fonts (6 files) are also deferred to 'plugins_loaded'
+ * (priority 0) within _wp_load_deferred_platform_subsystems(). All consumer code
+ * calls these functions inside method bodies during rendering (after 'init'), not at
+ * include time. Font-related hooks (wp_print_font_faces on 'wp_head',
  * _wp_register_default_font_collections on 'init') fire well after loading.
  *
+ * @see _wp_load_block_editor_infrastructure()
  * @see _wp_load_deferred_platform_subsystems()
  * @since 7.0.0
  */
@@ -405,9 +367,117 @@ require ABSPATH . WPINC . '/script-modules.php';
  * (wp_print_speculation_rules on 'wp_footer', wp_enqueue_view_transitions_admin_css
  * on 'admin_enqueue_scripts') fire well after loading.
  *
+ * Note: Function-only deferred files (interactivity-api.php with wp_interactivity(),
+ * speculative-loading.php with wp_get_speculation_rules(), view-transitions.php with
+ * view transition functions) define top-level functions, not classes. The class
+ * autoloader safety net cannot catch references to these functions. Their consumer
+ * hooks all fire after 'plugins_loaded', so the functions are defined before use.
+ * If a plugin calls these functions before 'plugins_loaded', it must explicitly call
+ * _wp_load_deferred_platform_subsystems() first.
+ *
  * @see _wp_load_deferred_platform_subsystems()
  * @since 7.0.0
  */
+
+/**
+ * Loads block editor infrastructure deferred from early bootstrap.
+ *
+ * Loads block types, block bindings, block parser, block supports, block patterns,
+ * block editor functions, and related classes. These 48 files are deferred from the
+ * main bootstrap require chain to reduce the number of PHP files parsed before
+ * plugin execution begins.
+ *
+ * Block types are registered at 'init', which fires well after 'plugins_loaded'.
+ * All consumer code — block rendering, block REST endpoints, theme.json processing —
+ * calls these functions/classes inside method bodies during 'init' or later hooks,
+ * not at include time.
+ *
+ * Hooked to 'plugins_loaded' at priority 0, ensuring all block infrastructure is
+ * available before any plugin's default-priority 'plugins_loaded' callbacks fire.
+ * The load order is preserved from the original bootstrap sequence.
+ *
+ * A class autoloader registered via spl_autoload_register provides a safety net:
+ * if any deferred block class is referenced before 'plugins_loaded' fires (e.g.,
+ * during an early plugin or test bootstrap), the autoloader triggers this function
+ * to load all block files immediately, preserving backward compatibility.
+ *
+ * Note: Function-only files (blocks.php, block-editor.php, block-patterns.php,
+ * block-bindings.php, block-bindings/*.php, block-supports/*.php) contain top-level
+ * function definitions. The class autoloader cannot catch references to these functions.
+ * Their consumer hooks in default-filters.php (e.g., register_core_block_types_from_metadata
+ * on 'init') fire after 'plugins_loaded', so the functions are available when called.
+ *
+ * @since 7.0.0
+ * @access private
+ */
+function _wp_load_block_editor_infrastructure() {
+	static $loaded = false;
+	if ( $loaded ) {
+		return;
+	}
+	$loaded = true;
+
+	// Block binding classes (2 files).
+	require ABSPATH . WPINC . '/class-wp-block-bindings-source.php';
+	require ABSPATH . WPINC . '/class-wp-block-bindings-registry.php';
+
+	// Block core classes (12 files).
+	require ABSPATH . WPINC . '/class-wp-block-editor-context.php';
+	require ABSPATH . WPINC . '/class-wp-block-type.php';
+	require ABSPATH . WPINC . '/class-wp-block-pattern-categories-registry.php';
+	require ABSPATH . WPINC . '/class-wp-block-patterns-registry.php';
+	require ABSPATH . WPINC . '/class-wp-block-styles-registry.php';
+	require ABSPATH . WPINC . '/class-wp-block-type-registry.php';
+	require ABSPATH . WPINC . '/class-wp-block.php';
+	require ABSPATH . WPINC . '/class-wp-block-list.php';
+	require ABSPATH . WPINC . '/class-wp-block-metadata-registry.php';
+	require ABSPATH . WPINC . '/class-wp-block-parser-block.php';
+	require ABSPATH . WPINC . '/class-wp-block-parser-frame.php';
+	require ABSPATH . WPINC . '/class-wp-block-parser.php';
+
+	// Navigation/menu block helpers (2 files).
+	require ABSPATH . WPINC . '/class-wp-classic-to-block-menu-converter.php';
+	require ABSPATH . WPINC . '/class-wp-navigation-fallback.php';
+
+	// Block bindings functions (5 files).
+	require ABSPATH . WPINC . '/block-bindings.php';
+	require ABSPATH . WPINC . '/block-bindings/pattern-overrides.php';
+	require ABSPATH . WPINC . '/block-bindings/post-data.php';
+	require ABSPATH . WPINC . '/block-bindings/post-meta.php';
+	require ABSPATH . WPINC . '/block-bindings/term-data.php';
+
+	// Block registration and editor functions (4 files).
+	require ABSPATH . WPINC . '/blocks.php';
+	require ABSPATH . WPINC . '/blocks/index.php';
+	require ABSPATH . WPINC . '/block-editor.php';
+	require ABSPATH . WPINC . '/block-patterns.php';
+
+	// Block supports (23 files).
+	require ABSPATH . WPINC . '/class-wp-block-supports.php';
+	require ABSPATH . WPINC . '/block-supports/utils.php';
+	require ABSPATH . WPINC . '/block-supports/align.php';
+	require ABSPATH . WPINC . '/block-supports/auto-register.php';
+	require ABSPATH . WPINC . '/block-supports/custom-classname.php';
+	require ABSPATH . WPINC . '/block-supports/generated-classname.php';
+	require ABSPATH . WPINC . '/block-supports/settings.php';
+	require ABSPATH . WPINC . '/block-supports/elements.php';
+	require ABSPATH . WPINC . '/block-supports/colors.php';
+	require ABSPATH . WPINC . '/block-supports/typography.php';
+	require ABSPATH . WPINC . '/block-supports/border.php';
+	require ABSPATH . WPINC . '/block-supports/layout.php';
+	require ABSPATH . WPINC . '/block-supports/position.php';
+	require ABSPATH . WPINC . '/block-supports/spacing.php';
+	require ABSPATH . WPINC . '/block-supports/dimensions.php';
+	require ABSPATH . WPINC . '/block-supports/duotone.php';
+	require ABSPATH . WPINC . '/block-supports/shadow.php';
+	require ABSPATH . WPINC . '/block-supports/background.php';
+	require ABSPATH . WPINC . '/block-supports/block-style-variations.php';
+	require ABSPATH . WPINC . '/block-supports/aria-label.php';
+	require ABSPATH . WPINC . '/block-supports/anchor.php';
+	require ABSPATH . WPINC . '/block-supports/block-visibility.php';
+	require ABSPATH . WPINC . '/block-supports/custom-css.php';
+}
+add_action( 'plugins_loaded', '_wp_load_block_editor_infrastructure', 0 );
 
 /**
  * Loads WordPress platform subsystems deferred from early bootstrap.
@@ -533,9 +603,9 @@ add_action( 'plugins_loaded', '_wp_load_deferred_platform_subsystems', 0 );
  * eliminating their parse and compile overhead entirely.
  *
  * The REST infrastructure files (rest-api.php, WP_REST_Server, WP_REST_Response,
- * WP_REST_Request) remain eagerly loaded in the main bootstrap to support route
- * registration and REST request detection. WP_REST_Controller (base class) is
- * deferred along with its subclasses but loaded first within this function.
+ * WP_REST_Request, and WP_REST_Controller base class) remain eagerly loaded in
+ * the main bootstrap to support route registration and REST request detection.
+ * Only the concrete endpoint controller subclasses are deferred to this function.
  *
  * @since 7.0.0
  * @access private
@@ -628,10 +698,25 @@ add_action( 'rest_api_init', '_wp_load_rest_endpoint_controllers', 0 );
 spl_autoload_register(
 	function ( $class_name ) {
 		/*
+		 * Block editor infrastructure classes.
+		 * Covers WP_Block*, WP_Classic_To_Block_Menu_Converter, and
+		 * WP_Navigation_Fallback. The autoloader triggers the block
+		 * infrastructure loader on first class reference.
+		 */
+		if (
+			0 === strpos( $class_name, 'WP_Block' )
+			|| 'WP_Classic_To_Block_Menu_Converter' === $class_name
+			|| 'WP_Navigation_Fallback' === $class_name
+		) {
+			_wp_load_block_editor_infrastructure();
+			return;
+		}
+
+		/*
 		 * REST endpoint controllers, field handlers, and search handlers.
 		 * Eagerly loaded REST infrastructure (WP_REST_Server, WP_REST_Request,
-		 * WP_REST_Response) never reaches this autoloader because those classes
-		 * are defined during the main bootstrap require chain.
+		 * WP_REST_Response, WP_REST_Controller) never reaches this autoloader
+		 * because those classes are defined during the main bootstrap require chain.
 		 */
 		if ( 0 === strpos( $class_name, 'WP_REST_' ) ) {
 			_wp_load_rest_endpoint_controllers();
@@ -650,6 +735,7 @@ spl_autoload_register(
 			|| 'WP_Connector_Registry' === $class_name
 			|| 'WP_Icons_Registry' === $class_name
 			|| 0 === strpos( $class_name, 'WP_AI_Client' )
+			|| 0 === strpos( $class_name, 'WordPress\\AiClient\\' )
 			|| 'WP_Ability' === $class_name
 			|| 0 === strpos( $class_name, 'WP_Ability_' )
 			|| 0 === strpos( $class_name, 'WP_Abilities' )

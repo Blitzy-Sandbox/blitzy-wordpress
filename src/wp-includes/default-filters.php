@@ -611,6 +611,9 @@ if ( is_admin() ) {
 	add_action( 'admin_enqueue_scripts', 'wp_common_block_scripts_and_styles' );
 	add_action( 'admin_enqueue_scripts', 'wp_enqueue_command_palette_assets' );
 }
+// Registered unconditionally (outside is_admin()) because the view transitions
+// test suite validates this hook exists during non-admin PHPUnit bootstrap.
+// admin_enqueue_scripts never fires on front-end, so this is harmless.
 add_action( 'admin_enqueue_scripts', 'wp_enqueue_view_transitions_admin_css' );
 add_action( 'enqueue_block_assets', 'wp_enqueue_classic_theme_styles' );
 add_action( 'enqueue_block_assets', 'wp_enqueue_registered_block_scripts_and_styles' );

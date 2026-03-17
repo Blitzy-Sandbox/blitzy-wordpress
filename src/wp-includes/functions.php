@@ -5418,18 +5418,31 @@ function wp_list_pluck( $input_list, $field, $index_key = null ) {
 	 */
 	$first = reset( $input_list );
 	if ( is_array( $first ) ) {
-		if ( null !== $index_key ) {
-			return array_column( $input_list, $field, $index_key );
-		}
-
-		// Preserve original array keys when $index_key is null.
-		$newlist = array();
-		foreach ( $input_list as $key => $value ) {
-			if ( is_array( $value ) ) {
-				$newlist[ $key ] = $value[ $field ];
+		/*
+		 * Verify list homogeneity before using array-only fast paths.
+		 * Mixed lists (arrays + objects) must fall through to WP_List_Util
+		 * which handles both types correctly via key/property access.
+		 */
+		$all_arrays = true;
+		foreach ( $input_list as $item ) {
+			if ( ! is_array( $item ) ) {
+				$all_arrays = false;
+				break;
 			}
 		}
-		return $newlist;
+
+		if ( $all_arrays ) {
+			if ( null !== $index_key ) {
+				return array_column( $input_list, $field, $index_key );
+			}
+
+			// Preserve original array keys when $index_key is null.
+			$newlist = array();
+			foreach ( $input_list as $key => $value ) {
+				$newlist[ $key ] = $value[ $field ];
+			}
+			return $newlist;
+		}
 	}
 
 	$util = new WP_List_Util( $input_list );

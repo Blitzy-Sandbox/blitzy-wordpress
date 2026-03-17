@@ -1042,12 +1042,14 @@ module.exports = function(grunt) {
 					'!wp-includes/js/wp-emoji-loader.js', // Module with deferred loading. See the emoji-loader task below.
 				]
 			},
-			// Performance: emoji-loader is minified as a module with toplevel enabled for
-			// optimal dead-code elimination. The loader uses deferred/conditional execution.
 			'emoji-loader': {
 				options: {
 					module: true,
 					toplevel: true,
+					compress: {
+						passes: 2,
+						pure_getters: true,
+					},
 				},
 				src: WORKING_DIR + 'wp-includes/js/wp-emoji-loader.js',
 				dest: WORKING_DIR + 'wp-includes/js/wp-emoji-loader.min.js',
@@ -1106,12 +1108,10 @@ module.exports = function(grunt) {
 				],
 				dest: WORKING_DIR + 'wp-includes/js/tinymce/wp-tinymce.js'
 			},
-			// Performance: The emoji release bundle (twemoji + wp-emoji) is loaded on-demand
-			// when the deferred emoji-loader detects content requiring emoji support.
-			// The emoji-loader itself is a separate module with its own uglify target.
 			emoji: {
 				options: {
 					separator: '\n',
+					banner: '/*! wp-emoji-release - loaded on-demand by deferred emoji-loader */\n',
 					process: function( src, filepath ) {
 						return '// Source: ' + filepath.replace( WORKING_DIR, '' ) + '\n' + src;
 					}
@@ -1823,15 +1823,13 @@ module.exports = function(grunt) {
 		'clean:interactivity-assets',
 	] );
 
-	// Performance: The JS build pipeline supports optimized module boundaries.
-	// common.js (lazy-init), emoji-loader (deferred), and customizer JS (context-gated)
-	// are processed through their standard copy/uglify/concat targets.
 	grunt.registerTask( 'build:js', [
 		'clean:js',
 		'build:webpack',
 		'copy:js',
 		'file_append',
 		'uglify:all',
+		'uglify:emoji-loader',
 		'concat:tinymce',
 		'concat:emoji'
 	] );

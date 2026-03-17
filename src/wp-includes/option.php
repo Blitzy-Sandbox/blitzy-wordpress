@@ -137,7 +137,7 @@ function get_option( $option, $default_value = false ) {
 	 */
 	$pre = false;
 
-	if ( has_filter( "pre_option_{$option}" ) ) {
+	if ( has_filter( "pre_option_{$option}" ) || isset( $GLOBALS['wp_filter']['all'] ) ) {
 		/** This filter is documented in wp-includes/option.php */
 		$pre = apply_filters( "pre_option_{$option}", false, $option, $default_value );
 	}
@@ -158,7 +158,7 @@ function get_option( $option, $default_value = false ) {
 	 * @param mixed  $default_value The fallback value to return if the option does not exist.
 	 *                              Default false.
 	 */
-	if ( has_filter( 'pre_option' ) ) {
+	if ( has_filter( 'pre_option' ) || isset( $GLOBALS['wp_filter']['all'] ) ) {
 		$pre = apply_filters( 'pre_option', $pre, $option, $default_value );
 	}
 
@@ -626,7 +626,7 @@ function wp_load_alloptions( $force_cache = false ) {
 	 * Performance: Skip filter invocation when no callbacks are registered.
 	 * This avoids apply_filters() overhead on each wp_load_alloptions() call.
 	 */
-	if ( has_filter( 'pre_wp_load_alloptions' ) ) {
+	if ( has_filter( 'pre_wp_load_alloptions' ) || isset( $GLOBALS['wp_filter']['all'] ) ) {
 		$alloptions = apply_filters( 'pre_wp_load_alloptions', null, $force_cache );
 		if ( is_array( $alloptions ) ) {
 			return $alloptions;
@@ -674,7 +674,7 @@ function wp_load_alloptions( $force_cache = false ) {
 	 *
 	 * @param array $alloptions Array with all options.
 	 */
-	if ( has_filter( 'alloptions' ) ) {
+	if ( has_filter( 'alloptions' ) || isset( $GLOBALS['wp_filter']['all'] ) ) {
 		return apply_filters( 'alloptions', $alloptions );
 	}
 
