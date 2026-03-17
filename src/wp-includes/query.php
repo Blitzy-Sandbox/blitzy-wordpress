@@ -95,6 +95,9 @@ function set_query_var( $query_var, $value ) {
  * @return WP_Post[]|int[] Array of post objects or post IDs.
  */
 function query_posts( $query ) {
+	// Invalidate conditional tag caches — the query context is about to change.
+	_wp_conditional_tag_cache( false );
+
 	$GLOBALS['wp_query'] = new WP_Query();
 	return $GLOBALS['wp_query']->query( $query );
 }
@@ -114,6 +117,9 @@ function query_posts( $query ) {
 function wp_reset_query() {
 	$GLOBALS['wp_query'] = $GLOBALS['wp_the_query'];
 	wp_reset_postdata();
+
+	// Invalidate conditional tag caches — the query context has been restored.
+	_wp_conditional_tag_cache( false );
 }
 
 /**
@@ -130,6 +136,107 @@ function wp_reset_postdata() {
 	if ( isset( $wp_query ) ) {
 		$wp_query->reset_postdata();
 	}
+
+	// Invalidate conditional tag caches — post data context has been reset.
+	_wp_conditional_tag_cache( false );
+}
+
+/**
+ * Manages an internal result cache for conditional query tag functions.
+ *
+ * Performance optimization: caches the boolean results of parameterless
+ * conditional tag calls (is_single(), is_page(), is_archive(), etc.) to
+ * avoid repeated WP_Query method dispatch overhead. Once the main query
+ * is established, these results are stable within a request until the
+ * query context changes via query_posts(), wp_reset_query(), or
+ * wp_reset_postdata().
+ *
+ * @since 7.0.0
+ * @access private
+ *
+ * @param string|false $tag   Conditional tag function name to look up or store.
+ *                            Pass false to reset all cached results.
+ * @param bool|null    $value Boolean value to cache for the tag. Pass null to
+ *                            retrieve a previously cached value.
+ * @return bool|null Cached boolean result, or null if not yet cached.
+ */
+function _wp_conditional_tag_cache( $tag = false, $value = null ) {
+	static $cache = array();
+	static $wp_action_count = 0;
+	static $cached_query_id = 0;
+	static $cached_query_hash = '';
+
+	global $wp_query;
+
+	/*
+	 * Two-layer invalidation strategy for conditional tag caching.
+	 *
+	 * Layer 1 — did_action('wp') gate:
+	 *   During WP::main(), conditional flags are set progressively:
+	 *   query_posts() sets most flags, then handle_404() may call set_404()
+	 *   which resets ALL flags via init_query_flags(). Caching before this
+	 *   sequence completes would store stale intermediate values (e.g.,
+	 *   is_404() cached as false before set_404() runs).
+	 *
+	 *   The 'wp' action fires at the very end of WP::main(), after
+	 *   handle_404() and register_globals(), guaranteeing all flags are
+	 *   finalized. Caching is only enabled after 'wp' fires.
+	 *
+	 * Layer 2 — WP_Query object identity + query_vars_hash:
+	 *   When a new WP_Query replaces $wp_query (e.g., second go_to() call,
+	 *   query_posts()), the object ID or query_vars_hash changes. This
+	 *   triggers a cache reset AND returns to bypass mode until the next
+	 *   'wp' action confirms the new query context is fully settled.
+	 */
+	$current_wp_count = did_action( 'wp' );
+	if ( $current_wp_count !== $wp_action_count ) {
+		// The 'wp' action count changed — new context established.
+		$cache              = array();
+		$wp_action_count    = $current_wp_count;
+		$cached_query_id    = isset( $wp_query ) ? spl_object_id( $wp_query ) : 0;
+		$cached_query_hash  = ( isset( $wp_query ) && ! empty( $wp_query->query_vars_hash ) )
+			? $wp_query->query_vars_hash : '';
+	}
+
+	// Before 'wp' fires initially, bypass cache entirely.
+	if ( 0 === $wp_action_count ) {
+		if ( false === $tag ) {
+			return null;
+		}
+		return ( null !== $value ) ? $value : null;
+	}
+
+	// Detect WP_Query object replacement after caching was active.
+	$current_id   = isset( $wp_query ) ? spl_object_id( $wp_query ) : 0;
+	$current_hash = ( isset( $wp_query ) && ! empty( $wp_query->query_vars_hash ) )
+		? $wp_query->query_vars_hash : '';
+	if ( $current_id !== $cached_query_id || $current_hash !== $cached_query_hash ) {
+		// WP_Query changed — reset cache and re-enter bypass mode until
+		// the next 'wp' action confirms the new context is settled.
+		$cache              = array();
+		$cached_query_id    = $current_id;
+		$cached_query_hash  = $current_hash;
+		$wp_action_count    = 0;
+		if ( false === $tag ) {
+			return null;
+		}
+		return ( null !== $value ) ? $value : null;
+	}
+
+	// Reset all cached conditional tag results.
+	if ( false === $tag ) {
+		$cache = array();
+		return null;
+	}
+
+	// Read: return cached value or null if not cached.
+	if ( null === $value ) {
+		return isset( $cache[ $tag ] ) ? $cache[ $tag ] : null;
+	}
+
+	// Write: store and return the value.
+	$cache[ $tag ] = $value;
+	return $value;
 }
 
 /*
@@ -166,7 +273,13 @@ function is_archive() {
 		return false;
 	}
 
-	return $wp_query->is_archive();
+	// Performance: return cached result to avoid repeated method dispatch.
+	$cached = _wp_conditional_tag_cache( __FUNCTION__ );
+	if ( null !== $cached ) {
+		return $cached;
+	}
+
+	return _wp_conditional_tag_cache( __FUNCTION__, $wp_query->is_archive() );
 }
 
 /**
@@ -190,6 +303,15 @@ function is_post_type_archive( $post_types = '' ) {
 	if ( ! isset( $wp_query ) ) {
 		_doing_it_wrong( __FUNCTION__, __( 'Conditional query tags do not work before the query is run. Before then, they always return false.' ), '3.1.0' );
 		return false;
+	}
+
+	// Performance: cache parameterless calls to avoid repeated method dispatch.
+	if ( '' === $post_types ) {
+		$cached = _wp_conditional_tag_cache( __FUNCTION__ );
+		if ( null !== $cached ) {
+			return $cached;
+		}
+		return _wp_conditional_tag_cache( __FUNCTION__, $wp_query->is_post_type_archive() );
 	}
 
 	return $wp_query->is_post_type_archive( $post_types );
@@ -216,6 +338,15 @@ function is_attachment( $attachment = '' ) {
 	if ( ! isset( $wp_query ) ) {
 		_doing_it_wrong( __FUNCTION__, __( 'Conditional query tags do not work before the query is run. Before then, they always return false.' ), '3.1.0' );
 		return false;
+	}
+
+	// Performance: cache parameterless calls to avoid repeated method dispatch.
+	if ( '' === $attachment ) {
+		$cached = _wp_conditional_tag_cache( __FUNCTION__ );
+		if ( null !== $cached ) {
+			return $cached;
+		}
+		return _wp_conditional_tag_cache( __FUNCTION__, $wp_query->is_attachment() );
 	}
 
 	return $wp_query->is_attachment( $attachment );
@@ -247,6 +378,15 @@ function is_author( $author = '' ) {
 		return false;
 	}
 
+	// Performance: cache parameterless calls to avoid repeated method dispatch.
+	if ( '' === $author ) {
+		$cached = _wp_conditional_tag_cache( __FUNCTION__ );
+		if ( null !== $cached ) {
+			return $cached;
+		}
+		return _wp_conditional_tag_cache( __FUNCTION__, $wp_query->is_author() );
+	}
+
 	return $wp_query->is_author( $author );
 }
 
@@ -276,6 +416,15 @@ function is_category( $category = '' ) {
 		return false;
 	}
 
+	// Performance: cache parameterless calls to avoid repeated method dispatch.
+	if ( '' === $category ) {
+		$cached = _wp_conditional_tag_cache( __FUNCTION__ );
+		if ( null !== $cached ) {
+			return $cached;
+		}
+		return _wp_conditional_tag_cache( __FUNCTION__, $wp_query->is_category() );
+	}
+
 	return $wp_query->is_category( $category );
 }
 
@@ -303,6 +452,15 @@ function is_tag( $tag = '' ) {
 	if ( ! isset( $wp_query ) ) {
 		_doing_it_wrong( __FUNCTION__, __( 'Conditional query tags do not work before the query is run. Before then, they always return false.' ), '3.1.0' );
 		return false;
+	}
+
+	// Performance: cache parameterless calls to avoid repeated method dispatch.
+	if ( '' === $tag ) {
+		$cached = _wp_conditional_tag_cache( __FUNCTION__ );
+		if ( null !== $cached ) {
+			return $cached;
+		}
+		return _wp_conditional_tag_cache( __FUNCTION__, $wp_query->is_tag() );
 	}
 
 	return $wp_query->is_tag( $tag );
@@ -342,6 +500,15 @@ function is_tax( $taxonomy = '', $term = '' ) {
 		return false;
 	}
 
+	// Performance: cache calls with both defaults to avoid repeated method dispatch.
+	if ( '' === $taxonomy && '' === $term ) {
+		$cached = _wp_conditional_tag_cache( __FUNCTION__ );
+		if ( null !== $cached ) {
+			return $cached;
+		}
+		return _wp_conditional_tag_cache( __FUNCTION__, $wp_query->is_tax() );
+	}
+
 	return $wp_query->is_tax( $taxonomy, $term );
 }
 
@@ -366,7 +533,13 @@ function is_date() {
 		return false;
 	}
 
-	return $wp_query->is_date();
+	// Performance: return cached result to avoid repeated method dispatch.
+	$cached = _wp_conditional_tag_cache( __FUNCTION__ );
+	if ( null !== $cached ) {
+		return $cached;
+	}
+
+	return _wp_conditional_tag_cache( __FUNCTION__, $wp_query->is_date() );
 }
 
 /**
@@ -392,7 +565,13 @@ function is_day() {
 		return false;
 	}
 
-	return $wp_query->is_day();
+	// Performance: return cached result to avoid repeated method dispatch.
+	$cached = _wp_conditional_tag_cache( __FUNCTION__ );
+	if ( null !== $cached ) {
+		return $cached;
+	}
+
+	return _wp_conditional_tag_cache( __FUNCTION__, $wp_query->is_day() );
 }
 
 /**
@@ -418,6 +597,15 @@ function is_feed( $feeds = '' ) {
 		return false;
 	}
 
+	// Performance: cache parameterless calls to avoid repeated method dispatch.
+	if ( '' === $feeds ) {
+		$cached = _wp_conditional_tag_cache( __FUNCTION__ );
+		if ( null !== $cached ) {
+			return $cached;
+		}
+		return _wp_conditional_tag_cache( __FUNCTION__, $wp_query->is_feed() );
+	}
+
 	return $wp_query->is_feed( $feeds );
 }
 
@@ -438,7 +626,13 @@ function is_comment_feed() {
 		return false;
 	}
 
-	return $wp_query->is_comment_feed();
+	// Performance: return cached result to avoid repeated method dispatch.
+	$cached = _wp_conditional_tag_cache( __FUNCTION__ );
+	if ( null !== $cached ) {
+		return $cached;
+	}
+
+	return _wp_conditional_tag_cache( __FUNCTION__, $wp_query->is_comment_feed() );
 }
 
 /**
@@ -471,7 +665,13 @@ function is_front_page() {
 		return false;
 	}
 
-	return $wp_query->is_front_page();
+	// Performance: return cached result to avoid repeated method dispatch.
+	$cached = _wp_conditional_tag_cache( __FUNCTION__ );
+	if ( null !== $cached ) {
+		return $cached;
+	}
+
+	return _wp_conditional_tag_cache( __FUNCTION__, $wp_query->is_front_page() );
 }
 
 /**
@@ -504,7 +704,13 @@ function is_home() {
 		return false;
 	}
 
-	return $wp_query->is_home();
+	// Performance: return cached result to avoid repeated method dispatch.
+	$cached = _wp_conditional_tag_cache( __FUNCTION__ );
+	if ( null !== $cached ) {
+		return $cached;
+	}
+
+	return _wp_conditional_tag_cache( __FUNCTION__, $wp_query->is_home() );
 }
 
 /**
@@ -534,7 +740,13 @@ function is_privacy_policy() {
 		return false;
 	}
 
-	return $wp_query->is_privacy_policy();
+	// Performance: return cached result to avoid repeated method dispatch.
+	$cached = _wp_conditional_tag_cache( __FUNCTION__ );
+	if ( null !== $cached ) {
+		return $cached;
+	}
+
+	return _wp_conditional_tag_cache( __FUNCTION__, $wp_query->is_privacy_policy() );
 }
 
 /**
@@ -558,7 +770,13 @@ function is_month() {
 		return false;
 	}
 
-	return $wp_query->is_month();
+	// Performance: return cached result to avoid repeated method dispatch.
+	$cached = _wp_conditional_tag_cache( __FUNCTION__ );
+	if ( null !== $cached ) {
+		return $cached;
+	}
+
+	return _wp_conditional_tag_cache( __FUNCTION__, $wp_query->is_month() );
 }
 
 /**
@@ -589,6 +807,15 @@ function is_page( $page = '' ) {
 		return false;
 	}
 
+	// Performance: cache parameterless calls to avoid repeated method dispatch.
+	if ( '' === $page ) {
+		$cached = _wp_conditional_tag_cache( __FUNCTION__ );
+		if ( null !== $cached ) {
+			return $cached;
+		}
+		return _wp_conditional_tag_cache( __FUNCTION__, $wp_query->is_page() );
+	}
+
 	return $wp_query->is_page( $page );
 }
 
@@ -613,7 +840,13 @@ function is_paged() {
 		return false;
 	}
 
-	return $wp_query->is_paged();
+	// Performance: return cached result to avoid repeated method dispatch.
+	$cached = _wp_conditional_tag_cache( __FUNCTION__ );
+	if ( null !== $cached ) {
+		return $cached;
+	}
+
+	return _wp_conditional_tag_cache( __FUNCTION__, $wp_query->is_paged() );
 }
 
 /**
@@ -637,7 +870,13 @@ function is_preview() {
 		return false;
 	}
 
-	return $wp_query->is_preview();
+	// Performance: return cached result to avoid repeated method dispatch.
+	$cached = _wp_conditional_tag_cache( __FUNCTION__ );
+	if ( null !== $cached ) {
+		return $cached;
+	}
+
+	return _wp_conditional_tag_cache( __FUNCTION__, $wp_query->is_preview() );
 }
 
 /**
@@ -657,7 +896,13 @@ function is_robots() {
 		return false;
 	}
 
-	return $wp_query->is_robots();
+	// Performance: return cached result to avoid repeated method dispatch.
+	$cached = _wp_conditional_tag_cache( __FUNCTION__ );
+	if ( null !== $cached ) {
+		return $cached;
+	}
+
+	return _wp_conditional_tag_cache( __FUNCTION__, $wp_query->is_robots() );
 }
 
 /**
@@ -677,7 +922,13 @@ function is_favicon() {
 		return false;
 	}
 
-	return $wp_query->is_favicon();
+	// Performance: return cached result to avoid repeated method dispatch.
+	$cached = _wp_conditional_tag_cache( __FUNCTION__ );
+	if ( null !== $cached ) {
+		return $cached;
+	}
+
+	return _wp_conditional_tag_cache( __FUNCTION__, $wp_query->is_favicon() );
 }
 
 /**
@@ -701,7 +952,13 @@ function is_search() {
 		return false;
 	}
 
-	return $wp_query->is_search();
+	// Performance: return cached result to avoid repeated method dispatch.
+	$cached = _wp_conditional_tag_cache( __FUNCTION__ );
+	if ( null !== $cached ) {
+		return $cached;
+	}
+
+	return _wp_conditional_tag_cache( __FUNCTION__, $wp_query->is_search() );
 }
 
 /**
@@ -732,6 +989,15 @@ function is_single( $post = '' ) {
 	if ( ! isset( $wp_query ) ) {
 		_doing_it_wrong( __FUNCTION__, __( 'Conditional query tags do not work before the query is run. Before then, they always return false.' ), '3.1.0' );
 		return false;
+	}
+
+	// Performance: cache parameterless calls to avoid repeated method dispatch.
+	if ( '' === $post ) {
+		$cached = _wp_conditional_tag_cache( __FUNCTION__ );
+		if ( null !== $cached ) {
+			return $cached;
+		}
+		return _wp_conditional_tag_cache( __FUNCTION__, $wp_query->is_single() );
 	}
 
 	return $wp_query->is_single( $post );
@@ -767,6 +1033,15 @@ function is_singular( $post_types = '' ) {
 		return false;
 	}
 
+	// Performance: cache parameterless calls to avoid repeated method dispatch.
+	if ( '' === $post_types ) {
+		$cached = _wp_conditional_tag_cache( __FUNCTION__ );
+		if ( null !== $cached ) {
+			return $cached;
+		}
+		return _wp_conditional_tag_cache( __FUNCTION__, $wp_query->is_singular() );
+	}
+
 	return $wp_query->is_singular( $post_types );
 }
 
@@ -791,7 +1066,13 @@ function is_time() {
 		return false;
 	}
 
-	return $wp_query->is_time();
+	// Performance: return cached result to avoid repeated method dispatch.
+	$cached = _wp_conditional_tag_cache( __FUNCTION__ );
+	if ( null !== $cached ) {
+		return $cached;
+	}
+
+	return _wp_conditional_tag_cache( __FUNCTION__, $wp_query->is_time() );
 }
 
 /**
@@ -815,7 +1096,13 @@ function is_trackback() {
 		return false;
 	}
 
-	return $wp_query->is_trackback();
+	// Performance: return cached result to avoid repeated method dispatch.
+	$cached = _wp_conditional_tag_cache( __FUNCTION__ );
+	if ( null !== $cached ) {
+		return $cached;
+	}
+
+	return _wp_conditional_tag_cache( __FUNCTION__, $wp_query->is_trackback() );
 }
 
 /**
@@ -839,7 +1126,13 @@ function is_year() {
 		return false;
 	}
 
-	return $wp_query->is_year();
+	// Performance: return cached result to avoid repeated method dispatch.
+	$cached = _wp_conditional_tag_cache( __FUNCTION__ );
+	if ( null !== $cached ) {
+		return $cached;
+	}
+
+	return _wp_conditional_tag_cache( __FUNCTION__, $wp_query->is_year() );
 }
 
 /**
@@ -863,7 +1156,13 @@ function is_404() {
 		return false;
 	}
 
-	return $wp_query->is_404();
+	// Performance: return cached result to avoid repeated method dispatch.
+	$cached = _wp_conditional_tag_cache( __FUNCTION__ );
+	if ( null !== $cached ) {
+		return $cached;
+	}
+
+	return _wp_conditional_tag_cache( __FUNCTION__, $wp_query->is_404() );
 }
 
 /**
@@ -883,7 +1182,13 @@ function is_embed() {
 		return false;
 	}
 
-	return $wp_query->is_embed();
+	// Performance: return cached result to avoid repeated method dispatch.
+	$cached = _wp_conditional_tag_cache( __FUNCTION__ );
+	if ( null !== $cached ) {
+		return $cached;
+	}
+
+	return _wp_conditional_tag_cache( __FUNCTION__, $wp_query->is_embed() );
 }
 
 /**
