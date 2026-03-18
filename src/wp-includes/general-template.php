@@ -239,6 +239,16 @@ function get_template_part( $slug, $name = null, $args = array() ) {
  * @return void|string Void if 'echo' argument is true, search form HTML if 'echo' is false.
  */
 function get_search_form( $args = array() ) {
+	/*
+	 * Cache the locate_template() result and the default form HTML within the
+	 * request. The template path and default form output are stable for the
+	 * lifetime of a single request, so they only need to be resolved once.
+	 * All actions and filters still fire on every call for plugin compatibility.
+	 */
+	static $cached_template_path = null;
+	static $template_path_resolved = false;
+	static $default_form_cache = array();
+
 	/**
 	 * Fires before the search form is retrieved, at the start of get_search_form().
 	 *
@@ -303,26 +313,44 @@ function get_search_form( $args = array() ) {
 	 */
 	$format = apply_filters( 'search_form_format', $format, $args );
 
-	$search_form_template = locate_template( 'searchform.php' );
+	// Cache the locate_template() result to avoid repeated filesystem checks.
+	if ( ! $template_path_resolved ) {
+		$cached_template_path  = locate_template( 'searchform.php' );
+		$template_path_resolved = true;
+	}
 
-	if ( '' !== $search_form_template ) {
+	if ( '' !== $cached_template_path ) {
+		/*
+		 * Template-based form: always regenerate because custom templates
+		 * may contain dynamic output or side effects.
+		 */
 		ob_start();
-		require $search_form_template;
+		require $cached_template_path;
 		$form = ob_get_clean();
 	} else {
-		// Build a string containing an aria-label to use for the search form.
-		if ( $args['aria_label'] ) {
-			$aria_label = 'aria-label="' . esc_attr( $args['aria_label'] ) . '" ';
-		} else {
-			/*
-			 * If there's no custom aria-label, we can set a default here. At the
-			 * moment it's empty as there's uncertainty about what the default should be.
-			 */
-			$aria_label = '';
-		}
+		/*
+		 * Default form: cache the generated HTML per (format + aria_label)
+		 * combination. The search query value and home_url() are stable
+		 * within a single request.
+		 */
+		$form_cache_key = $format . '|' . $args['aria_label'];
 
-		if ( 'html5' === $format ) {
-			$form = '<form role="search" ' . $aria_label . 'method="get" class="search-form" action="' . esc_url( home_url( '/' ) ) . '">
+		if ( isset( $default_form_cache[ $form_cache_key ] ) ) {
+			$form = $default_form_cache[ $form_cache_key ];
+		} else {
+			// Build a string containing an aria-label to use for the search form.
+			if ( $args['aria_label'] ) {
+				$aria_label = 'aria-label="' . esc_attr( $args['aria_label'] ) . '" ';
+			} else {
+				/*
+				 * If there's no custom aria-label, we can set a default here. At the
+				 * moment it's empty as there's uncertainty about what the default should be.
+				 */
+				$aria_label = '';
+			}
+
+			if ( 'html5' === $format ) {
+				$form = '<form role="search" ' . $aria_label . 'method="get" class="search-form" action="' . esc_url( home_url( '/' ) ) . '">
 				<label>
 					<span class="screen-reader-text">' .
 					/* translators: Hidden accessibility text. */
@@ -332,8 +360,8 @@ function get_search_form( $args = array() ) {
 				</label>
 				<input type="submit" class="search-submit" value="' . esc_attr_x( 'Search', 'submit button' ) . '" />
 			</form>';
-		} else {
-			$form = '<form role="search" ' . $aria_label . 'method="get" id="searchform" class="searchform" action="' . esc_url( home_url( '/' ) ) . '">
+			} else {
+				$form = '<form role="search" ' . $aria_label . 'method="get" id="searchform" class="searchform" action="' . esc_url( home_url( '/' ) ) . '">
 				<div>
 					<label class="screen-reader-text" for="s">' .
 					/* translators: Hidden accessibility text. */
@@ -343,6 +371,9 @@ function get_search_form( $args = array() ) {
 					<input type="submit" id="searchsubmit" value="' . esc_attr_x( 'Search', 'submit button' ) . '" />
 				</div>
 			</form>';
+			}
+
+			$default_form_cache[ $form_cache_key ] = $form;
 		}
 	}
 
@@ -414,13 +445,25 @@ function wp_loginout( $redirect = '', $display = true ) {
  * @return string The logout URL. Note: HTML-encoded via esc_html() in wp_nonce_url().
  */
 function wp_logout_url( $redirect = '' ) {
-	$args = array();
-	if ( ! empty( $redirect ) ) {
-		$args['redirect_to'] = urlencode( $redirect );
-	}
+	/*
+	 * Cache the computed logout URL per redirect parameter within the request.
+	 * The nonce and site_url() are stable within a single request, so repeated
+	 * calls with the same redirect produce identical pre-filter results.
+	 * The 'logout_url' filter still fires on every call for plugin compatibility.
+	 */
+	static $cache = array();
 
-	$logout_url = add_query_arg( $args, site_url( 'wp-login.php?action=logout', 'login' ) );
-	$logout_url = wp_nonce_url( $logout_url, 'log-out' );
+	if ( ! isset( $cache[ $redirect ] ) ) {
+		$args = array();
+		if ( ! empty( $redirect ) ) {
+			$args['redirect_to'] = urlencode( $redirect );
+		}
+
+		$logout_url = add_query_arg( $args, site_url( 'wp-login.php?action=logout', 'login' ) );
+		$logout_url = wp_nonce_url( $logout_url, 'log-out' );
+
+		$cache[ $redirect ] = $logout_url;
+	}
 
 	/**
 	 * Filters the logout URL.
@@ -430,7 +473,7 @@ function wp_logout_url( $redirect = '' ) {
 	 * @param string $logout_url The HTML-encoded logout URL.
 	 * @param string $redirect   Path to redirect to on logout.
 	 */
-	return apply_filters( 'logout_url', $logout_url, $redirect );
+	return apply_filters( 'logout_url', $cache[ $redirect ], $redirect );
 }
 
 /**
@@ -444,14 +487,27 @@ function wp_logout_url( $redirect = '' ) {
  * @return string The login URL. Not HTML-encoded.
  */
 function wp_login_url( $redirect = '', $force_reauth = false ) {
-	$login_url = site_url( 'wp-login.php', 'login' );
+	/*
+	 * Cache the computed login URL per parameter combination within the request.
+	 * site_url() and add_query_arg() return deterministic results for the same
+	 * inputs, so repeated calls are safe to cache. The 'login_url' filter still
+	 * fires on every call for plugin compatibility.
+	 */
+	static $cache = array();
+	$cache_key    = $redirect . '|' . ( $force_reauth ? '1' : '0' );
 
-	if ( ! empty( $redirect ) ) {
-		$login_url = add_query_arg( 'redirect_to', urlencode( $redirect ), $login_url );
-	}
+	if ( ! isset( $cache[ $cache_key ] ) ) {
+		$login_url = site_url( 'wp-login.php', 'login' );
 
-	if ( $force_reauth ) {
-		$login_url = add_query_arg( 'reauth', '1', $login_url );
+		if ( ! empty( $redirect ) ) {
+			$login_url = add_query_arg( 'redirect_to', urlencode( $redirect ), $login_url );
+		}
+
+		if ( $force_reauth ) {
+			$login_url = add_query_arg( 'reauth', '1', $login_url );
+		}
+
+		$cache[ $cache_key ] = $login_url;
 	}
 
 	/**
@@ -464,7 +520,7 @@ function wp_login_url( $redirect = '', $force_reauth = false ) {
 	 * @param string $redirect     The path to redirect to on login, if supplied.
 	 * @param bool   $force_reauth Whether to force reauthorization, even if a cookie is present.
 	 */
-	return apply_filters( 'login_url', $login_url, $redirect, $force_reauth );
+	return apply_filters( 'login_url', $cache[ $cache_key ], $redirect, $force_reauth );
 }
 
 /**
@@ -475,6 +531,17 @@ function wp_login_url( $redirect = '', $force_reauth = false ) {
  * @return string User registration URL.
  */
 function wp_registration_url() {
+	/*
+	 * Cache the registration URL within the request. site_url() returns the same
+	 * value for the same arguments within a single request. The 'register_url'
+	 * filter still fires on every call for plugin compatibility.
+	 */
+	static $cached_url = null;
+
+	if ( null === $cached_url ) {
+		$cached_url = site_url( 'wp-login.php?action=register', 'login' );
+	}
+
 	/**
 	 * Filters the user registration URL.
 	 *
@@ -482,7 +549,7 @@ function wp_registration_url() {
 	 *
 	 * @param string $register The user registration URL.
 	 */
-	return apply_filters( 'register_url', site_url( 'wp-login.php?action=register', 'login' ) );
+	return apply_filters( 'register_url', $cached_url );
 }
 
 /**
@@ -660,22 +727,32 @@ function wp_login_form( $args = array() ) {
  * @return string Lost password URL.
  */
 function wp_lostpassword_url( $redirect = '' ) {
-	$args = array(
-		'action' => 'lostpassword',
-	);
+	/*
+	 * Cache the computed lost-password URL per redirect parameter within the
+	 * request. The underlying network_site_url() and multisite state are stable
+	 * within a single request. The 'lostpassword_url' filter still fires on
+	 * every call for plugin compatibility.
+	 */
+	static $cache = array();
 
-	if ( ! empty( $redirect ) ) {
-		$args['redirect_to'] = urlencode( $redirect );
+	if ( ! isset( $cache[ $redirect ] ) ) {
+		$args = array(
+			'action' => 'lostpassword',
+		);
+
+		if ( ! empty( $redirect ) ) {
+			$args['redirect_to'] = urlencode( $redirect );
+		}
+
+		if ( is_multisite() ) {
+			$blog_details  = get_site();
+			$wp_login_path = $blog_details->path . 'wp-login.php';
+		} else {
+			$wp_login_path = 'wp-login.php';
+		}
+
+		$cache[ $redirect ] = add_query_arg( $args, network_site_url( $wp_login_path, 'login' ) );
 	}
-
-	if ( is_multisite() ) {
-		$blog_details  = get_site();
-		$wp_login_path = $blog_details->path . 'wp-login.php';
-	} else {
-		$wp_login_path = 'wp-login.php';
-	}
-
-	$lostpassword_url = add_query_arg( $args, network_site_url( $wp_login_path, 'login' ) );
 
 	/**
 	 * Filters the Lost Password URL.
@@ -685,7 +762,7 @@ function wp_lostpassword_url( $redirect = '' ) {
 	 * @param string $lostpassword_url The lost password page URL.
 	 * @param string $redirect         The path to redirect to on login.
 	 */
-	return apply_filters( 'lostpassword_url', $lostpassword_url, $redirect );
+	return apply_filters( 'lostpassword_url', $cache[ $redirect ], $redirect );
 }
 
 /**
@@ -814,111 +891,177 @@ function bloginfo( $show = '' ) {
  * @return string Mostly string values, might be empty.
  */
 function get_bloginfo( $show = '', $filter = 'raw' ) {
-	switch ( $show ) {
-		case 'home':    // Deprecated.
-		case 'siteurl': // Deprecated.
-			_deprecated_argument(
-				__FUNCTION__,
-				'2.2.0',
-				sprintf(
-					/* translators: 1: 'siteurl'/'home' argument, 2: bloginfo() function name, 3: 'url' argument. */
-					__( 'The %1$s option is deprecated for the family of %2$s functions. Use the %3$s option instead.' ),
-					'<code>' . $show . '</code>',
-					'<code>bloginfo()</code>',
-					'<code>url</code>'
-				)
-			);
-			// Intentional fall-through to be handled by the 'url' case.
-		case 'url':
-			$output = home_url();
-			break;
-		case 'wpurl':
-			$output = site_url();
-			break;
-		case 'description':
-			$output = get_option( 'blogdescription' );
-			break;
-		case 'rdf_url':
-			$output = get_feed_link( 'rdf' );
-			break;
-		case 'rss_url':
-			$output = get_feed_link( 'rss' );
-			break;
-		case 'rss2_url':
-			$output = get_feed_link( 'rss2' );
-			break;
-		case 'atom_url':
-			$output = get_feed_link( 'atom' );
-			break;
-		case 'comments_atom_url':
-			$output = get_feed_link( 'comments_atom' );
-			break;
-		case 'comments_rss2_url':
-			$output = get_feed_link( 'comments_rss2' );
-			break;
-		case 'pingback_url':
-			$output = site_url( 'xmlrpc.php' );
-			break;
-		case 'stylesheet_url':
-			$output = get_stylesheet_uri();
-			break;
-		case 'stylesheet_directory':
-			$output = get_stylesheet_directory_uri();
-			break;
-		case 'template_directory':
-		case 'template_url':
-			$output = get_template_directory_uri();
-			break;
-		case 'admin_email':
-			$output = get_option( 'admin_email' );
-			break;
-		case 'charset':
-			$output = get_option( 'blog_charset' );
-			if ( '' === $output ) {
-				$output = 'UTF-8';
+	/*
+	 * Performance optimization: cache raw values for the most frequently
+	 * requested and option-backed bloginfo keys via the object cache.
+	 * Using wp_cache (instead of a static array) ensures the cached data
+	 * is correctly flushed between requests and between PHPUnit tests.
+	 * Only values whose underlying data source is tracked for invalidation
+	 * (via the updated_option hook below) are cached.  Deprecated arguments,
+	 * locale-dependent values ('language'), and theme-dependent values
+	 * bypass the cache entirely.
+	 */
+	static $invalidation_hooked = false;
+
+	// Whitelist of $show values that are safe to cache.  Each is backed by
+	// an option listed in the invalidation hook below or is immutable.
+	static $cacheable_shows = array(
+		'name'         => true, // get_option('blogname')
+		'description'  => true, // get_option('blogdescription')
+		'url'          => true, // home_url() → get_option('home')
+		'wpurl'        => true, // site_url() → get_option('siteurl')
+		'admin_email'  => true, // get_option('admin_email')
+		'charset'      => true, // get_option('blog_charset')
+		'html_type'    => true, // get_option('html_type')
+		'pingback_url' => true, // site_url('xmlrpc.php') → get_option('siteurl')
+	);
+
+	if ( ! $invalidation_hooked ) {
+		/*
+		 * Register a single hook to clear the bloginfo cache when any
+		 * option that feeds get_bloginfo() is updated.  This ensures
+		 * callers that do update_option() then get_bloginfo() see fresh data.
+		 */
+		add_action(
+			'updated_option',
+			static function ( $option ) {
+				static $bloginfo_options = array(
+					'blogname'        => true,
+					'blogdescription' => true,
+					'blog_charset'    => true,
+					'html_type'       => true,
+					'admin_email'     => true,
+					'siteurl'         => true,
+					'home'            => true,
+				);
+				if ( isset( $bloginfo_options[ $option ] ) ) {
+					wp_cache_delete( 'bloginfo_all', 'bloginfo_raw' );
+				}
 			}
-			break;
-		case 'html_type':
-			$output = get_option( 'html_type' );
-			break;
-		case 'version':
-			global $wp_version;
-			$output = $wp_version;
-			break;
-		case 'language':
-			/*
-			 * translators: Translate this to the correct language tag for your locale,
-			 * see https://www.w3.org/International/articles/language-tags/ for reference.
-			 * Do not translate into your own language.
-			 */
-			$output = __( 'html_lang_attribute' );
-			if ( 'html_lang_attribute' === $output || preg_match( '/[^a-zA-Z0-9-]/', $output ) ) {
-				$output = determine_locale();
-				$output = str_replace( '_', '-', $output );
+		);
+		$invalidation_hooked = true;
+	}
+
+	$is_cacheable = isset( $cacheable_shows[ $show ] );
+	$bloginfo_cache = $is_cacheable ? wp_cache_get( 'bloginfo_all', 'bloginfo_raw' ) : false;
+
+	if ( is_array( $bloginfo_cache ) && isset( $bloginfo_cache[ $show ] ) ) {
+		$output = $bloginfo_cache[ $show ];
+	} else {
+		switch ( $show ) {
+			case 'home':    // Deprecated.
+			case 'siteurl': // Deprecated.
+				_deprecated_argument(
+					__FUNCTION__,
+					'2.2.0',
+					sprintf(
+						/* translators: 1: 'siteurl'/'home' argument, 2: bloginfo() function name, 3: 'url' argument. */
+						__( 'The %1$s option is deprecated for the family of %2$s functions. Use the %3$s option instead.' ),
+						'<code>' . $show . '</code>',
+						'<code>bloginfo()</code>',
+						'<code>url</code>'
+					)
+				);
+				// Intentional fall-through to be handled by the 'url' case.
+			case 'url':
+				$output = home_url();
+				break;
+			case 'wpurl':
+				$output = site_url();
+				break;
+			case 'description':
+				$output = get_option( 'blogdescription' );
+				break;
+			case 'rdf_url':
+				$output = get_feed_link( 'rdf' );
+				break;
+			case 'rss_url':
+				$output = get_feed_link( 'rss' );
+				break;
+			case 'rss2_url':
+				$output = get_feed_link( 'rss2' );
+				break;
+			case 'atom_url':
+				$output = get_feed_link( 'atom' );
+				break;
+			case 'comments_atom_url':
+				$output = get_feed_link( 'comments_atom' );
+				break;
+			case 'comments_rss2_url':
+				$output = get_feed_link( 'comments_rss2' );
+				break;
+			case 'pingback_url':
+				$output = site_url( 'xmlrpc.php' );
+				break;
+			case 'stylesheet_url':
+				$output = get_stylesheet_uri();
+				break;
+			case 'stylesheet_directory':
+				$output = get_stylesheet_directory_uri();
+				break;
+			case 'template_directory':
+			case 'template_url':
+				$output = get_template_directory_uri();
+				break;
+			case 'admin_email':
+				$output = get_option( 'admin_email' );
+				break;
+			case 'charset':
+				$output = get_option( 'blog_charset' );
+				if ( '' === $output ) {
+					$output = 'UTF-8';
+				}
+				break;
+			case 'html_type':
+				$output = get_option( 'html_type' );
+				break;
+			case 'version':
+				global $wp_version;
+				$output = $wp_version;
+				break;
+			case 'language':
+				/*
+				 * translators: Translate this to the correct language tag for your locale,
+				 * see https://www.w3.org/International/articles/language-tags/ for reference.
+				 * Do not translate into your own language.
+				 */
+				$output = __( 'html_lang_attribute' );
+				if ( 'html_lang_attribute' === $output || preg_match( '/[^a-zA-Z0-9-]/', $output ) ) {
+					$output = determine_locale();
+					$output = str_replace( '_', '-', $output );
+				}
+				break;
+			case 'text_direction':
+				_deprecated_argument(
+					__FUNCTION__,
+					'2.2.0',
+					sprintf(
+						/* translators: 1: 'text_direction' argument, 2: bloginfo() function name, 3: is_rtl() function name. */
+						__( 'The %1$s option is deprecated for the family of %2$s functions. Use the %3$s function instead.' ),
+						'<code>' . $show . '</code>',
+						'<code>bloginfo()</code>',
+						'<code>is_rtl()</code>'
+					)
+				);
+				if ( function_exists( 'is_rtl' ) ) {
+					$output = is_rtl() ? 'rtl' : 'ltr';
+				} else {
+					$output = 'ltr';
+				}
+				break;
+			case 'name':
+			default:
+				$output = get_option( 'blogname' );
+				break;
+		}
+
+		if ( $is_cacheable ) {
+			if ( ! is_array( $bloginfo_cache ) ) {
+				$bloginfo_cache = array();
 			}
-			break;
-		case 'text_direction':
-			_deprecated_argument(
-				__FUNCTION__,
-				'2.2.0',
-				sprintf(
-					/* translators: 1: 'text_direction' argument, 2: bloginfo() function name, 3: is_rtl() function name. */
-					__( 'The %1$s option is deprecated for the family of %2$s functions. Use the %3$s function instead.' ),
-					'<code>' . $show . '</code>',
-					'<code>bloginfo()</code>',
-					'<code>is_rtl()</code>'
-				)
-			);
-			if ( function_exists( 'is_rtl' ) ) {
-				$output = is_rtl() ? 'rtl' : 'ltr';
-			} else {
-				$output = 'ltr';
-			}
-			break;
-		case 'name':
-		default:
-			$output = get_option( 'blogname' );
-			break;
+			$bloginfo_cache[ $show ] = $output;
+			wp_cache_set( 'bloginfo_all', $bloginfo_cache, 'bloginfo_raw' );
+		}
 	}
 
 	if ( 'display' === $filter ) {
@@ -1343,100 +1486,120 @@ function _wp_render_title_tag() {
 function wp_title( $sep = '&raquo;', $display = true, $seplocation = '' ) {
 	global $wp_locale;
 
-	$m        = get_query_var( 'm' );
-	$year     = get_query_var( 'year' );
-	$monthnum = get_query_var( 'monthnum' );
-	$day      = get_query_var( 'day' );
-	$search   = get_query_var( 's' );
-	$title    = '';
+	/*
+	 * Cache the raw title parts within the current request. The underlying
+	 * query state (query vars, conditional tags) does not change during a
+	 * single request, so the expensive conditional chain — which calls
+	 * single_post_title(), get_queried_object(), get_taxonomy(), etc. —
+	 * only needs to run once. The 'wp_title_parts' and 'wp_title' filters
+	 * still fire on every call for plugin compatibility.
+	 */
+	static $cached_parts = array();
 
-	$t_sep = '%WP_TITLE_SEP%'; // Temporary separator, for accurate flipping, if necessary.
+	// Use the request URI as the cache key; it changes when the query changes.
+	$request_key = $_SERVER['REQUEST_URI'] ?? '';
 
-	// If there is a post.
-	if ( is_single() || ( is_home() && ! is_front_page() ) || ( is_page() && ! is_front_page() ) ) {
-		$title = single_post_title( '', false );
-	}
+	if ( ! isset( $cached_parts[ $request_key ] ) ) {
+		$m        = get_query_var( 'm' );
+		$year     = get_query_var( 'year' );
+		$monthnum = get_query_var( 'monthnum' );
+		$day      = get_query_var( 'day' );
+		$search   = get_query_var( 's' );
+		$title    = '';
 
-	// If there's a post type archive.
-	if ( is_post_type_archive() ) {
-		$post_type = get_query_var( 'post_type' );
-		if ( is_array( $post_type ) ) {
-			$post_type = reset( $post_type );
+		$t_sep = '%WP_TITLE_SEP%'; // Temporary separator, for accurate flipping, if necessary.
+
+		// If there is a post.
+		if ( is_single() || ( is_home() && ! is_front_page() ) || ( is_page() && ! is_front_page() ) ) {
+			$title = single_post_title( '', false );
 		}
-		$post_type_object = get_post_type_object( $post_type );
-		if ( ! $post_type_object->has_archive ) {
+
+		// If there's a post type archive.
+		if ( is_post_type_archive() ) {
+			$post_type = get_query_var( 'post_type' );
+			if ( is_array( $post_type ) ) {
+				$post_type = reset( $post_type );
+			}
+			$post_type_object = get_post_type_object( $post_type );
+			if ( ! $post_type_object->has_archive ) {
+				$title = post_type_archive_title( '', false );
+			}
+		}
+
+		// If there's a category or tag.
+		if ( is_category() || is_tag() ) {
+			$title = single_term_title( '', false );
+		}
+
+		// If there's a taxonomy.
+		if ( is_tax() ) {
+			$term = get_queried_object();
+			if ( $term ) {
+				$tax   = get_taxonomy( $term->taxonomy );
+				$title = single_term_title( $tax->labels->name . $t_sep, false );
+			}
+		}
+
+		// If there's an author.
+		if ( is_author() && ! is_post_type_archive() ) {
+			$author = get_queried_object();
+			if ( $author ) {
+				$title = $author->display_name;
+			}
+		}
+
+		// Post type archives with has_archive should override terms.
+		if ( is_post_type_archive() && $post_type_object->has_archive ) {
 			$title = post_type_archive_title( '', false );
 		}
-	}
 
-	// If there's a category or tag.
-	if ( is_category() || is_tag() ) {
-		$title = single_term_title( '', false );
-	}
-
-	// If there's a taxonomy.
-	if ( is_tax() ) {
-		$term = get_queried_object();
-		if ( $term ) {
-			$tax   = get_taxonomy( $term->taxonomy );
-			$title = single_term_title( $tax->labels->name . $t_sep, false );
+		// If there's a month.
+		if ( is_archive() && ! empty( $m ) ) {
+			$my_year  = substr( $m, 0, 4 );
+			$my_month = substr( $m, 4, 2 );
+			$my_day   = (int) substr( $m, 6, 2 );
+			$title    = $my_year .
+				( $my_month ? $t_sep . $wp_locale->get_month( $my_month ) : '' ) .
+				( $my_day ? $t_sep . $my_day : '' );
 		}
-	}
 
-	// If there's an author.
-	if ( is_author() && ! is_post_type_archive() ) {
-		$author = get_queried_object();
-		if ( $author ) {
-			$title = $author->display_name;
+		// If there's a year.
+		if ( is_archive() && ! empty( $year ) ) {
+			$title = $year;
+			if ( ! empty( $monthnum ) ) {
+				$title .= $t_sep . $wp_locale->get_month( $monthnum );
+			}
+			if ( ! empty( $day ) ) {
+				$title .= $t_sep . zeroise( $day, 2 );
+			}
 		}
-	}
 
-	// Post type archives with has_archive should override terms.
-	if ( is_post_type_archive() && $post_type_object->has_archive ) {
-		$title = post_type_archive_title( '', false );
-	}
-
-	// If there's a month.
-	if ( is_archive() && ! empty( $m ) ) {
-		$my_year  = substr( $m, 0, 4 );
-		$my_month = substr( $m, 4, 2 );
-		$my_day   = (int) substr( $m, 6, 2 );
-		$title    = $my_year .
-			( $my_month ? $t_sep . $wp_locale->get_month( $my_month ) : '' ) .
-			( $my_day ? $t_sep . $my_day : '' );
-	}
-
-	// If there's a year.
-	if ( is_archive() && ! empty( $year ) ) {
-		$title = $year;
-		if ( ! empty( $monthnum ) ) {
-			$title .= $t_sep . $wp_locale->get_month( $monthnum );
+		// If it's a search.
+		if ( is_search() ) {
+			/* translators: 1: Separator, 2: Search query. */
+			$title = sprintf( __( 'Search Results %1$s %2$s' ), $t_sep, strip_tags( $search ) );
 		}
-		if ( ! empty( $day ) ) {
-			$title .= $t_sep . zeroise( $day, 2 );
+
+		// If it's a 404 page.
+		if ( is_404() ) {
+			$title = __( 'Page not found' );
 		}
+
+		if ( ! is_string( $title ) ) {
+			$title = '';
+		}
+
+		$has_title   = ( '' !== $title );
+		$title_array = $has_title ? explode( $t_sep, $title ) : array();
+
+		$cached_parts[ $request_key ] = array( $has_title, $title_array );
 	}
 
-	// If it's a search.
-	if ( is_search() ) {
-		/* translators: 1: Separator, 2: Search query. */
-		$title = sprintf( __( 'Search Results %1$s %2$s' ), $t_sep, strip_tags( $search ) );
-	}
+	list( $has_title, $title_array ) = $cached_parts[ $request_key ];
 
-	// If it's a 404 page.
-	if ( is_404() ) {
-		$title = __( 'Page not found' );
-	}
-
-	if ( ! is_string( $title ) ) {
-		$title = '';
-	}
-
-	$prefix      = '';
-	$title_array = array();
-	if ( '' !== $title ) {
-		$prefix      = " $sep ";
-		$title_array = explode( $t_sep, $title );
+	$prefix = '';
+	if ( $has_title ) {
+		$prefix = " $sep ";
 	}
 
 	/**
@@ -2341,10 +2504,33 @@ function get_calendar( $args = array() ) {
 	);
 
 	wp_recursive_ksort( $cache_args );
-	$key   = md5( serialize( $cache_args ) );
+	$key = md5( serialize( $cache_args ) );
+
+	/*
+	 * Request-level static cache: avoids the overhead of wp_cache_get()
+	 * (serialization, object cache backend calls) on repeated calendar
+	 * renders within the same request.
+	 */
+	static $static_cache = array();
+
+	if ( isset( $static_cache[ $key ] ) ) {
+		/** This filter is documented in wp-includes/general-template.php */
+		$output = apply_filters( 'get_calendar', $static_cache[ $key ], $args );
+
+		if ( $args['display'] ) {
+			echo $output;
+			return;
+		}
+
+		return $output;
+	}
+
 	$cache = wp_cache_get( 'get_calendar', 'calendar' );
 
 	if ( $cache && is_array( $cache ) && isset( $cache[ $key ] ) ) {
+		// Populate static cache from the WP object cache hit.
+		$static_cache[ $key ] = $cache[ $key ];
+
 		/** This filter is documented in wp-includes/general-template.php */
 		$output = apply_filters( 'get_calendar', $cache[ $key ], $args );
 
@@ -2585,6 +2771,9 @@ function get_calendar( $args = array() ) {
 
 	$cache[ $key ] = $calendar_output;
 	wp_cache_set( 'get_calendar', $cache, 'calendar' );
+
+	// Populate request-level static cache for this calendar variant.
+	$static_cache[ $key ] = $calendar_output;
 
 	/**
 	 * Filters the HTML calendar output.
