@@ -82,6 +82,52 @@ class WP_Script_Modules {
 	private $modules_with_missing_dependencies = array();
 
 	/**
+	 * Memoization cache for resolved dependency results.
+	 *
+	 * Keyed by a hash of input IDs and import types to avoid redundant
+	 * BFS traversals of the dependency graph within a single request.
+	 *
+	 * @since 7.0.0
+	 * @var array<string, array<string, array<string, mixed>>>
+	 */
+	private $dependencies_cache = array();
+
+	/**
+	 * Cache for sorted dependency results.
+	 *
+	 * Keyed by a hash of input IDs and import types. Avoids re-sorting
+	 * when the same sorted dependency list is requested multiple times
+	 * (e.g., from print_head_enqueued_script_modules and print_enqueued_script_modules).
+	 *
+	 * @since 7.0.0
+	 * @var array<string, string[]>
+	 */
+	private $sorted_dependencies_cache = array();
+
+	/**
+	 * Cache for recursive dependents results per module ID.
+	 *
+	 * Avoids redundant BFS traversals when get_recursive_dependents()
+	 * is called for the same module from different print methods.
+	 *
+	 * @since 7.0.0
+	 * @var array<string, string[]>
+	 */
+	private $recursive_dependents_cache = array();
+
+	/**
+	 * Whether the dependents map has been fully built.
+	 *
+	 * When true, $dependents_map contains the complete reverse dependency
+	 * index for all registered modules, built in a single pass rather
+	 * than per-ID on-demand lookups.
+	 *
+	 * @since 7.0.0
+	 * @var bool
+	 */
+	private $dependents_map_complete = false;
+
+	/**
 	 * Registers the script module if no script module with that script module
 	 * identifier has already been registered.
 	 *
@@ -174,6 +220,9 @@ class WP_Script_Modules {
 				'in_footer'     => $in_footer,
 				'fetchpriority' => $fetchpriority,
 			);
+
+			// New module changes the dependency graph; invalidate all resolution caches.
+			$this->invalidate_resolution_caches( true );
 		}
 	}
 
@@ -198,6 +247,61 @@ class WP_Script_Modules {
 	 */
 	private function is_valid_fetchpriority( $priority ): bool {
 		return in_array( $priority, $this->priorities, true );
+	}
+
+	/**
+	 * Invalidates internal resolution caches.
+	 *
+	 * Called when the registered modules or queue changes, ensuring
+	 * cached results reflect the current state. All memoized dependency
+	 * resolutions, import maps, sorted dependency lists, and URL caches
+	 * are cleared so that subsequent calls recompute from fresh data.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @param bool $registration_changed Whether a module registration changed
+	 *                                   (vs. just a queue change). When true,
+	 *                                   also clears the dependents map and
+	 *                                   recursive dependents cache.
+	 */
+	private function invalidate_resolution_caches( bool $registration_changed = false ) {
+		$this->dependencies_cache        = array();
+		$this->sorted_dependencies_cache = array();
+
+		if ( $registration_changed ) {
+			$this->recursive_dependents_cache = array();
+			$this->dependents_map             = array();
+			$this->dependents_map_complete    = false;
+		}
+	}
+
+	/**
+	 * Builds the complete reverse dependency index in a single pass.
+	 *
+	 * Instead of scanning all registered modules per-ID on demand (O(N) per
+	 * lookup with temporary array allocations via wp_list_pluck), this builds
+	 * the entire reverse index in O(N * avg_deps) total, so all subsequent
+	 * get_dependents() calls are O(1) hash lookups.
+	 *
+	 * @since 7.0.0
+	 */
+	private function ensure_dependents_map_complete() {
+		if ( $this->dependents_map_complete ) {
+			return;
+		}
+
+		$this->dependents_map = array();
+		foreach ( $this->registered as $registered_id => $args ) {
+			foreach ( $args['dependencies'] as $dependency ) {
+				$dep_id = $dependency['id'];
+				if ( ! isset( $this->dependents_map[ $dep_id ] ) ) {
+					$this->dependents_map[ $dep_id ] = array();
+				}
+				$this->dependents_map[ $dep_id ][] = $registered_id;
+			}
+		}
+
+		$this->dependents_map_complete = true;
 	}
 
 	/**
@@ -297,11 +401,17 @@ class WP_Script_Modules {
 			return;
 		}
 
+		$queue_changed = false;
 		if ( ! in_array( $id, $this->queue, true ) ) {
 			$this->queue[] = $id;
+			$queue_changed = true;
 		}
 		if ( ! isset( $this->registered[ $id ] ) && $src ) {
+			// register() calls invalidate_resolution_caches( true ) internally.
 			$this->register( $id, $src, $deps, $version, $args );
+		} elseif ( $queue_changed ) {
+			// Queue changed but no new registration; invalidate queue-dependent caches only.
+			$this->invalidate_resolution_caches( false );
 		}
 	}
 
@@ -313,7 +423,13 @@ class WP_Script_Modules {
 	 * @param string $id The identifier of the script module.
 	 */
 	public function dequeue( string $id ) {
+		$prev_count  = count( $this->queue );
 		$this->queue = array_values( array_diff( $this->queue, array( $id ) ) );
+
+		// Only invalidate if the queue actually changed.
+		if ( count( $this->queue ) !== $prev_count ) {
+			$this->invalidate_resolution_caches( false );
+		}
 	}
 
 	/**
@@ -326,6 +442,9 @@ class WP_Script_Modules {
 	public function deregister( string $id ) {
 		$this->dequeue( $id );
 		unset( $this->registered[ $id ] );
+
+		// Module removed from registry; invalidate all resolution caches.
+		$this->invalidate_resolution_caches( true );
 	}
 
 	/**
@@ -619,6 +738,7 @@ class WP_Script_Modules {
 				$imports[ $id ] = $src;
 			}
 		}
+
 		return array( 'imports' => $imports );
 	}
 
@@ -654,11 +774,22 @@ class WP_Script_Modules {
 	 * @return array<string, array<string, mixed>> List of dependencies, keyed by script module identifier.
 	 */
 	private function get_dependencies( array $ids, array $import_types = array( 'static', 'dynamic' ) ): array {
+		// Build a cache key from input IDs and import types to memoize results.
+		$cache_key = implode( ',', $ids ) . '|' . implode( ',', $import_types );
+
+		if ( isset( $this->dependencies_cache[ $cache_key ] ) ) {
+			return $this->dependencies_cache[ $cache_key ];
+		}
+
 		$all_dependencies = array();
 		$id_queue         = $ids;
+		$front            = 0;
 
-		while ( ! empty( $id_queue ) ) {
-			$id = array_shift( $id_queue );
+		// Use index pointer instead of array_shift() to avoid O(n) re-indexing per iteration.
+		while ( $front < count( $id_queue ) ) {
+			$id = $id_queue[ $front ];
+			++$front;
+
 			if ( ! isset( $this->registered[ $id ] ) ) {
 				continue;
 			}
@@ -677,6 +808,7 @@ class WP_Script_Modules {
 			}
 		}
 
+		$this->dependencies_cache[ $cache_key ] = $all_dependencies;
 		return $all_dependencies;
 	}
 
@@ -693,24 +825,12 @@ class WP_Script_Modules {
 	 * @return string[] Script module IDs.
 	 */
 	private function get_dependents( string $id ): array {
-		// Check if dependents map for the handle in question is present. If so, use it.
-		if ( isset( $this->dependents_map[ $id ] ) ) {
-			return $this->dependents_map[ $id ];
-		}
+		// Build the complete reverse dependency index if not yet done.
+		// This replaces per-ID O(N) scans with wp_list_pluck() with a single
+		// O(N * avg_deps) pass, making all subsequent lookups O(1).
+		$this->ensure_dependents_map_complete();
 
-		$dependents = array();
-
-		// Iterate over all registered scripts, finding dependents of the script passed to this method.
-		foreach ( $this->registered as $registered_id => $args ) {
-			if ( in_array( $id, wp_list_pluck( $args['dependencies'], 'id' ), true ) ) {
-				$dependents[] = $registered_id;
-			}
-		}
-
-		// Add the module's dependents to the map to ease future lookups.
-		$this->dependents_map[ $id ] = $dependents;
-
-		return $dependents;
+		return isset( $this->dependents_map[ $id ] ) ? $this->dependents_map[ $id ] : array();
 	}
 
 	/**
@@ -724,12 +844,21 @@ class WP_Script_Modules {
 	 * @return string[] Script module IDs.
 	 */
 	private function get_recursive_dependents( string $id ): array {
+		// Return memoized result if available, avoiding redundant BFS traversals
+		// when the same module's dependents are requested from multiple print methods.
+		if ( isset( $this->recursive_dependents_cache[ $id ] ) ) {
+			return $this->recursive_dependents_cache[ $id ];
+		}
+
 		$dependents = array();
 		$id_queue   = array( $id );
 		$processed  = array();
+		$front      = 0;
 
-		while ( ! empty( $id_queue ) ) {
-			$current_id = array_shift( $id_queue );
+		// Use index pointer instead of array_shift() to avoid O(n) re-indexing per iteration.
+		while ( $front < count( $id_queue ) ) {
+			$current_id = $id_queue[ $front ];
+			++$front;
 
 			// Skip unregistered or already-processed script modules.
 			if ( ! isset( $this->registered[ $current_id ] ) || isset( $processed[ $current_id ] ) ) {
@@ -751,7 +880,10 @@ class WP_Script_Modules {
 			}
 		}
 
-		return array_keys( $dependents );
+		$result = array_keys( $dependents );
+
+		$this->recursive_dependents_cache[ $id ] = $result;
+		return $result;
 	}
 
 	/**
@@ -769,13 +901,24 @@ class WP_Script_Modules {
 	 * @return string[] Sorted list of script module identifiers.
 	 */
 	private function get_sorted_dependencies( array $ids, array $import_types = array( 'static', 'dynamic' ) ): array {
+		// Build a cache key from input IDs and import types to memoize the sorted result.
+		// This avoids re-sorting when called from multiple print methods with the same queue.
+		$cache_key = implode( ',', $ids ) . '|' . implode( ',', $import_types );
+
+		if ( isset( $this->sorted_dependencies_cache[ $cache_key ] ) ) {
+			return $this->sorted_dependencies_cache[ $cache_key ];
+		}
+
 		$sorted = array();
 
 		foreach ( $ids as $id ) {
 			$this->sort_item_dependencies( $id, $import_types, $sorted );
 		}
 
-		return array_unique( $sorted );
+		$result = array_unique( $sorted );
+
+		$this->sorted_dependencies_cache[ $cache_key ] = $result;
+		return $result;
 	}
 
 	/**
