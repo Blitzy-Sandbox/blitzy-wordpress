@@ -1165,6 +1165,29 @@ function get_post( $post = null, $output = OBJECT, $filter = 'raw' ) {
 			$_post = null;
 		}
 	} else {
+		/*
+		 * Performance optimization: For the most common case — an integer post ID
+		 * with the post already in the object cache — attempt a direct cache lookup
+		 * before delegating to WP_Post::get_instance(). This avoids the overhead of
+		 * instantiating a new WP_Post object on every call when the raw cached data
+		 * is available and the caller requests OBJECT output with 'raw' filter.
+		 *
+		 * WP_Post::get_instance() always creates a new WP_Post object even on cache hit.
+		 * This fast path returns the cached WP_Post directly when possible.
+		 */
+		if ( OBJECT === $output && 'raw' === $filter ) {
+			$post_id = (int) $post;
+			if ( $post_id > 0 ) {
+				$_post = wp_cache_get( $post_id, 'posts' );
+				if ( $_post instanceof WP_Post ) {
+					return $_post;
+				}
+				if ( is_object( $_post ) && ! empty( $_post->filter ) && 'raw' === $_post->filter ) {
+					$_post = new WP_Post( $_post );
+					return $_post;
+				}
+			}
+		}
 		$_post = WP_Post::get_instance( $post );
 	}
 
@@ -1198,6 +1221,29 @@ function get_post_ancestors( $post ) {
 		return array();
 	}
 
+	/*
+	 * Performance optimization: Memoize ancestor chains per post ID within the
+	 * current request. Ancestor chains are computed by walking the parent hierarchy
+	 * via repeated get_post() calls, which is expensive for deeply nested pages.
+	 *
+	 * The static cache is automatically invalidated when any post cache is cleaned
+	 * (via clean_post_cache() → wp_cache_set_posts_last_changed()), which bumps
+	 * the 'posts' group last_changed value. This ensures stale ancestor data is
+	 * never served after a post's parent is changed.
+	 */
+	static $ancestor_cache = array();
+	static $last_changed   = '';
+
+	$current_last_changed = wp_cache_get_last_changed( 'posts' );
+	if ( $current_last_changed !== $last_changed ) {
+		$ancestor_cache = array();
+		$last_changed   = $current_last_changed;
+	}
+
+	if ( isset( $ancestor_cache[ $post->ID ] ) ) {
+		return $ancestor_cache[ $post->ID ];
+	}
+
 	$ancestors = array();
 
 	$id          = $post->post_parent;
@@ -1214,6 +1260,8 @@ function get_post_ancestors( $post ) {
 		$id          = $ancestor->post_parent;
 		$ancestors[] = $id;
 	}
+
+	$ancestor_cache[ $post->ID ] = $ancestors;
 
 	return $ancestors;
 }
@@ -1629,6 +1677,23 @@ function post_type_exists( $post_type ) {
  * @return string|false          Post type on success, false on failure.
  */
 function get_post_type( $post = null ) {
+	/*
+	 * Performance optimization: When called with an explicit integer post ID,
+	 * check the object cache directly for the post type without the overhead
+	 * of full get_post() → WP_Post instantiation. This function is called
+	 * frequently in batch operations (e.g., _prime_post_caches term cache
+	 * priming calls array_map('get_post_type', $ids)).
+	 */
+	if ( null !== $post && ! is_object( $post ) ) {
+		$post_id = (int) $post;
+		if ( $post_id > 0 ) {
+			$cached = wp_cache_get( $post_id, 'posts' );
+			if ( $cached && isset( $cached->post_type ) ) {
+				return $cached->post_type;
+			}
+		}
+	}
+
 	$post = get_post( $post );
 	if ( $post ) {
 		return $post->post_type;
