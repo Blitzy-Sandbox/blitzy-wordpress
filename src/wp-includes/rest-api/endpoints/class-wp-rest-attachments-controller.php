@@ -203,6 +203,20 @@ class WP_REST_Attachments_Controller extends WP_REST_Posts_Controller {
 			add_filter( 'wp_allow_query_attachment_by_filename', '__return_true' );
 		}
 
+		// Ensure attachment metadata cache is primed for collection responses.
+		// WP_Query primes post meta by default, but ensure it's not disabled by filters.
+		// Attachment serialization heavily accesses _wp_attachment_metadata,
+		// _wp_attachment_image_alt, and other per-attachment meta keys.
+		if ( ! isset( $query_args['update_post_meta_cache'] ) || false !== $query_args['update_post_meta_cache'] ) {
+			$query_args['update_post_meta_cache'] = true;
+		}
+
+		// Ensure term cache is primed for attachment collection responses.
+		// Term relationships are accessed during REST response preparation.
+		if ( ! isset( $query_args['update_post_term_cache'] ) || false !== $query_args['update_post_term_cache'] ) {
+			$query_args['update_post_term_cache'] = true;
+		}
+
 		return $query_args;
 	}
 
