@@ -288,6 +288,29 @@ function get_taxonomies( $args = array(), $output = 'names', $operator = 'and' )
 }
 
 /**
+ * Returns and optionally increments the taxonomy registry generation counter.
+ *
+ * This counter is bumped whenever the set of registered taxonomies or their
+ * object-type assignments changes, allowing per-request memoization caches
+ * to detect stale entries without expensive comparisons.
+ *
+ * @since 7.0.0
+ * @access private
+ *
+ * @param bool $bump Optional. Whether to increment the generation. Default false.
+ * @return int The current (post-increment if bumped) generation counter value.
+ */
+function _wp_taxonomy_cache_generation( $bump = false ) {
+	static $generation = 0;
+
+	if ( $bump ) {
+		++$generation;
+	}
+
+	return $generation;
+}
+
+/**
  * Returns the names or objects of the taxonomies which are registered for the requested object or object type,
  * such as a post object or post type name.
  *
@@ -320,6 +343,52 @@ function get_object_taxonomies( $object_type, $output = 'names' ) {
 
 	$object_type = (array) $object_type;
 
+	/*
+	 * Memoize taxonomy name results within the current request to avoid
+	 * iterating all registered taxonomies on every call. Only the 'names'
+	 * output is cached because it consists of plain strings that remain
+	 * valid across taxonomy re-registrations. The 'objects' output returns
+	 * live WP_Taxonomy references that could become stale.
+	 *
+	 * Primary invalidation uses a generation counter bumped by
+	 * register_taxonomy(), unregister_taxonomy(),
+	 * register_taxonomy_for_object_type(), and
+	 * unregister_taxonomy_for_object_type().
+	 *
+	 * A lightweight secondary validation confirms that each cached
+	 * taxonomy name still maps to the queried object type, catching
+	 * direct $wp_taxonomies manipulation (e.g. in unit tests or plugins).
+	 */
+	if ( 'names' === $output ) {
+		static $names_cache = array();
+		static $cached_generation = -1;
+
+		$current_generation = _wp_taxonomy_cache_generation();
+		if ( $current_generation !== $cached_generation ) {
+			$names_cache       = array();
+			$cached_generation = $current_generation;
+		}
+
+		$cache_key = implode( ',', $object_type );
+		if ( isset( $names_cache[ $cache_key ] ) ) {
+			// Validate cached entries still map to this object type.
+			$cached      = $names_cache[ $cache_key ];
+			$still_valid = true;
+			foreach ( $cached as $tax_name ) {
+				if ( ! isset( $wp_taxonomies[ $tax_name ] )
+					|| ! in_array( $object_type[0], (array) $wp_taxonomies[ $tax_name ]->object_type, true )
+				) {
+					$still_valid = false;
+					break;
+				}
+			}
+			if ( $still_valid ) {
+				return $cached;
+			}
+			unset( $names_cache[ $cache_key ] );
+		}
+	}
+
 	$taxonomies = array();
 	foreach ( (array) $wp_taxonomies as $tax_name => $tax_obj ) {
 		if ( array_intersect( $object_type, (array) $tax_obj->object_type ) ) {
@@ -329,6 +398,10 @@ function get_object_taxonomies( $object_type, $output = 'names' ) {
 				$taxonomies[ $tax_name ] = $tax_obj;
 			}
 		}
+	}
+
+	if ( 'names' === $output ) {
+		$names_cache[ $cache_key ] = $taxonomies;
 	}
 
 	return $taxonomies;
@@ -397,12 +470,18 @@ function taxonomy_exists( $taxonomy ) {
  * @return bool Whether the taxonomy is hierarchical.
  */
 function is_taxonomy_hierarchical( $taxonomy ) {
-	if ( ! taxonomy_exists( $taxonomy ) ) {
+	global $wp_taxonomies;
+
+	/*
+	 * Direct global access eliminates the overhead of two redundant
+	 * function calls (taxonomy_exists + get_taxonomy, which internally
+	 * calls taxonomy_exists again) on this frequently invoked path.
+	 */
+	if ( ! is_string( $taxonomy ) || ! isset( $wp_taxonomies[ $taxonomy ] ) ) {
 		return false;
 	}
 
-	$taxonomy = get_taxonomy( $taxonomy );
-	return $taxonomy->hierarchical;
+	return $wp_taxonomies[ $taxonomy ]->hierarchical;
 }
 
 /**
@@ -587,6 +666,9 @@ function register_taxonomy( $taxonomy, $object_type, $args = array() ) {
 	 */
 	do_action( "registered_taxonomy_{$taxonomy}", $taxonomy, $object_type, (array) $taxonomy_object );
 
+	// Bump generation so get_object_taxonomies() memoization detects the change.
+	_wp_taxonomy_cache_generation( true );
+
 	return $taxonomy_object;
 }
 
@@ -630,6 +712,9 @@ function unregister_taxonomy( $taxonomy ) {
 	 * @param string $taxonomy Taxonomy name.
 	 */
 	do_action( 'unregistered_taxonomy', $taxonomy );
+
+	// Bump generation so get_object_taxonomies() memoization detects the change.
+	_wp_taxonomy_cache_generation( true );
 
 	return true;
 }
@@ -793,6 +878,9 @@ function register_taxonomy_for_object_type( $taxonomy, $object_type ) {
 	 */
 	do_action( 'registered_taxonomy_for_object_type', $taxonomy, $object_type );
 
+	// Bump generation so get_object_taxonomies() memoization detects the change.
+	_wp_taxonomy_cache_generation( true );
+
 	return true;
 }
 
@@ -834,6 +922,9 @@ function unregister_taxonomy_for_object_type( $taxonomy, $object_type ) {
 	 * @param string $object_type Name of the object type.
 	 */
 	do_action( 'unregistered_taxonomy_for_object_type', $taxonomy, $object_type );
+
+	// Bump generation so get_object_taxonomies() memoization detects the change.
+	_wp_taxonomy_cache_generation( true );
 
 	return true;
 }
@@ -3774,6 +3865,11 @@ function get_object_term_cache( $id, $taxonomy ) {
 	// We leave the priming of relationship caches to upstream functions.
 	if ( false === $_term_ids ) {
 		return false;
+	}
+
+	// Short-circuit when the object has no terms in this taxonomy.
+	if ( empty( $_term_ids ) ) {
+		return array();
 	}
 
 	// Backward compatibility for if a plugin is putting objects into the cache, rather than IDs.
