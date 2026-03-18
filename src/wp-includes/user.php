@@ -724,6 +724,19 @@ function count_many_users_posts( $users, $post_type = 'post', $public_only = fal
  * @return int The current user's ID, or 0 if no user is logged in.
  */
 function get_current_user_id() {
+	global $current_user;
+
+	/*
+	 * Performance optimization: read the current user ID directly from the
+	 * global $current_user when it is already populated, avoiding the overhead
+	 * of two nested function calls (wp_get_current_user → _wp_get_current_user)
+	 * on each invocation. This is safe because wp_set_current_user() always
+	 * updates the global, so no separate cache invalidation is needed.
+	 */
+	if ( isset( $current_user ) && $current_user instanceof WP_User ) {
+		return $current_user->ID;
+	}
+
 	if ( ! function_exists( 'wp_get_current_user' ) ) {
 		return 0;
 	}
@@ -878,7 +891,31 @@ function get_users( $args = array() ) {
 
 	$user_search = new WP_User_Query( $args );
 
-	return (array) $user_search->get_results();
+	$results = (array) $user_search->get_results();
+
+	/*
+	 * Performance optimization: batch-prime user meta for all returned users.
+	 * This prevents N+1 query patterns when callers iterate over results and
+	 * access user meta (capabilities, options, contact methods). The meta
+	 * cache priming is a single SQL query with WHERE user_id IN (...).
+	 */
+	if ( ! empty( $results ) ) {
+		$user_ids = array();
+		foreach ( $results as $user ) {
+			if ( $user instanceof WP_User ) {
+				$user_ids[] = $user->ID;
+			} elseif ( is_object( $user ) && isset( $user->ID ) ) {
+				$user_ids[] = (int) $user->ID;
+			} elseif ( is_numeric( $user ) ) {
+				$user_ids[] = (int) $user;
+			}
+		}
+		if ( ! empty( $user_ids ) ) {
+			update_meta_cache( 'user', $user_ids );
+		}
+	}
+
+	return $results;
 }
 
 /**
@@ -1998,12 +2035,24 @@ function update_user_caches( $user ) {
 		$user = $user->data;
 	}
 
-	wp_cache_add( $user->ID, $user, 'users' );
-	wp_cache_add( $user->user_login, $user->ID, 'userlogins' );
-	wp_cache_add( $user->user_nicename, $user->ID, 'userslugs' );
+	$user_id = $user->ID;
+
+	wp_cache_add( $user_id, $user, 'users' );
+	wp_cache_add( $user->user_login, $user_id, 'userlogins' );
+	wp_cache_add( $user->user_nicename, $user_id, 'userslugs' );
 
 	if ( ! empty( $user->user_email ) ) {
-		wp_cache_add( $user->user_email, $user->ID, 'useremail' );
+		wp_cache_add( $user->user_email, $user_id, 'useremail' );
+	}
+
+	/*
+	 * Performance optimization: prime user meta cache alongside user data.
+	 * This prevents individual meta queries when user meta is subsequently
+	 * accessed (e.g., capabilities, user options, contact methods). Only
+	 * primes if the meta cache is not already populated for this user.
+	 */
+	if ( false === wp_cache_get( $user_id, 'user_meta' ) ) {
+		update_meta_cache( 'user', array( $user_id ) );
 	}
 }
 
@@ -2025,7 +2074,9 @@ function clean_user_cache( $user ) {
 		return;
 	}
 
-	wp_cache_delete( $user->ID, 'users' );
+	$user_id = $user->ID;
+
+	wp_cache_delete( $user_id, 'users' );
 	wp_cache_delete( $user->user_login, 'userlogins' );
 	wp_cache_delete( $user->user_nicename, 'userslugs' );
 
@@ -2033,8 +2084,15 @@ function clean_user_cache( $user ) {
 		wp_cache_delete( $user->user_email, 'useremail' );
 	}
 
-	wp_cache_delete( $user->ID, 'user_meta' );
+	wp_cache_delete( $user_id, 'user_meta' );
 	wp_cache_set_users_last_changed();
+
+	/*
+	 * Performance optimization: clear per-request capability result cache
+	 * for this user. This ensures that capability checks after user data
+	 * changes (e.g., role changes, meta updates) produce correct results.
+	 */
+	_wp_clear_user_capability_cache( $user_id );
 
 	/**
 	 * Fires immediately after the given user's cache is cleaned.
@@ -2044,7 +2102,7 @@ function clean_user_cache( $user ) {
 	 * @param int     $user_id User ID.
 	 * @param WP_User $user    User object.
 	 */
-	do_action( 'clean_user_cache', $user->ID, $user );
+	do_action( 'clean_user_cache', $user_id, $user );
 }
 
 /**
@@ -5270,3 +5328,119 @@ function wp_is_password_reset_allowed_for_user( $user ) {
 	 */
 	return apply_filters( 'allow_password_reset', $allow, $user->ID );
 }
+
+/**
+ * Retrieves a cached capability check result for a user.
+ *
+ * Per-request capability result cache that avoids repeated WP_User::has_cap()
+ * evaluations for identical capability checks within a single request. The
+ * cache is keyed by user ID, capability name, and any additional arguments
+ * (e.g., post ID for meta capabilities like 'edit_post').
+ *
+ * This is safe because user capabilities do not change within a single HTTP
+ * request under normal circumstances. The cache is invalidated when user data
+ * changes mid-request via wp_set_current_user() or clean_user_cache().
+ *
+ * @since 7.0.0
+ * @access private
+ *
+ * @global array $_wp_user_cap_cache Per-request capability result cache.
+ *
+ * @param int    $user_id    User ID.
+ * @param string $capability Capability name.
+ * @param array  $args       Optional. Additional arguments passed to the capability check. Default empty array.
+ * @return bool|null Cached result (true/false) if found, or null if not in cache.
+ */
+function _wp_get_user_capability_cache( $user_id, $capability, $args = array() ) {
+	global $_wp_user_cap_cache;
+
+	if ( ! isset( $_wp_user_cap_cache ) || ! is_array( $_wp_user_cap_cache ) ) {
+		return null;
+	}
+
+	$cache_key = $capability;
+	if ( ! empty( $args ) ) {
+		$cache_key .= '_' . implode( '_', array_map( 'strval', $args ) );
+	}
+
+	if ( isset( $_wp_user_cap_cache[ $user_id ][ $cache_key ] ) ) {
+		return $_wp_user_cap_cache[ $user_id ][ $cache_key ];
+	}
+
+	return null;
+}
+
+/**
+ * Stores a capability check result in the per-request cache.
+ *
+ * @since 7.0.0
+ * @access private
+ *
+ * @global array $_wp_user_cap_cache Per-request capability result cache.
+ *
+ * @param int    $user_id    User ID.
+ * @param string $capability Capability name.
+ * @param array  $args       Additional arguments passed to the capability check.
+ * @param bool   $result     The capability check result to cache.
+ */
+function _wp_set_user_capability_cache( $user_id, $capability, $args, $result ) {
+	global $_wp_user_cap_cache;
+
+	if ( ! isset( $_wp_user_cap_cache ) || ! is_array( $_wp_user_cap_cache ) ) {
+		$_wp_user_cap_cache = array();
+	}
+
+	$cache_key = $capability;
+	if ( ! empty( $args ) ) {
+		$cache_key .= '_' . implode( '_', array_map( 'strval', $args ) );
+	}
+
+	$_wp_user_cap_cache[ $user_id ][ $cache_key ] = (bool) $result;
+}
+
+/**
+ * Clears the per-request capability cache for a specific user or all users.
+ *
+ * Called when user data changes mid-request (e.g., via wp_set_current_user(),
+ * clean_user_cache(), role or capability modifications) to ensure subsequent
+ * capability checks produce correct results.
+ *
+ * @since 7.0.0
+ * @access private
+ *
+ * @global array $_wp_user_cap_cache Per-request capability result cache.
+ *
+ * @param int $user_id Optional. User ID to clear cache for. Pass 0 to clear the
+ *                     entire cache for all users. Default 0.
+ */
+function _wp_clear_user_capability_cache( $user_id = 0 ) {
+	global $_wp_user_cap_cache;
+
+	if ( $user_id ) {
+		unset( $_wp_user_cap_cache[ $user_id ] );
+	} else {
+		$_wp_user_cap_cache = array();
+	}
+}
+
+/**
+ * Clears all per-request capability caches when the current user is changed.
+ *
+ * Hooked to the 'set_current_user' action to ensure capability checks after
+ * wp_set_current_user() reflect the new user's capabilities. Clears the entire
+ * cache because the active security context has changed.
+ *
+ * @since 7.0.0
+ * @access private
+ */
+function _wp_on_set_current_user_clear_cap_cache() {
+	_wp_clear_user_capability_cache();
+}
+
+/*
+ * Performance optimization: register cache invalidation hooks.
+ *
+ * Ensures the per-request capability result cache is cleared whenever the
+ * current user context changes, preventing stale capability results.
+ */
+add_action( 'set_current_user', '_wp_on_set_current_user_clear_cap_cache' );
