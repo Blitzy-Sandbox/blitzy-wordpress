@@ -145,6 +145,58 @@ class WP_Scripts extends WP_Dependencies {
 	private $delayed_strategies = array( 'defer', 'async' );
 
 	/**
+	 * Cache of resolved dependency resolution state.
+	 *
+	 * Stores the full to_do list, groups, and args after the first all_deps()
+	 * resolution for a given queue. Subsequent calls with the same queue
+	 * (e.g., footer pass after head pass) can restore from cache instead of
+	 * re-traversing the entire dependency tree.
+	 *
+	 * @since 7.0.0
+	 * @var array{queue_hash: string|null, to_do: string[], groups: array, args: array, result: bool}
+	 */
+	private $resolved_cache = array(
+		'queue_hash' => null,
+		'to_do'      => array(),
+		'groups'     => array(),
+		'args'       => array(),
+		'result'     => true,
+	);
+
+	/**
+	 * Whether the full dependents map has been built.
+	 *
+	 * When true, $dependents_map contains the complete reverse-dependency
+	 * graph for all registered scripts, built in a single pass.
+	 *
+	 * @since 7.0.0
+	 * @var bool
+	 */
+	private $dependents_map_complete = false;
+
+	/**
+	 * Count of registered scripts when the dependents map was last built.
+	 *
+	 * Used to detect when new scripts have been registered since the last
+	 * build, triggering a rebuild of the full dependents map.
+	 *
+	 * @since 7.0.0
+	 * @var int
+	 */
+	private $dependents_map_reg_count = 0;
+
+	/**
+	 * Cache of in_default_dir() results keyed by source URL.
+	 *
+	 * Avoids repeated iteration over default_dirs for the same source URL
+	 * during script concatenation checks.
+	 *
+	 * @since 7.0.0
+	 * @var array<string, bool>
+	 */
+	private $default_dir_cache = array();
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 2.6.0
@@ -157,9 +209,25 @@ class WP_Scripts extends WP_Dependencies {
 	/**
 	 * Initialize the class.
 	 *
+	 * Clears all internal caches to ensure a clean state, then fires
+	 * the wp_default_scripts action for script registration.
+	 *
 	 * @since 3.4.0
 	 */
 	public function init() {
+		// Clear all internal resolution and lookup caches on reinitialization.
+		$this->resolved_cache = array(
+			'queue_hash' => null,
+			'to_do'      => array(),
+			'groups'     => array(),
+			'args'       => array(),
+			'result'     => true,
+		);
+		$this->dependents_map           = array();
+		$this->dependents_map_complete  = false;
+		$this->dependents_map_reg_count = 0;
+		$this->default_dir_cache        = array();
+
 		/**
 		 * Fires when the WP_Scripts instance is initialized.
 		 *
@@ -187,6 +255,51 @@ class WP_Scripts extends WP_Dependencies {
 	 */
 	public function print_scripts( $handles = false, $group = false ) {
 		return $this->do_items( $handles, $group );
+	}
+
+	/**
+	 * Processes the items and dependencies.
+	 *
+	 * Overrides the parent method to use a hash set for O(1) lookups of
+	 * already-processed handles, replacing the O(n) in_array() calls in
+	 * the parent implementation. On pages with many enqueued scripts,
+	 * this eliminates quadratic behavior in the processing loop.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @param string|string[]|false $handles Optional. Items to be processed: queue (false),
+	 *                                       single item (string), or multiple items (array of strings).
+	 *                                       Default false.
+	 * @param int|false             $group   Optional. Group level: level (int), no group (false).
+	 *                                       Default false.
+	 * @return string[] Array of handles of items that have been processed.
+	 */
+	public function do_items( $handles = false, $group = false ) {
+		$handles = false === $handles ? $this->queue : (array) $handles;
+		$this->all_deps( $handles );
+
+		// Build a hash set for O(1) lookups of already-processed handles,
+		// avoiding the O(n) cost of in_array() on every iteration.
+		$done_set = array_flip( $this->done );
+
+		foreach ( $this->to_do as $key => $handle ) {
+			if ( ! isset( $done_set[ $handle ] ) && isset( $this->registered[ $handle ] ) ) {
+				/*
+				 * Attempt to process the item. If successful,
+				 * add the handle to the done array and hash set.
+				 *
+				 * Unset the item from the to_do array.
+				 */
+				if ( $this->do_item( $handle, $group ) ) {
+					$this->done[]        = $handle;
+					$done_set[ $handle ] = true;
+				}
+
+				unset( $this->to_do[ $key ] );
+			}
+		}
+
+		return $this->done;
 	}
 
 	/**
@@ -234,10 +347,8 @@ class WP_Scripts extends WP_Dependencies {
 		 * and do not make sense when multiple scripts are joined together.
 		 */
 		if ( ! $this->do_concat ) {
-			$output .= sprintf(
-				"\n//# sourceURL=%s",
-				rawurlencode( "{$handle}-js-extra" )
-			);
+			// Direct concatenation avoids sprintf() overhead on this hot path.
+			$output .= "\n//# sourceURL=" . rawurlencode( "{$handle}-js-extra" );
 		}
 
 		if ( ! $display ) {
@@ -432,11 +543,14 @@ class WP_Scripts extends WP_Dependencies {
 				$src = substr( $src, 0, -strlen( $fragment ) );
 			}
 
+			// Track query string presence to avoid redundant str_contains() calls.
+			$has_query = str_contains( $src, '?' );
 			if ( '' !== $ver_to_add ) {
-				$src .= ( str_contains( $src, '?' ) ? '&' : '?' ) . 'ver=' . rawurlencode( $ver_to_add );
+				$src      .= ( $has_query ? '&' : '?' ) . 'ver=' . rawurlencode( $ver_to_add );
+				$has_query = true;
 			}
 			if ( '' !== $added_args ) {
-				$src .= ( str_contains( $src, '?' ) ? '&' : '?' ) . $added_args;
+				$src .= ( $has_query ? '&' : '?' ) . $added_args;
 			}
 
 			if ( false !== $fragment ) {
@@ -779,6 +893,12 @@ JS;
 	/**
 	 * Determines script dependencies.
 	 *
+	 * Caches the resolved dependency queue after the first full resolution
+	 * for a given set of handles. On subsequent calls with the same queue
+	 * (e.g., the footer pass after the head pass), restores the cached
+	 * to_do list filtered by already-done handles, avoiding a full
+	 * re-traversal of the dependency tree.
+	 *
 	 * @since 2.1.0
 	 *
 	 * @see WP_Dependencies::all_deps()
@@ -791,17 +911,72 @@ JS;
 	 * @return bool True on success, false on failure.
 	 */
 	public function all_deps( $handles, $recursion = false, $group = false ) {
-		$result = parent::all_deps( $handles, $recursion, $group );
 		if ( ! $recursion ) {
-			/**
-			 * Filters the list of script dependencies left to print.
-			 *
-			 * @since 2.3.0
-			 *
-			 * @param string[] $to_do An array of script dependency handles.
+			$handles_array = (array) $handles;
+			$queue_hash    = implode( ',', $handles_array );
+
+			/*
+			 * If we have already resolved this exact queue, restore from cache.
+			 * Filter out handles that have been processed since the cache was built,
+			 * and merge cached group/arg assignments.
 			 */
+			if ( null !== $this->resolved_cache['queue_hash'] && $queue_hash === $this->resolved_cache['queue_hash'] ) {
+				$done_set    = array_flip( $this->done );
+				$restored    = array();
+
+				foreach ( $this->resolved_cache['to_do'] as $cached_handle ) {
+					if ( ! isset( $done_set[ $cached_handle ] ) ) {
+						$restored[] = $cached_handle;
+					}
+				}
+
+				$this->to_do = $restored;
+
+				// Restore group assignments from cache for unprocessed handles.
+				foreach ( $this->resolved_cache['groups'] as $cached_handle => $cached_group ) {
+					if ( ! isset( $this->groups[ $cached_handle ] ) ) {
+						$this->groups[ $cached_handle ] = $cached_group;
+					}
+				}
+
+				// Restore args from cache for unprocessed handles.
+				foreach ( $this->resolved_cache['args'] as $cached_handle => $cached_arg ) {
+					if ( ! isset( $this->args[ $cached_handle ] ) ) {
+						$this->args[ $cached_handle ] = $cached_arg;
+					}
+				}
+
+				/**
+				 * Filters the list of script dependencies left to print.
+				 *
+				 * @since 2.3.0
+				 *
+				 * @param string[] $to_do An array of script dependency handles.
+				 */
+				$this->to_do = apply_filters( 'print_scripts_array', $this->to_do );
+
+				return $this->resolved_cache['result'];
+			}
+		}
+
+		$result = parent::all_deps( $handles, $recursion, $group );
+
+		if ( ! $recursion ) {
+			// Cache the fully-resolved state for potential reuse on subsequent passes.
+			$handles_array = (array) $handles;
+
+			$this->resolved_cache = array(
+				'queue_hash' => implode( ',', $handles_array ),
+				'to_do'      => $this->to_do,
+				'groups'     => $this->groups,
+				'args'       => $this->args,
+				'result'     => $result,
+			);
+
+			/** This filter is documented in wp-includes/class-wp-scripts.php */
 			$this->to_do = apply_filters( 'print_scripts_array', $this->to_do );
 		}
+
 		return $result;
 	}
 
@@ -836,6 +1011,9 @@ JS;
 	/**
 	 * Whether a handle's source is in a default directory.
 	 *
+	 * Results are memoized per source URL to avoid repeated iteration
+	 * over default_dirs during script concatenation checks.
+	 *
 	 * @since 2.8.0
 	 *
 	 * @param string $src The source of the enqueued script.
@@ -846,15 +1024,24 @@ JS;
 			return true;
 		}
 
+		// Return cached result if this source URL has been checked before.
+		if ( isset( $this->default_dir_cache[ $src ] ) ) {
+			return $this->default_dir_cache[ $src ];
+		}
+
 		if ( str_starts_with( $src, '/' . WPINC . '/js/l10n' ) ) {
+			$this->default_dir_cache[ $src ] = false;
 			return false;
 		}
 
 		foreach ( (array) $this->default_dirs as $test ) {
 			if ( str_starts_with( $src, $test ) ) {
+				$this->default_dir_cache[ $src ] = true;
 				return true;
 			}
 		}
+
+		$this->default_dir_cache[ $src ] = false;
 		return false;
 	}
 
@@ -982,7 +1169,12 @@ JS;
 	/**
 	 * Gets all dependents of a script.
 	 *
-	 * This is not recursive.
+	 * This is not recursive. On first access (or when the registered script
+	 * count changes), builds the complete reverse-dependency map in a single
+	 * pass over all registered scripts. This replaces the previous per-handle
+	 * approach which iterated all registered scripts for each queried handle,
+	 * turning O(H * R) into O(R) where H is queried handles and R is total
+	 * registered scripts.
 	 *
 	 * @since 6.3.0
 	 *
@@ -990,24 +1182,44 @@ JS;
 	 * @return string[] Script handles.
 	 */
 	private function get_dependents( $handle ) {
-		// Check if dependents map for the handle in question is present. If so, use it.
-		if ( isset( $this->dependents_map[ $handle ] ) ) {
-			return $this->dependents_map[ $handle ];
+		$current_count = count( $this->registered );
+
+		/*
+		 * Build the full reverse-dependency map if it hasn't been built yet,
+		 * or if the registered script count has changed since the last build
+		 * (indicating scripts were added or removed).
+		 */
+		if ( ! $this->dependents_map_complete || $current_count !== $this->dependents_map_reg_count ) {
+			$this->build_dependents_map();
 		}
 
-		$dependents = array();
+		return $this->dependents_map[ $handle ] ?? array();
+	}
 
-		// Iterate over all registered scripts, finding dependents of the script passed to this method.
+	/**
+	 * Builds the complete reverse-dependency map in a single pass.
+	 *
+	 * Iterates all registered scripts once and builds an associative array
+	 * mapping each dependency handle to the list of handles that depend on it.
+	 * This is significantly more efficient than the per-handle scan when
+	 * multiple handles need their dependents resolved.
+	 *
+	 * @since 7.0.0
+	 */
+	private function build_dependents_map() {
+		$map = array();
+
 		foreach ( $this->registered as $registered_handle => $args ) {
-			if ( in_array( $handle, $args->deps, true ) ) {
-				$dependents[] = $registered_handle;
+			if ( ! empty( $args->deps ) ) {
+				foreach ( $args->deps as $dep ) {
+					$map[ $dep ][] = $registered_handle;
+				}
 			}
 		}
 
-		// Add the handles dependents to the map to ease future lookups.
-		$this->dependents_map[ $handle ] = $dependents;
-
-		return $dependents;
+		$this->dependents_map           = $map;
+		$this->dependents_map_complete  = true;
+		$this->dependents_map_reg_count = count( $this->registered );
 	}
 
 	/**
@@ -1223,6 +1435,9 @@ JS;
 	/**
 	 * Resets class properties.
 	 *
+	 * Clears concatenation state and the in_default_dir() result cache,
+	 * which may contain stale entries after a concatenation cycle reset.
+	 *
 	 * @since 2.8.0
 	 */
 	public function reset() {
@@ -1233,6 +1448,9 @@ JS;
 		$this->print_html     = '';
 		$this->ext_version    = '';
 		$this->ext_handles    = '';
+
+		// Clear the default directory cache as concatenation state has changed.
+		$this->default_dir_cache = array();
 	}
 
 	/**
