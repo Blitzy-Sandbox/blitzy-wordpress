@@ -4241,3 +4241,79 @@ function wp_html_custom_data_attribute_name( string $js_dataset_name ): ?string 
 
 	return $html_name;
 }
+
+/**
+ * Conditionally loads emoji detection scripts on front-end pages.
+ *
+ * Implements deferred emoji loading by removing the emoji detection script and
+ * styles from front-end (non-admin) pages by default. Modern browsers natively
+ * support emoji rendering (Chrome 70+, Firefox 63+, Safari 12+, Edge 79+),
+ * making the Twemoji detection and fallback pipeline unnecessary for the
+ * majority of visitors.
+ *
+ * The emoji detection system adds an inline JSON settings block and an inline
+ * JS module (~2KB) to every front-end page. When native emoji support is absent,
+ * it triggers a download of the Twemoji library (~200KB). Removing this on
+ * front-end pages eliminates unnecessary JavaScript execution and reduces
+ * page weight.
+ *
+ * Control mechanisms:
+ * - `WP_DISABLE_EMOJI` constant: Disables emoji detection globally (admin + front-end).
+ *   Checked in default-filters.php before hooks are registered.
+ * - `wp_load_emoji_detection` filter: Granular per-request control on front-end pages.
+ *   Return true from this filter to re-enable emoji detection for specific pages
+ *   or contexts that require Twemoji fallback rendering.
+ *
+ * Admin pages are unaffected: they always load emoji detection for backward
+ * compatibility with plugins and the editor emoji picker.
+ *
+ * @since 7.0.0
+ *
+ * @see _print_emoji_detection_script()
+ * @see wp_enqueue_emoji_styles()
+ * @see print_emoji_detection_script()
+ */
+function wp_maybe_load_emoji_scripts() {
+	// Already disabled globally via WP_DISABLE_EMOJI constant — nothing to do.
+	if ( defined( 'WP_DISABLE_EMOJI' ) && WP_DISABLE_EMOJI ) {
+		return;
+	}
+
+	// Admin pages: preserve default emoji loading for backward compatibility.
+	if ( is_admin() ) {
+		return;
+	}
+
+	/**
+	 * Filters whether emoji detection scripts should load on front-end pages.
+	 *
+	 * When false (the default), emoji detection scripts and styles are removed
+	 * from front-end pages. This eliminates the inline emoji-loader.js module,
+	 * its JSON settings block, and the potential Twemoji library download.
+	 * Modern browsers render emoji natively without this fallback layer.
+	 *
+	 * Return true from this filter to restore emoji detection on front-end
+	 * pages when Twemoji fallback rendering is required (e.g., for consistent
+	 * cross-platform emoji appearance on older browsers).
+	 *
+	 * This filter has no effect on admin pages or when the WP_DISABLE_EMOJI
+	 * constant is defined as true in wp-config.php.
+	 *
+	 * Example usage to re-enable emoji detection:
+	 *
+	 *     add_filter( 'wp_load_emoji_detection', '__return_true' );
+	 *
+	 * @since 7.0.0
+	 *
+	 * @param bool $load_emoji Whether to load emoji detection on front-end pages.
+	 *                         Default false.
+	 */
+	$load_emoji = apply_filters( 'wp_load_emoji_detection', false );
+
+	if ( ! $load_emoji ) {
+		remove_action( 'wp_head', 'print_emoji_detection_script', 7 );
+		remove_action( 'wp_enqueue_scripts', 'wp_enqueue_emoji_styles' );
+		remove_action( 'wp_print_styles', 'print_emoji_styles' );
+	}
+}
+add_action( 'wp_loaded', 'wp_maybe_load_emoji_scripts' );

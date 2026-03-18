@@ -5330,6 +5330,51 @@ function wp_is_password_reset_allowed_for_user( $user ) {
 }
 
 /**
+ * Builds a cache key for capability check result storage.
+ *
+ * Constructs a string key from the capability name, optional arguments,
+ * and (on multisite) the current blog ID. Handles non-stringifiable argument
+ * types (objects, arrays) by using spl_object_id() for objects and md5 of
+ * serialized data for complex types, ensuring reliable cache key generation
+ * regardless of argument composition.
+ *
+ * @since 7.0.0
+ * @access private
+ *
+ * @param string $capability Capability name.
+ * @param array  $args       Optional. Additional arguments passed to the capability check. Default empty array.
+ * @return string Cache key string.
+ */
+function _wp_build_cap_cache_key( $capability, $args = array() ) {
+	$cache_key = $capability;
+
+	if ( ! empty( $args ) ) {
+		$parts = array();
+		foreach ( $args as $arg ) {
+			if ( is_object( $arg ) ) {
+				// Use object identity for in-process caching — same object instance
+				// produces the same key within a single request.
+				$parts[] = get_class( $arg ) . ':' . spl_object_id( $arg );
+			} elseif ( is_scalar( $arg ) ) {
+				$parts[] = (string) $arg;
+			} else {
+				// Arrays or other complex types: use a hash of serialized form.
+				$parts[] = md5( serialize( $arg ) );
+			}
+		}
+		$cache_key .= '|' . implode( '|', $parts );
+	}
+
+	// Include blog ID on multisite installs to prevent cross-site result
+	// leakage during switch_to_blog() calls.
+	if ( is_multisite() ) {
+		$cache_key .= '@' . get_current_blog_id();
+	}
+
+	return $cache_key;
+}
+
+/**
  * Retrieves a cached capability check result for a user.
  *
  * Per-request capability result cache that avoids repeated WP_User::has_cap()
@@ -5339,12 +5384,16 @@ function wp_is_password_reset_allowed_for_user( $user ) {
  *
  * This is safe because user capabilities do not change within a single HTTP
  * request under normal circumstances. The cache is invalidated when user data
- * changes mid-request via wp_set_current_user() or clean_user_cache().
+ * changes mid-request via wp_set_current_user() or clean_user_cache(), and
+ * also when the map_meta_cap() generation counter changes (triggered by user,
+ * post, term, or option updates).
  *
  * @since 7.0.0
  * @access private
  *
- * @global array $_wp_user_cap_cache Per-request capability result cache.
+ * @global array $_wp_user_cap_cache            Per-request capability result cache.
+ * @global int   $_wp_user_cap_cache_generation Local generation counter for lazy invalidation.
+ * @global int   $_wp_map_meta_cap_generation   Global generation counter from map_meta_cap().
  *
  * @param int    $user_id    User ID.
  * @param string $capability Capability name.
@@ -5352,16 +5401,27 @@ function wp_is_password_reset_allowed_for_user( $user ) {
  * @return bool|null Cached result (true/false) if found, or null if not in cache.
  */
 function _wp_get_user_capability_cache( $user_id, $capability, $args = array() ) {
-	global $_wp_user_cap_cache;
+	global $_wp_user_cap_cache, $_wp_user_cap_cache_generation, $_wp_map_meta_cap_generation;
 
 	if ( ! isset( $_wp_user_cap_cache ) || ! is_array( $_wp_user_cap_cache ) ) {
 		return null;
 	}
 
-	$cache_key = $capability;
-	if ( ! empty( $args ) ) {
-		$cache_key .= '_' . implode( '_', array_map( 'strval', $args ) );
+	/*
+	 * Synchronize with the map_meta_cap() generation counter. When user, post,
+	 * term, or option data changes, $_wp_map_meta_cap_generation is bumped.
+	 * Detecting this mismatch lazily invalidates the entire capability cache,
+	 * ensuring results reflect the updated system state.
+	 */
+	$current_gen = isset( $_wp_map_meta_cap_generation ) ? $_wp_map_meta_cap_generation : 0;
+
+	if ( ! isset( $_wp_user_cap_cache_generation ) || $_wp_user_cap_cache_generation !== $current_gen ) {
+		$_wp_user_cap_cache            = array();
+		$_wp_user_cap_cache_generation = $current_gen;
+		return null;
 	}
+
+	$cache_key = _wp_build_cap_cache_key( $capability, $args );
 
 	if ( isset( $_wp_user_cap_cache[ $user_id ][ $cache_key ] ) ) {
 		return $_wp_user_cap_cache[ $user_id ][ $cache_key ];
@@ -5390,10 +5450,7 @@ function _wp_set_user_capability_cache( $user_id, $capability, $args, $result ) 
 		$_wp_user_cap_cache = array();
 	}
 
-	$cache_key = $capability;
-	if ( ! empty( $args ) ) {
-		$cache_key .= '_' . implode( '_', array_map( 'strval', $args ) );
-	}
+	$cache_key = _wp_build_cap_cache_key( $capability, $args );
 
 	$_wp_user_cap_cache[ $user_id ][ $cache_key ] = (bool) $result;
 }

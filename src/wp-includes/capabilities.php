@@ -1148,7 +1148,34 @@ function user_can( $user, $capability, ...$args ) {
 		$user->init( new stdClass() );
 	}
 
-	return $user->has_cap( $capability, ...$args );
+	/*
+	 * Check the per-request capability result cache for an early return.
+	 *
+	 * This avoids the full has_cap() → map_meta_cap() → user_has_cap filter
+	 * chain on repeated identical capability checks within a single request
+	 * (e.g., multiple current_user_can('edit_posts') calls during template
+	 * rendering or REST API serialization).
+	 *
+	 * The function_exists() guard handles the early bootstrap window where
+	 * capabilities.php (line 188 in wp-settings.php) is loaded before
+	 * user.php (line 213) which defines the cache functions.
+	 */
+	if ( function_exists( '_wp_get_user_capability_cache' ) ) {
+		$cached = _wp_get_user_capability_cache( $user->ID, $capability, $args );
+
+		if ( null !== $cached ) {
+			return $cached;
+		}
+	}
+
+	$result = $user->has_cap( $capability, ...$args );
+
+	// Store the computed result in the per-request capability cache.
+	if ( function_exists( '_wp_set_user_capability_cache' ) ) {
+		_wp_set_user_capability_cache( $user->ID, $capability, $args, $result );
+	}
+
+	return $result;
 }
 
 /**
