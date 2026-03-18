@@ -121,6 +121,21 @@ function get_the_title( $post = 0 ) {
 	$post_title = $post->post_title ?? '';
 	$post_id    = $post->ID ?? 0;
 
+	/*
+	 * Check request-level cache for previously computed title.
+	 *
+	 * Avoids redundant filter application and protected/private title
+	 * logic when the same post title is retrieved multiple times per
+	 * request (common in template loops, nav menus, and widgets).
+	 * Cache is cleared via clean_post_cache hook if post data changes.
+	 */
+	if ( $post_id ) {
+		$cached_title = _wp_post_template_cache( 'get', 'title', $post_id );
+		if ( null !== $cached_title ) {
+			return $cached_title;
+		}
+	}
+
 	if ( ! is_admin() ) {
 		if ( ! empty( $post->post_password ) ) {
 
@@ -171,7 +186,14 @@ function get_the_title( $post = 0 ) {
 	 * @param string $post_title The post title.
 	 * @param int    $post_id    The post ID.
 	 */
-	return apply_filters( 'the_title', $post_title, $post_id );
+	$title = apply_filters( 'the_title', $post_title, $post_id );
+
+	// Store in request-level cache for subsequent calls within this request.
+	if ( $post_id ) {
+		_wp_post_template_cache( 'set', 'title', $post_id, $title );
+	}
+
+	return $title;
 }
 
 /**
@@ -415,7 +437,15 @@ function get_the_excerpt( $post = null ) {
 		_deprecated_argument( __FUNCTION__, '2.3.0' );
 	}
 
-	$post = get_post( $post );
+	/*
+	 * Optimization: when a WP_Post object is passed directly, skip the
+	 * get_post() function call overhead. get_post() with a WP_Post argument
+	 * simply returns it, so the bypass is functionally equivalent but avoids
+	 * the function dispatch cost on this frequently called hot path.
+	 */
+	if ( ! ( $post instanceof WP_Post ) ) {
+		$post = get_post( $post );
+	}
 	if ( empty( $post ) ) {
 		return '';
 	}
@@ -508,6 +538,22 @@ function get_post_class( $css_class = '', $post = null ) {
 
 	if ( ! $post ) {
 		return $classes;
+	}
+
+	/*
+	 * Check request-level cache for previously computed post classes.
+	 *
+	 * get_post_class() performs multiple taxonomy lookups via get_the_terms(),
+	 * theme support checks, and sticky/format checks per post. Caching the
+	 * result per post_id + css_class combination avoids repeating these
+	 * operations when the same post is rendered multiple times per request.
+	 * Cache is cleared via clean_post_cache hook if post data changes.
+	 */
+	$cache_key_input = implode( '|', $css_class );
+	$post_class_cache_key = $post->ID . ':' . $cache_key_input;
+	$cached_classes = _wp_post_template_cache( 'get', 'post_class', $post_class_cache_key );
+	if ( null !== $cached_classes ) {
+		return $cached_classes;
 	}
 
 	$classes[] = 'post-' . $post->ID;
@@ -608,6 +654,9 @@ function get_post_class( $css_class = '', $post = null ) {
 
 	$classes = array_unique( $classes );
 	$classes = array_values( $classes );
+
+	// Store in request-level cache for subsequent calls within this request.
+	_wp_post_template_cache( 'set', 'post_class', $post_class_cache_key, $classes );
 
 	return $classes;
 }
@@ -2085,3 +2134,76 @@ function get_post_parent( $post = null ) {
 function has_post_parent( $post = null ) {
 	return (bool) get_post_parent( $post );
 }
+
+/**
+ * Manages request-level static caches for post template functions.
+ *
+ * Provides centralized get, set, and clear operations on a static array
+ * that persists for the duration of the current request only. Used by
+ * get_the_title() and get_post_class() to avoid redundant computation
+ * when the same data is requested multiple times per request (e.g.,
+ * in template loops, menus, and widgets).
+ *
+ * @since 7.0.0
+ * @access private
+ *
+ * @param string     $operation 'get', 'set', or 'clear'.
+ * @param string     $type      Cache type identifier (e.g., 'title', 'post_class').
+ * @param string|int $key       Cache key, typically a post ID or composite key. Default empty string.
+ * @param mixed      $value     Value to store for 'set' operation. Default null.
+ * @return mixed Cached value for 'get' (null on miss), stored value for 'set', null for 'clear'.
+ */
+function _wp_post_template_cache( $operation, $type = '', $key = '', $value = null ) {
+	static $cache = array();
+
+	switch ( $operation ) {
+		case 'get':
+			return isset( $cache[ $type ][ $key ] ) ? $cache[ $type ][ $key ] : null;
+
+		case 'set':
+			if ( ! isset( $cache[ $type ] ) ) {
+				$cache[ $type ] = array();
+			}
+			$cache[ $type ][ $key ] = $value;
+			return $value;
+
+		case 'clear':
+			if ( '' !== $type && '' !== (string) $key ) {
+				unset( $cache[ $type ][ $key ] );
+			} elseif ( '' !== $type ) {
+				$cache[ $type ] = array();
+			} else {
+				$cache = array();
+			}
+			return null;
+	}
+
+	return null;
+}
+
+/**
+ * Clears request-level caches for post template functions.
+ *
+ * Hooked to 'clean_post_cache' to ensure cached template tag results
+ * are invalidated when post data changes mid-request (e.g., after
+ * wp_update_post() or wp_delete_post()).
+ *
+ * @since 7.0.0
+ * @access private
+ *
+ * @param int $post_id Post ID whose cached data should be cleared.
+ */
+function _wp_clean_post_template_caches( $post_id ) {
+	// Clear the exact title cache entry for this post.
+	_wp_post_template_cache( 'clear', 'title', $post_id );
+
+	/*
+	 * Clear all post_class cache entries since composite keys include
+	 * post_id + css_class, making targeted removal impractical.
+	 * This is acceptable because clean_post_cache fires infrequently
+	 * during normal request processing.
+	 */
+	_wp_post_template_cache( 'clear', 'post_class' );
+}
+
+add_action( 'clean_post_cache', '_wp_clean_post_template_caches' );
