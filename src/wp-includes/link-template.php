@@ -168,6 +168,46 @@ function get_the_permalink( $post = 0, $leavename = false ) {
  * @return string|false The permalink URL. False if the post does not exist.
  */
 function get_permalink( $post = 0, $leavename = false ) {
+	/*
+	 * Request-level result cache for get_permalink().
+	 *
+	 * Memoizes computed permalink URLs to avoid redundant rewrite-rule processing,
+	 * option lookups, category/author queries, and filter application when the same
+	 * post's permalink is requested multiple times within a single request (e.g.,
+	 * in template loops, navigation menus, and widget rendering).
+	 *
+	 * The cache is invalidated via a generation counter bumped by
+	 * _wp_clear_permalink_request_cache() when post data changes
+	 * (clean_post_cache) or the permalink structure is updated.
+	 *
+	 * @since 7.0.0
+	 */
+	static $cache            = array();
+	static $cache_generation = 0;
+
+	// Register cache-clearing hooks if not yet registered.
+	// Uses has_action() instead of a static flag so that hooks are correctly
+	// re-registered if the global $wp_filter is restored (e.g., during unit tests).
+	// When hooks are absent, the cache is proactively cleared because invalidation
+	// events (clean_post_cache, update_option_permalink_structure) may have fired
+	// while the handlers were unregistered.
+	if ( ! has_action( 'clean_post_cache', '_wp_clear_permalink_request_cache' ) ) {
+		add_action( 'clean_post_cache', '_wp_clear_permalink_request_cache' );
+		add_action( 'update_option_permalink_structure', '_wp_clear_permalink_request_cache' );
+		add_action( 'add_option_permalink_structure', '_wp_clear_permalink_request_cache' );
+		$cache = array();
+	}
+
+	// Check generation counter for invalidation.
+	global $_wp_permalink_cache_generation;
+	if ( ! isset( $_wp_permalink_cache_generation ) ) {
+		$_wp_permalink_cache_generation = 0;
+	}
+	if ( $cache_generation !== $_wp_permalink_cache_generation ) {
+		$cache            = array();
+		$cache_generation = $_wp_permalink_cache_generation;
+	}
+
 	$rewritecode = array(
 		'%year%',
 		'%monthnum%',
@@ -193,12 +233,37 @@ function get_permalink( $post = 0, $leavename = false ) {
 		return false;
 	}
 
+	// Build cache key for non-sample permalinks and check request-level cache.
+	// The post_name is included in the key so that changes to the slug —
+	// whether via wp_update_post() or a database rollback — automatically
+	// produce a cache miss without requiring an explicit invalidation signal.
+	$cache_key = '';
+	if ( ! $sample ) {
+		$cache_key = $post->ID . '_' . $post->post_name . '_' . ( $leavename ? '1' : '0' );
+		if ( isset( $cache[ $cache_key ] ) ) {
+			return $cache[ $cache_key ];
+		}
+	}
+
 	if ( 'page' === $post->post_type ) {
-		return get_page_link( $post, $leavename, $sample );
+		$result = get_page_link( $post, $leavename, $sample );
+		if ( ! $sample ) {
+			$cache[ $cache_key ] = $result;
+		}
+		return $result;
 	} elseif ( 'attachment' === $post->post_type ) {
+		/*
+		 * Attachment permalinks are NOT cached because they depend on the parent
+		 * post's type registration state, which may change independently without
+		 * firing cache-invalidation hooks (e.g., via unregister_post_type()).
+		 */
 		return get_attachment_link( $post, $leavename );
 	} elseif ( in_array( $post->post_type, get_post_types( array( '_builtin' => false ) ), true ) ) {
-		return get_post_permalink( $post, $leavename, $sample );
+		$result = get_post_permalink( $post, $leavename, $sample );
+		if ( ! $sample ) {
+			$cache[ $cache_key ] = $result;
+		}
+		return $result;
 	}
 
 	$permalink = get_option( 'permalink_structure' );
@@ -305,7 +370,14 @@ function get_permalink( $post = 0, $leavename = false ) {
 	 * @param WP_Post $post      The post in question.
 	 * @param bool    $leavename Whether to keep the post name.
 	 */
-	return apply_filters( 'post_link', $permalink, $post, $leavename );
+	$result = apply_filters( 'post_link', $permalink, $post, $leavename );
+
+	// Store in request-level cache for non-sample permalinks.
+	if ( ! $sample ) {
+		$cache[ $cache_key ] = $result;
+	}
+
+	return $result;
 }
 
 /**
@@ -4901,4 +4973,24 @@ function wp_is_internal_link( $link ) {
 		return in_array( wp_parse_url( $link, PHP_URL_HOST ), wp_internal_hosts(), true );
 	}
 	return false;
+}
+
+/**
+ * Clears the get_permalink() request-level cache.
+ *
+ * Bumps a global generation counter that causes the static cache inside
+ * get_permalink() to be lazily flushed on the next invocation. This is
+ * hooked to 'clean_post_cache' (fired when post data changes) and
+ * 'update_option_permalink_structure' (fired when the permalink structure
+ * setting is modified).
+ *
+ * @since 7.0.0
+ * @access private
+ */
+function _wp_clear_permalink_request_cache() {
+	global $_wp_permalink_cache_generation;
+	if ( ! isset( $_wp_permalink_cache_generation ) ) {
+		$_wp_permalink_cache_generation = 0;
+	}
+	++$_wp_permalink_cache_generation;
 }
