@@ -118,6 +118,59 @@ class WP_Dependencies {
 	private $dependencies_with_missing_dependencies = array();
 
 	/**
+	 * Whether the dependency resolution result is cached and valid.
+	 *
+	 * Set to true after all_deps() completes a full top-level resolution.
+	 * Reset to false when the dependency graph is mutated by enqueue(),
+	 * dequeue(), add(), or remove(), ensuring stale results are never used.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @var bool
+	 */
+	private $deps_resolved = false;
+
+	/**
+	 * Cached copy of the to_do array from the last all_deps() resolution.
+	 *
+	 * Stored after a successful top-level all_deps() traversal so that
+	 * repeated calls with an unchanged dependency graph can skip the
+	 * full recursive DFS and restore the previous result in O(1).
+	 *
+	 * @since 7.0.0
+	 *
+	 * @var string[]|null
+	 */
+	private $cached_to_do = null;
+
+	/**
+	 * The handles array that produced the cached to_do result.
+	 *
+	 * Stored alongside $cached_to_do so that the cache is only returned
+	 * when the same set of handles is requested.  Different handle sets
+	 * (e.g. the full queue vs. a single wp_print_scripts() call) must
+	 * trigger a fresh traversal.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @var string[]|null
+	 */
+	private $cached_handles = null;
+
+	/**
+	 * Temporary hash lookup of done handles during all_deps() traversal.
+	 *
+	 * Built once at the start of a top-level all_deps() call to convert
+	 * O(n) in_array() membership tests on $this->done into O(1) isset()
+	 * lookups. Set to null when not inside an active traversal.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @var array<string, int>|null
+	 */
+	private $done_lookup = null;
+
+	/**
 	 * Processes the items and dependencies.
 	 *
 	 * Processes the items passed to it or the queue, and their dependencies.
@@ -196,12 +249,36 @@ class WP_Dependencies {
 			return false;
 		}
 
+		/*
+		 * Fast path: if the dependency graph has not been mutated since the
+		 * last top-level resolution AND the same set of handles is being
+		 * requested, restore the cached to_do list instead of re-traversing
+		 * the entire tree.  Mutations in enqueue(), dequeue(), add(), and
+		 * remove() reset $this->deps_resolved to false.  A different handle
+		 * set (e.g. a targeted wp_print_scripts() call vs. the full queue)
+		 * also bypasses the cache to ensure correct resolution.
+		 */
+		if ( $this->deps_resolved && ! $recursion && $handles === $this->cached_handles ) {
+			$this->to_do = $this->cached_to_do;
+			return true;
+		}
+
+		/*
+		 * Build a hash lookup of already-done handles once per top-level
+		 * call so that the per-handle "already done?" check inside the
+		 * loop is O(1) instead of O(n).  Recursive calls reuse the
+		 * property set by the outermost invocation.
+		 */
+		if ( ! $recursion ) {
+			$this->done_lookup = array_flip( $this->done );
+		}
+
 		foreach ( $handles as $handle ) {
 			$handle_parts = explode( '?', $handle );
 			$handle       = $handle_parts[0];
 			$queued       = in_array( $handle, $this->to_do, true );
 
-			if ( in_array( $handle, $this->done, true ) ) { // Already done.
+			if ( isset( $this->done_lookup[ $handle ] ) ) { // Already done.
 				continue;
 			}
 
@@ -252,6 +329,18 @@ class WP_Dependencies {
 			$this->to_do[] = $handle;
 		}
 
+		/*
+		 * Cache the resolved to_do list so that subsequent top-level calls
+		 * with an unchanged graph can skip the full traversal.  Also clear
+		 * the temporary done_lookup now that traversal is finished.
+		 */
+		if ( ! $recursion ) {
+			$this->cached_to_do   = $this->to_do;
+			$this->cached_handles = $handles;
+			$this->deps_resolved  = true;
+			$this->done_lookup    = null;
+		}
+
 		return true;
 	}
 
@@ -283,6 +372,9 @@ class WP_Dependencies {
 			return false;
 		}
 		$this->registered[ $handle ] = new _WP_Dependency( $handle, $src, $deps, $ver, $args );
+
+		// Invalidate the dependency resolution cache since the graph changed.
+		$this->deps_resolved = false;
 
 		// If the item was enqueued before the details were registered, enqueue it now.
 		if ( array_key_exists( $handle, $this->queued_before_register ) ) {
@@ -360,6 +452,10 @@ class WP_Dependencies {
 		foreach ( (array) $handles as $handle ) {
 			unset( $this->registered[ $handle ] );
 		}
+
+		// Invalidate dependency caches since the registration graph changed.
+		$this->deps_resolved   = false;
+		$this->all_queued_deps = null;
 	}
 
 	/**
@@ -384,6 +480,9 @@ class WP_Dependencies {
 
 				// Reset all dependencies so they must be recalculated in recurse_deps().
 				$this->all_queued_deps = null;
+
+				// Invalidate the dependency resolution cache since the queue changed.
+				$this->deps_resolved = false;
 
 				if ( isset( $handle[1] ) ) {
 					$this->args[ $handle[0] ] = $handle[1];
@@ -417,6 +516,9 @@ class WP_Dependencies {
 			if ( false !== $key ) {
 				// Reset all dependencies so they must be recalculated in recurse_deps().
 				$this->all_queued_deps = null;
+
+				// Invalidate the dependency resolution cache since the queue changed.
+				$this->deps_resolved = false;
 
 				unset( $this->queue[ $key ] );
 				unset( $this->args[ $handle[0] ] );
