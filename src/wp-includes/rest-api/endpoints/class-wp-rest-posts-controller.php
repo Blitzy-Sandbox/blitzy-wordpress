@@ -465,6 +465,31 @@ class WP_REST_Posts_Controller extends WP_REST_Controller {
 				update_post_thumbnail_cache( $posts_query );
 			}
 
+			/*
+			 * Batch-prime post meta and term relationship caches to eliminate N+1 queries.
+			 * WP_Query may already prime these, but explicit priming guards against
+			 * the rest_{post_type}_query filter disabling cache priming.
+			 */
+			$post_ids = wp_list_pluck( $query_result, 'ID' );
+			if ( ! empty( $post_ids ) ) {
+				update_meta_cache( 'post', $post_ids );
+				update_object_term_cache( $post_ids, $this->post_type );
+			}
+
+			// Prime attachment metadata for featured images to avoid N+1 in prepare_item_for_response().
+			if ( post_type_supports( $this->post_type, 'thumbnail' ) && ! empty( $post_ids ) ) {
+				$thumbnail_ids = array();
+				foreach ( $query_result as $post_obj ) {
+					$thumb_id = get_post_thumbnail_id( $post_obj );
+					if ( $thumb_id ) {
+						$thumbnail_ids[] = (int) $thumb_id;
+					}
+				}
+				if ( ! empty( $thumbnail_ids ) ) {
+					update_meta_cache( 'post', array_unique( $thumbnail_ids ) );
+				}
+			}
+
 			foreach ( $query_result as $post ) {
 				if ( 'edit' === $request['context'] ) {
 					$permission = $this->check_update_permission( $post );
