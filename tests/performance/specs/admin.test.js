@@ -10,6 +10,15 @@ import { camelCaseDashes, locales } from '../utils';
 
 const results = {
 	timeToFirstByte: [],
+	domContentLoaded: [],
+	jsTransferSize: [],
+	wpMemoryUsage: [],
+	wpFilesLoaded: [],
+	wpCacheHits: [],
+	wpCacheMisses: [],
+	wpBootstrap: [],
+	wpPlugins: [],
+	wpDbQueries: [],
 };
 
 test.describe( 'Admin', () => {
@@ -33,6 +42,15 @@ test.describe( 'Admin', () => {
 				} );
 
 				results.timeToFirstByte = [];
+				results.domContentLoaded = [];
+				results.jsTransferSize = [];
+				results.wpMemoryUsage = [];
+				results.wpFilesLoaded = [];
+				results.wpCacheHits = [];
+				results.wpCacheMisses = [];
+				results.wpBootstrap = [];
+				results.wpPlugins = [];
+				results.wpDbQueries = [];
 			} );
 
 			test.afterAll( async ( {}, testInfo ) => {
@@ -66,6 +84,28 @@ test.describe( 'Admin', () => {
 
 					const ttfb = await metrics.getTimeToFirstByte();
 					results.timeToFirstByte.push( ttfb );
+
+					// Collect DOMContentLoaded timing via Navigation Timing API.
+					const domContentLoaded = await page.evaluate( () => {
+						const nav =
+							performance.getEntriesByType( 'navigation' )[ 0 ];
+						return nav ? nav.domContentLoadedEventEnd : 0;
+					} );
+					results.domContentLoaded.push( domContentLoaded );
+
+					// Collect total JS transfer size (bytes) via Resource Timing API.
+					const jsTransferSize = await page.evaluate( () => {
+						return performance
+							.getEntriesByType( 'resource' )
+							.filter(
+								( r ) => r.initiatorType === 'script'
+							)
+							.reduce(
+								( sum, r ) => sum + r.transferSize,
+								0
+							);
+					} );
+					results.jsTransferSize.push( jsTransferSize );
 				} );
 			}
 		} );
