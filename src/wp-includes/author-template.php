@@ -178,6 +178,25 @@ function get_the_author_meta( $field = '', $user_id = false ) {
 		$field = 'user_' . $field;
 	}
 
+	/*
+	 * Per-request static cache for author meta lookups.
+	 *
+	 * Eliminates redundant property access and filter application when
+	 * the same field+user_id combination is requested multiple times
+	 * within a single request (e.g., in archive loops with repeated
+	 * calls to get_the_author_meta() for the same post author).
+	 *
+	 * Cache is keyed by "{$field}_{$user_id}" and stores the final
+	 * filtered value. No invalidation is needed as this is request-scoped.
+	 */
+	static $cache = array();
+
+	$cache_key = "{$field}_{$user_id}";
+
+	if ( isset( $cache[ $cache_key ] ) ) {
+		return $cache[ $cache_key ];
+	}
+
 	$value = $authordata->$field ?? '';
 
 	/**
@@ -192,7 +211,11 @@ function get_the_author_meta( $field = '', $user_id = false ) {
 	 * @param int       $user_id          The user ID for the value.
 	 * @param int|false $original_user_id The original user ID, as passed to the function.
 	 */
-	return apply_filters( "get_the_author_{$field}", $value, $user_id, $original_user_id );
+	$value = apply_filters( "get_the_author_{$field}", $value, $user_id, $original_user_id );
+
+	$cache[ $cache_key ] = $value;
+
+	return $value;
 }
 
 /**
@@ -387,6 +410,26 @@ function get_author_posts_url( $author_id, $author_nicename = '' ) {
 	$author_id = (int) $author_id;
 	$link      = $wp_rewrite->get_author_permastruct();
 
+	/*
+	 * Per-request static cache for author post URLs.
+	 *
+	 * Author URLs are expensive to generate (involving get_userdata(),
+	 * rewrite rule lookup, home_url(), and filter application). In
+	 * template loops rendering multiple posts by the same author,
+	 * or in wp_list_authors() iterating over all authors, the same
+	 * URL is regenerated repeatedly. This cache stores the final
+	 * filtered URL keyed by author ID, nicename, and the current
+	 * author permastruct to correctly invalidate when the permalink
+	 * structure changes.
+	 */
+	static $url_cache = array();
+
+	$cache_key = "{$author_id}_{$author_nicename}_{$link}";
+
+	if ( isset( $url_cache[ $cache_key ] ) ) {
+		return $url_cache[ $cache_key ];
+	}
+
 	if ( empty( $link ) ) {
 		$file = home_url( '/' );
 		$link = $file . '?author=' . $author_id;
@@ -411,6 +454,8 @@ function get_author_posts_url( $author_id, $author_nicename = '' ) {
 	 * @param string $author_nicename The author's nice name.
 	 */
 	$link = apply_filters( 'author_link', $link, $author_id, $author_nicename );
+
+	$url_cache[ $cache_key ] = $link;
 
 	return $link;
 }
@@ -490,6 +535,22 @@ function wp_list_authors( $args = '' ) {
 	$query_args = apply_filters( 'wp_list_authors_args', $query_args, $parsed_args );
 
 	$authors     = get_users( $query_args );
+
+	/*
+	 * Batch-prime the user object cache and user meta cache for all
+	 * author IDs before the iteration loop.
+	 *
+	 * Without this priming, each iteration calls get_userdata() which
+	 * issues individual SELECT queries per author (N+1 pattern).
+	 * cache_users() populates both the user object cache and user meta
+	 * cache in a single batch query, eliminating per-author DB hits
+	 * for display_name, first_name, last_name, user_nicename, and
+	 * other fields accessed during rendering.
+	 */
+	if ( ! empty( $authors ) ) {
+		cache_users( $authors );
+	}
+
 	$post_counts = array();
 
 	/**
