@@ -364,6 +364,15 @@ class WP_REST_Terms_Controller extends WP_REST_Controller {
 
 		if ( ! $is_head_request ) {
 			$response = array();
+
+			// Batch-prime term meta cache to eliminate N+1 queries in prepare_item_for_response().
+			if ( ! empty( $query_result ) ) {
+				$term_ids = wp_list_pluck( $query_result, 'term_id' );
+				if ( ! empty( $term_ids ) ) {
+					update_meta_cache( 'term', $term_ids );
+				}
+			}
+
 			foreach ( $query_result as $term ) {
 				if ( 'edit' === $request['context'] && ! current_user_can( 'edit_term', $term->term_id ) ) {
 					continue;
