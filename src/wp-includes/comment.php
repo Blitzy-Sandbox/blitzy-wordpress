@@ -269,8 +269,47 @@ function get_comment( $comment = null, $output = OBJECT ) {
  * @return WP_Comment[]|int[]|int List of comments or number of found comments if `$count` argument is true.
  */
 function get_comments( $args = '' ) {
-	$query = new WP_Comment_Query();
-	return $query->query( $args );
+	$query    = new WP_Comment_Query();
+	$comments = $query->query( $args );
+
+	/*
+	 * Batch-prime caches for comment query results to prevent N+1 queries
+	 * when displaying comment author information in template loops or
+	 * REST API serialization.
+	 *
+	 * Only primes when full WP_Comment objects are returned (not counts
+	 * or bare IDs). The meta priming supplements WP_Comment_Query's
+	 * internal eager loading as a defense-in-depth measure, and the user
+	 * priming prevents N+1 user lookups for comment author data.
+	 *
+	 * @since 7.0.0
+	 */
+	if ( is_array( $comments ) && ! empty( $comments ) && reset( $comments ) instanceof WP_Comment ) {
+		$comment_ids = wp_list_pluck( $comments, 'comment_ID' );
+
+		// Eagerly prime comment meta cache (no-op if already cached by WP_Comment_Query).
+		if ( ! empty( $comment_ids ) ) {
+			update_meta_cache( 'comment', $comment_ids );
+		}
+
+		// Batch-prime user data caches for comment authors to prevent
+		// N+1 user queries when rendering avatars, display names, or capabilities.
+		$user_ids = array();
+		foreach ( $comments as $comment_obj ) {
+			if ( ! empty( $comment_obj->user_id ) ) {
+				$user_ids[] = (int) $comment_obj->user_id;
+			}
+		}
+
+		if ( ! empty( $user_ids ) ) {
+			$user_ids = array_unique( $user_ids );
+			if ( function_exists( 'cache_users' ) ) {
+				cache_users( $user_ids );
+			}
+		}
+	}
+
+	return $comments;
 }
 
 /**
@@ -1460,6 +1499,34 @@ function wp_check_comment_disallowed_list( $author, $email, $url, $comment, $use
 function wp_count_comments( $post_id = 0 ) {
 	$post_id = (int) $post_id;
 
+	/*
+	 * Request-level static cache for comment count results.
+	 *
+	 * Prevents redundant object cache lookups and filter applications when
+	 * wp_count_comments() is called multiple times with the same post_id
+	 * within a single request (common on comment admin screens and the
+	 * admin bar).
+	 *
+	 * The cache is automatically invalidated when the 'last_changed' value
+	 * in the 'comment' cache group changes (set by clean_comment_cache()
+	 * via wp_cache_set_comments_last_changed()), ensuring correct results
+	 * even when comment status changes within the same request.
+	 *
+	 * @since 7.0.0
+	 */
+	static $request_cache         = array();
+	static $last_changed_snapshot = '';
+
+	$current_last_changed = wp_cache_get_last_changed( 'comment' );
+	if ( $current_last_changed !== $last_changed_snapshot ) {
+		$request_cache         = array();
+		$last_changed_snapshot = $current_last_changed;
+	}
+
+	if ( isset( $request_cache[ $post_id ] ) ) {
+		return $request_cache[ $post_id ];
+	}
+
 	/**
 	 * Filters the comments count for a given post or the whole site.
 	 *
@@ -1470,11 +1537,13 @@ function wp_count_comments( $post_id = 0 ) {
 	 */
 	$filtered = apply_filters( 'wp_count_comments', array(), $post_id );
 	if ( ! empty( $filtered ) ) {
+		$request_cache[ $post_id ] = $filtered;
 		return $filtered;
 	}
 
 	$count = wp_cache_get( "comments-{$post_id}", 'counts' );
 	if ( false !== $count ) {
+		$request_cache[ $post_id ] = $count;
 		return $count;
 	}
 
@@ -1483,6 +1552,8 @@ function wp_count_comments( $post_id = 0 ) {
 	unset( $stats['awaiting_moderation'] );
 
 	$stats_object = (object) $stats;
+
+	$request_cache[ $post_id ] = $stats_object;
 	wp_cache_set( "comments-{$post_id}", $stats_object, 'counts' );
 
 	return $stats_object;
