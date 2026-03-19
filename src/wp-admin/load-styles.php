@@ -50,7 +50,6 @@ if ( empty( $load ) ) {
 
 $rtl            = ( isset( $_GET['dir'] ) && 'rtl' === $_GET['dir'] );
 $expires_offset = 31536000; // 1 year.
-$out            = '';
 
 $wp_styles = new WP_Styles();
 wp_default_styles( $wp_styles );
@@ -61,6 +60,24 @@ if ( isset( $_SERVER['HTTP_IF_NONE_MATCH'] ) && stripslashes( $_SERVER['HTTP_IF_
 	header( "$protocol 304 Not Modified" );
 	exit;
 }
+
+/*
+ * Pre-compute constant replacement values used in CSS URL rewriting.
+ * These strings are invariant within the request, so computing them once
+ * avoids repeated string concatenation inside the loop.
+ */
+$wpinc_css_prefix   = '/' . WPINC . '/css/';
+$wpinc_images_repl  = '../' . WPINC . '/images/';
+$wpinc_tinymce_repl = '../' . WPINC . '/js/tinymce/';
+$wpinc_fonts_repl   = '../' . WPINC . '/fonts/';
+
+/*
+ * Accumulate CSS content into an array and join at the end.
+ * This avoids the overhead of progressively growing a string via
+ * concatenation ($out .= $content), which causes repeated memory
+ * reallocation as the combined output grows.
+ */
+$parts = array();
 
 foreach ( $load as $handle ) {
 	if ( ! array_key_exists( $handle, $wp_styles->registered ) ) {
@@ -77,26 +94,46 @@ foreach ( $load as $handle ) {
 
 	if ( $rtl && ! empty( $style->extra['rtl'] ) ) {
 		// All default styles have fully independent RTL files.
-		$path = str_replace( '.min.css', '-rtl.min.css', $path );
+		$rtl_path = str_replace( '.min.css', '-rtl.min.css', $path );
+
+		// Verify the RTL file exists; fall back to LTR if it is absent.
+		if ( file_exists( $rtl_path ) ) {
+			$path = $rtl_path;
+		}
 	}
 
 	$content = get_file( $path ) . "\n";
 
-	// Note: str_starts_with() is not used here, as wp-includes/compat.php is not loaded in this file.
-	if ( 0 === strpos( $style->src, '/' . WPINC . '/css/' ) ) {
-		$content = str_replace( '../images/', '../' . WPINC . '/images/', $content );
-		$content = str_replace( '../js/tinymce/', '../' . WPINC . '/js/tinymce/', $content );
-		$content = str_replace( '../fonts/', '../' . WPINC . '/fonts/', $content );
-		$out    .= $content;
+	/*
+	 * Rewrite relative URL references so they resolve correctly from
+	 * the load-styles.php endpoint. WPINC styles live one directory
+	 * deeper, so their ../images/ paths need an extra path segment.
+	 *
+	 * Note: str_starts_with() is not used here, as wp-includes/compat.php
+	 * is not loaded in this file.
+	 */
+	if ( 0 === strpos( $style->src, $wpinc_css_prefix ) ) {
+		// Single str_replace call with arrays performs one-pass rewriting
+		// instead of three sequential passes over the same string.
+		$content = str_replace(
+			array( '../images/', '../js/tinymce/', '../fonts/' ),
+			array( $wpinc_images_repl, $wpinc_tinymce_repl, $wpinc_fonts_repl ),
+			$content
+		);
 	} else {
-		$out .= str_replace( '../images/', 'images/', $content );
+		$content = str_replace( '../images/', 'images/', $content );
 	}
+
+	$parts[] = $content;
 }
+
+$out = implode( '', $parts );
 
 header( "Etag: $etag" );
 header( 'Content-Type: text/css; charset=UTF-8' );
 header( 'Expires: ' . gmdate( 'D, d M Y H:i:s', time() + $expires_offset ) . ' GMT' );
 header( "Cache-Control: public, max-age=$expires_offset" );
+header( 'Content-Length: ' . strlen( $out ) );
 
 echo $out;
 exit;
