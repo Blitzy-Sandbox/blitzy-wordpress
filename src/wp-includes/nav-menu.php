@@ -710,6 +710,15 @@ function _is_valid_nav_menu_item( $item ) {
  * @return array|false Array of menu items, otherwise false.
  */
 function wp_get_nav_menu_items( $menu, $args = array() ) {
+	/*
+	 * Performance optimization: Request-level static cache for menu items.
+	 *
+	 * Prevents redundant database queries and processing when the same menu
+	 * is rendered multiple times per request (e.g., desktop navigation and
+	 * mobile navigation rendering the same menu).
+	 */
+	static $menu_items_cache = array();
+
 	$menu = wp_get_nav_menu_object( $menu );
 
 	if ( ! $menu ) {
@@ -738,10 +747,44 @@ function wp_get_nav_menu_items( $menu, $args = array() ) {
 		),
 	);
 	$args     = wp_parse_args( $args, $defaults );
+
+	/*
+	 * Check the static cache for a previously computed result with identical parameters.
+	 *
+	 * The cache key incorporates the posts group's `last_changed` timestamp so that
+	 * any post creation, update, or deletion (including nav_menu_item posts) within
+	 * the current request automatically invalidates stale entries via clean_post_cache().
+	 */
+	$last_changed = wp_cache_get_last_changed( 'posts' );
+	$cache_key    = $menu->term_id . ':' . $last_changed . ':' . md5( serialize( $args ) );
+	if ( isset( $menu_items_cache[ $cache_key ] ) ) {
+		return $menu_items_cache[ $cache_key ];
+	}
+
 	if ( $menu->count > 0 ) {
 		$items = get_posts( $args );
 	} else {
 		$items = array();
+	}
+
+	/*
+	 * Performance optimization: Batch-prime all post meta for menu items in a single query.
+	 *
+	 * Each nav_menu_item post has 8 meta keys that wp_setup_nav_menu_item() reads individually:
+	 *   _menu_item_type, _menu_item_menu_item_parent, _menu_item_object_id,
+	 *   _menu_item_object, _menu_item_target, _menu_item_classes,
+	 *   _menu_item_xfn, _menu_item_url.
+	 *
+	 * Without batch priming, each get_post_meta() call per item would be a separate DB query.
+	 * This call primes the entire post_meta cache for all menu items in one SQL query.
+	 *
+	 * Note: WP_Query's internal _prime_post_caches() may already prime this cache when
+	 * update_post_meta_cache is true (the default). This call serves as a safety net for
+	 * cases where meta cache priming is bypassed by custom query args or filters.
+	 * When the cache is already populated, update_meta_cache() returns early with no DB cost.
+	 */
+	if ( ! empty( $items ) ) {
+		update_meta_cache( 'post', wp_list_pluck( $items, 'ID' ) );
 	}
 
 	$items = array_map( 'wp_setup_nav_menu_item', $items );
@@ -774,7 +817,22 @@ function wp_get_nav_menu_items( $menu, $args = array() ) {
 	 * @param object $menu  The menu object.
 	 * @param array  $args  An array of arguments used to retrieve menu item objects.
 	 */
-	return apply_filters( 'wp_get_nav_menu_items', $items, $menu, $args );
+	$items = apply_filters( 'wp_get_nav_menu_items', $items, $menu, $args );
+
+	/*
+	 * Store deep copies in the static cache to prevent external code (e.g.,
+	 * Walker_Nav_Menu adding CSS classes) from mutating the cached objects.
+	 * PHP objects are reference-counted, so without cloning, modifications
+	 * made by the caller would leak into the cache and corrupt future reads.
+	 */
+	$menu_items_cache[ $cache_key ] = array_map(
+		static function ( $item ) {
+			return clone $item;
+		},
+		$items
+	);
+
+	return $items;
 }
 
 /**
