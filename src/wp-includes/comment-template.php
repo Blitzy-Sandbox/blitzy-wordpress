@@ -2411,6 +2411,44 @@ function wp_list_comments( $args = array(), $comments = null ) {
 		$walker = $parsed_args['walker'];
 	}
 
+	/*
+	 * Batch-prime comment metadata and comment author user data caches before
+	 * the Walker_Comment iteration loop begins. This eliminates N+1 individual
+	 * database queries that would otherwise occur when each comment's template
+	 * tags (get_comment_author(), get_comment_class(), get_avatar(), etc.) call
+	 * get_userdata() and get_comment_meta() per comment during rendering.
+	 *
+	 * - update_meta_cache() checks which comment IDs are already cached and only
+	 *   queries the database for non-cached IDs, making this safe even when meta
+	 *   was partially primed by WP_Comment_Query.
+	 * - cache_users() similarly checks for non-cached user IDs via
+	 *   _get_non_cached_ids() before issuing any SQL.
+	 *
+	 * @since 7.0.0
+	 */
+	if ( ! empty( $_comments ) ) {
+		$_comment_ids_to_cache = array();
+		$_user_ids_to_cache    = array();
+
+		foreach ( $_comments as $_the_comment ) {
+			if ( ! empty( $_the_comment->comment_ID ) ) {
+				$_comment_ids_to_cache[] = (int) $_the_comment->comment_ID;
+			}
+
+			if ( ! empty( $_the_comment->user_id ) ) {
+				$_user_ids_to_cache[] = (int) $_the_comment->user_id;
+			}
+		}
+
+		if ( $_comment_ids_to_cache ) {
+			update_meta_cache( 'comment', $_comment_ids_to_cache );
+		}
+
+		if ( $_user_ids_to_cache ) {
+			cache_users( array_unique( $_user_ids_to_cache ) );
+		}
+	}
+
 	$output = $walker->paged_walk( $_comments, $parsed_args['max_depth'], $parsed_args['page'], $parsed_args['per_page'], $parsed_args );
 
 	$in_comment_loop = false;
