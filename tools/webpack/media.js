@@ -9,6 +9,8 @@ const TerserPlugin = require( 'terser-webpack-plugin' );
 const { baseDir } = require( './shared' );
 
 module.exports = function( env = { environment: 'production', watch: false, buildTarget: false } ) {
+	const codeSplitting = env.codeSplitting || false;
+
 	const entry = {
 		[ env.buildTarget + 'wp-includes/js/media-audiovideo.js' ]: ['./src/js/_enqueues/wp/media/audiovideo.js'],
 		[ env.buildTarget + 'wp-includes/js/media-audiovideo.min.js' ]: ['./src/js/_enqueues/wp/media/audiovideo.js'],
@@ -41,6 +43,25 @@ module.exports = function( env = { environment: 'production', watch: false, buil
 		},
 		watch: env.watch,
 	};
+
+	if ( codeSplitting ) {
+		mediaConfig.optimization.splitChunks = {
+			cacheGroups: {
+				default: false,
+				vendors: false,
+				// Extract shared Backbone model/view code between the four
+				// media bundles into a common chunk to reduce duplication.
+				mediaCommon: {
+					name: env.buildTarget + 'wp-includes/js/media-common',
+					chunks: 'all',
+					minChunks: 2,
+					priority: 10,
+					reuseExistingChunk: true,
+					enforce: true,
+				},
+			},
+		};
+	}
 
 	return mediaConfig;
 };
