@@ -6,6 +6,13 @@
 ( function( api, wp, $ ) {
 	'use strict';
 
+	// Performance optimization: bail early if nav menu Customizer context is not present.
+	// _wpCustomizeNavMenusSettings is localized only when the nav menus panel is active.
+	// wpNavMenu is the global nav-menu helper object expected by this script.
+	if ( typeof _wpCustomizeNavMenusSettings === 'undefined' || typeof wpNavMenu === 'undefined' ) {
+		return;
+	}
+
 	/**
 	 * Set up wpNavMenu for drag and drop.
 	 */
@@ -3231,9 +3238,47 @@
 	 */
 	api.bind( 'ready', function() {
 
-		// Set up the menu items panel.
-		api.Menus.availableMenuItemsPanel = new api.Menus.AvailableMenuItemsPanelView({
-			collection: api.Menus.availableMenuItems
+		// Performance optimization: Defer AvailableMenuItemsPanelView instantiation
+		// until a menu section/panel is first expanded, rather than on ready.
+		var availableMenuItemsPanelInitialized = false;
+
+		function initAvailableMenuItemsPanel() {
+			if ( availableMenuItemsPanelInitialized ) {
+				return;
+			}
+			availableMenuItemsPanelInitialized = true;
+
+			// Set up the menu items panel.
+			api.Menus.availableMenuItemsPanel = new api.Menus.AvailableMenuItemsPanelView({
+				collection: api.Menus.availableMenuItems
+			});
+		}
+
+		// Initialize when a nav_menu section is first expanded (user opens a menu for editing).
+		api.section.each( function( section ) {
+			if ( section.params.type === 'nav_menu' ) {
+				section.expanded.bind( function( expanded ) {
+					if ( expanded ) {
+						initAvailableMenuItemsPanel();
+					}
+				});
+			}
+		});
+
+		// Also initialize when a new menu section is added (dynamic addition).
+		api.section.bind( 'add', function( section ) {
+			if ( section.params.type === 'nav_menu' ) {
+				section.expanded.bind( function( expanded ) {
+					if ( expanded ) {
+						initAvailableMenuItemsPanel();
+					}
+				});
+			}
+		});
+
+		// Fallback: if available-menu-items button is clicked directly.
+		$( '#customize-controls' ).on( 'click', '.add-new-menu-item', function() {
+			initAvailableMenuItemsPanel();
 		});
 
 		api.bind( 'saved', function( data ) {
