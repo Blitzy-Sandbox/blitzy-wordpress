@@ -97,7 +97,23 @@ _wp_admin_html_begin();
 
 wp_enqueue_style( 'colors' );
 wp_enqueue_script( 'utils' );
-wp_enqueue_script( 'svg-painter' );
+
+/**
+ * Filters whether to enqueue the SVG painter script in the admin.
+ *
+ * The SVG painter handles admin menu icon colorization. Disabling this
+ * can reduce admin page overhead on sites that do not need SVG colorization.
+ *
+ * @since 7.0.0
+ *
+ * @param bool $enqueue Whether to enqueue the SVG painter script. Default true.
+ */
+if ( apply_filters( 'wp_admin_enqueue_svg_painter', true ) ) {
+	wp_enqueue_script( 'svg-painter' );
+}
+
+// Cache is_rtl() result — used in both inline JS and body class generation.
+$is_rtl = is_rtl();
 
 $admin_body_class = preg_replace( '/[^a-z0-9_-]+/i', '-', $hook_suffix );
 ?>
@@ -109,9 +125,14 @@ var ajaxurl = '<?php echo esc_js( admin_url( 'admin-ajax.php', 'relative' ) ); ?
 	adminpage = '<?php echo esc_js( $admin_body_class ); ?>',
 	thousandsSeparator = '<?php echo esc_js( $wp_locale->number_format['thousands_sep'] ); ?>',
 	decimalPoint = '<?php echo esc_js( $wp_locale->number_format['decimal_point'] ); ?>',
-	isRtl = <?php echo (int) is_rtl(); ?>;
+	isRtl = <?php echo (int) $is_rtl; ?>;
 </script>
 <?php
+
+// Performance observability: time the admin head hook chain.
+if ( defined( 'WP_PERFORMANCE_PROFILING' ) && WP_PERFORMANCE_PROFILING ) {
+	$GLOBALS['_wp_admin_head_start'] = microtime( true );
+}
 
 /**
  * Fires when enqueuing scripts for all admin pages.
@@ -167,56 +188,75 @@ do_action( "admin_head-{$hook_suffix}" ); // phpcs:ignore WordPress.NamingConven
  */
 do_action( 'admin_head' );
 
+// Performance observability: record admin head hook chain duration.
+if ( defined( 'WP_PERFORMANCE_PROFILING' ) && WP_PERFORMANCE_PROFILING && isset( $GLOBALS['_wp_admin_head_start'] ) ) {
+	$GLOBALS['_wp_admin_head_duration'] = microtime( true ) - $GLOBALS['_wp_admin_head_start'];
+	unset( $GLOBALS['_wp_admin_head_start'] );
+}
+
+/*
+ * Build admin body classes using an array to reduce intermediate string
+ * allocations from repeated concatenation. Each class is collected
+ * individually and joined once at the end.
+ */
+$_body_classes = array();
+
 if ( 'f' === get_user_setting( 'mfold' ) ) {
-	$admin_body_class .= ' folded';
+	$_body_classes[] = 'folded';
 }
 
 if ( ! get_user_setting( 'unfold' ) ) {
-	$admin_body_class .= ' auto-fold';
+	$_body_classes[] = 'auto-fold';
 }
 
 if ( is_admin_bar_showing() ) {
-	$admin_body_class .= ' admin-bar';
+	$_body_classes[] = 'admin-bar';
 }
 
-if ( is_rtl() ) {
-	$admin_body_class .= ' rtl';
+if ( $is_rtl ) {
+	$_body_classes[] = 'rtl';
 }
 
 if ( $current_screen->post_type ) {
-	$admin_body_class .= ' post-type-' . $current_screen->post_type;
+	$_body_classes[] = 'post-type-' . $current_screen->post_type;
 }
 
 if ( $current_screen->taxonomy ) {
-	$admin_body_class .= ' taxonomy-' . $current_screen->taxonomy;
+	$_body_classes[] = 'taxonomy-' . $current_screen->taxonomy;
 }
 
-$admin_body_class .= ' branch-' . str_replace( array( '.', ',' ), '-', (float) get_bloginfo( 'version' ) );
-$admin_body_class .= ' version-' . str_replace( '.', '-', preg_replace( '/^([.0-9]+).*/', '$1', get_bloginfo( 'version' ) ) );
-$admin_body_class .= ' admin-color-' . sanitize_html_class( get_user_option( 'admin_color' ), 'modern' );
-$admin_body_class .= ' locale-' . sanitize_html_class( strtolower( str_replace( '_', '-', get_user_locale() ) ) );
+// Cache get_bloginfo( 'version' ) — called for both branch and version classes.
+$_wp_version     = get_bloginfo( 'version' );
+$_body_classes[] = 'branch-' . str_replace( array( '.', ',' ), '-', (float) $_wp_version );
+$_body_classes[] = 'version-' . str_replace( '.', '-', preg_replace( '/^([.0-9]+).*/', '$1', $_wp_version ) );
+$_body_classes[] = 'admin-color-' . sanitize_html_class( get_user_option( 'admin_color' ), 'modern' );
+$_body_classes[] = 'locale-' . sanitize_html_class( strtolower( str_replace( '_', '-', get_user_locale() ) ) );
 
 if ( wp_is_mobile() ) {
-	$admin_body_class .= ' mobile';
+	$_body_classes[] = 'mobile';
 }
 
-if ( is_multisite() ) {
-	$admin_body_class .= ' multisite';
+// Cache is_multisite() result for body class generation.
+$_is_multisite = is_multisite();
+if ( $_is_multisite ) {
+	$_body_classes[] = 'multisite';
 }
 
 if ( is_network_admin() ) {
-	$admin_body_class .= ' network-admin';
+	$_body_classes[] = 'network-admin';
 }
 
-$admin_body_class .= ' no-customize-support svg';
+$_body_classes[] = 'no-customize-support';
+$_body_classes[] = 'svg';
 
 if ( $current_screen->is_block_editor() ) {
-	$admin_body_class .= ' block-editor-page wp-embed-responsive';
+	$_body_classes[] = 'block-editor-page';
+	$_body_classes[] = 'wp-embed-responsive';
 }
 
-$admin_body_class .= ' wp-theme-' . sanitize_html_class( get_template() );
+$_body_classes[] = 'wp-theme-' . sanitize_html_class( get_template() );
 if ( is_child_theme() ) {
-	$admin_body_class .= ' wp-child-theme-' . sanitize_html_class( get_stylesheet() );
+	$_body_classes[] = 'wp-child-theme-' . sanitize_html_class( get_stylesheet() );
 }
 
 $error_get_last = error_get_last();
@@ -227,10 +267,16 @@ if ( $error_get_last && WP_DEBUG && WP_DEBUG_DISPLAY && ini_get( 'display_errors
 	// and should not be displayed with the `error_reporting` level previously set in wp-load.php.
 	&& ( E_NOTICE !== $error_get_last['type'] || 'wp-config.php' !== wp_basename( $error_get_last['file'] ) )
 ) {
-	$admin_body_class .= ' php-error';
+	$_body_classes[] = 'php-error';
 }
 
 unset( $error_get_last );
+
+// Join all collected body classes into the admin body class string.
+if ( ! empty( $_body_classes ) ) {
+	$admin_body_class .= ' ' . implode( ' ', $_body_classes );
+}
+unset( $_body_classes, $_wp_version, $_is_multisite );
 
 ?>
 </head>
