@@ -33,36 +33,27 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /*
- * OPcache preload hints for critical bootstrap files.
+ * OPcache preload note:
  *
- * When OPcache is available and enabled, proactively compile the critical files
- * that wp-settings.php will require shortly after this point. This reduces
- * cold-start latency by ensuring these files are already in the opcode cache
- * before they are included. Files already cached are skipped to avoid redundant
- * compilation. The @ operator suppresses errors on restricted environments where
- * opcache_compile_file() may be disabled via disable_functions.
+ * An opcache_compile_file() preload block was removed here because it caused
+ * "Cannot redeclare" Fatal Errors after opcache_reset(). The root issue is that
+ * opcache_compile_file() pre-compiles files without executing them, which
+ * populates the opcode cache but does NOT update PHP's internal require_once
+ * tracking. When the file is subsequently require_once'd, PHP re-executes the
+ * file (since require_once doesn't see it as already included), causing top-level
+ * function/class definitions to collide with the opcache-compiled versions.
+ *
+ * This is harmless on warm OPcache (files already cached skip compilation) but
+ * fatal on cold starts after opcache_reset() — exactly the condition triggered
+ * by performance test cache-clearing between iterations.
+ *
+ * OPcache automatically compiles and caches files on first require/include, so
+ * there is no meaningful performance benefit lost by removing explicit preloading.
+ * The proper OPcache preloading mechanism is opcache.preload in php.ini, which
+ * runs in a separate context and avoids the function redeclaration issue.
  *
  * @since 7.0.0
  */
-if ( function_exists( 'opcache_compile_file' ) && ini_get( 'opcache.enable' ) ) {
-	$_wp_opcache_preload_files = array(
-		ABSPATH . 'wp-settings.php',
-		ABSPATH . 'wp-includes/load.php',
-		ABSPATH . 'wp-includes/plugin.php',
-		ABSPATH . 'wp-includes/class-wp-hook.php',
-		ABSPATH . 'wp-includes/formatting.php',
-		ABSPATH . 'wp-includes/functions.php',
-	);
-
-	foreach ( $_wp_opcache_preload_files as $_wp_opcache_file ) {
-		if ( function_exists( 'opcache_is_script_cached' ) && opcache_is_script_cached( $_wp_opcache_file ) ) {
-			continue;
-		}
-		@opcache_compile_file( $_wp_opcache_file );
-	}
-
-	unset( $_wp_opcache_preload_files, $_wp_opcache_file );
-}
 
 /*
  * The error_reporting() function can be disabled in php.ini. On systems where that is the case,
