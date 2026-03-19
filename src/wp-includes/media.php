@@ -974,6 +974,41 @@ function wp_get_registered_image_subsizes() {
  * }
  */
 function wp_get_attachment_image_src( $attachment_id, $size = 'thumbnail', $icon = false ) {
+	/*
+	 * Per-request static cache for image source results keyed by attachment ID,
+	 * size, and icon flag. Eliminates redundant image_downsize() calls when the
+	 * same attachment+size combination is requested multiple times in a single
+	 * request (e.g., featured images in template loops).
+	 *
+	 * The cache is automatically invalidated when attachment caches are cleaned
+	 * via the 'clean_attachment_cache' action or when attachment metadata is
+	 * updated via the 'updated_post_meta' action for '_wp_attachment_metadata'.
+	 *
+	 * @since 7.0.0
+	 */
+	static $src_cache   = array();
+	static $src_cache_gen = -1;
+
+	$gen = _wp_media_cache_generation();
+	if ( $src_cache_gen !== $gen ) {
+		$src_cache     = array();
+		$src_cache_gen = $gen;
+	}
+
+	/*
+	 * Include the upload directory base URL in the cache key so that
+	 * filter changes to 'upload_dir' (e.g., switching to relative URLs)
+	 * are correctly reflected rather than returning stale cached results.
+	 * wp_get_upload_dir() is cheap — it uses its own static cache internally.
+	 */
+	$upload_dir = wp_get_upload_dir();
+	$cache_key  = $attachment_id . '_' . ( is_array( $size ) ? implode( 'x', $size ) : $size ) . '_' . ( $icon ? '1' : '0' ) . '_' . $upload_dir['baseurl'];
+
+	if ( isset( $src_cache[ $cache_key ] ) ) {
+		/** This filter is documented in wp-includes/media.php */
+		return apply_filters( 'wp_get_attachment_image_src', $src_cache[ $cache_key ], $attachment_id, $size, $icon );
+	}
+
 	// Get a thumbnail or intermediate image if there is one.
 	$image = image_downsize( $attachment_id, $size );
 	if ( ! $image ) {
@@ -1006,6 +1041,10 @@ function wp_get_attachment_image_src( $attachment_id, $size = 'thumbnail', $icon
 			$image = array( $src, $width, $height, false );
 		}
 	}
+
+	// Store computed result in the per-request static cache.
+	$src_cache[ $cache_key ] = $image;
+
 	/**
 	 * Filters the attachment image source result.
 	 *
@@ -1341,6 +1380,44 @@ function wp_get_attachment_image_srcset( $attachment_id, $size = 'medium', $imag
  * @return string|false The 'srcset' attribute value. False on error or when only one source exists.
  */
 function wp_calculate_image_srcset( $size_array, $image_src, $image_meta, $attachment_id = 0 ) {
+	/*
+	 * Per-request static cache for srcset results. Keyed by attachment ID,
+	 * image source, and requested size dimensions. Avoids redundant expensive
+	 * filesystem and metadata lookups when the same image srcset is computed
+	 * multiple times within a single request.
+	 *
+	 * Invalidated alongside other media caches via 'clean_attachment_cache'
+	 * and 'updated_post_meta' for '_wp_attachment_metadata'.
+	 *
+	 * @since 7.0.0
+	 */
+	static $srcset_cache     = array();
+	static $srcset_cache_gen = -1;
+
+	$gen = _wp_media_cache_generation();
+	if ( $srcset_cache_gen !== $gen ) {
+		$srcset_cache     = array();
+		$srcset_cache_gen = $gen;
+	}
+
+	/*
+	 * Only cache when a real attachment ID is supplied. When $attachment_id
+	 * is 0 (the default), callers provide arbitrary $image_meta that may
+	 * differ between calls with the same $image_src and $size_array, so
+	 * the cache key cannot guarantee uniqueness. The production hot path
+	 * through wp_get_attachment_image() always supplies a real ID.
+	 */
+	$srcset_use_cache = ( $attachment_id > 0 );
+	$srcset_cache_key = '';
+
+	if ( $srcset_use_cache ) {
+		$srcset_cache_key = $attachment_id . '_' . $image_src . '_' . implode( 'x', $size_array );
+
+		if ( isset( $srcset_cache[ $srcset_cache_key ] ) ) {
+			return $srcset_cache[ $srcset_cache_key ];
+		}
+	}
+
 	/**
 	 * Pre-filters the image meta to be able to fix inconsistencies in the stored data.
 	 *
@@ -1359,6 +1436,9 @@ function wp_calculate_image_srcset( $size_array, $image_src, $image_meta, $attac
 	$image_meta = apply_filters( 'wp_calculate_image_srcset_meta', $image_meta, $size_array, $image_src, $attachment_id );
 
 	if ( empty( $image_meta['sizes'] ) || ! isset( $image_meta['file'] ) || strlen( $image_meta['file'] ) < 4 ) {
+		if ( $srcset_use_cache ) {
+			$srcset_cache[ $srcset_cache_key ] = false;
+		}
 		return false;
 	}
 
@@ -1532,6 +1612,9 @@ function wp_calculate_image_srcset( $size_array, $image_src, $image_meta, $attac
 
 	// Only return a 'srcset' value if there is more than one source.
 	if ( ! $src_matched || ! is_array( $sources ) || count( $sources ) < 2 ) {
+		if ( $srcset_use_cache ) {
+			$srcset_cache[ $srcset_cache_key ] = false;
+		}
 		return false;
 	}
 
@@ -1541,7 +1624,14 @@ function wp_calculate_image_srcset( $size_array, $image_src, $image_meta, $attac
 		$srcset .= str_replace( ' ', '%20', $source['url'] ) . ' ' . $source['value'] . $source['descriptor'] . ', ';
 	}
 
-	return rtrim( $srcset, ', ' );
+	$result = rtrim( $srcset, ', ' );
+
+	// Store computed srcset in per-request cache for reuse.
+	if ( $srcset_use_cache ) {
+		$srcset_cache[ $srcset_cache_key ] = $result;
+	}
+
+	return $result;
 }
 
 /**
@@ -6637,4 +6727,119 @@ function wp_add_crossorigin_attributes( string $html ): string {
 
 	return $processor->get_updated_html();
 }
+
+/**
+ * Primes post object and post meta caches for a batch of attachment IDs.
+ *
+ * This is useful before template loops that render featured images or galleries,
+ * where multiple attachments will be accessed in sequence. By batch-priming the
+ * caches upfront, N+1 individual database queries are replaced with a single
+ * batch query, significantly reducing database roundtrips.
+ *
+ * Internally delegates to _prime_post_caches() to warm both the post object cache
+ * and the postmeta cache for the provided attachment IDs in a single pass.
+ *
+ * Example usage before a template loop:
+ *
+ *     $thumbnail_ids = array();
+ *     foreach ( $posts as $post ) {
+ *         $thumb_id = get_post_thumbnail_id( $post );
+ *         if ( $thumb_id ) {
+ *             $thumbnail_ids[] = $thumb_id;
+ *         }
+ *     }
+ *     if ( $thumbnail_ids ) {
+ *         wp_prime_attachment_caches( $thumbnail_ids );
+ *     }
+ *
+ * @since 7.0.0
+ *
+ * @param int[] $attachment_ids Array of attachment post IDs to prime caches for.
+ */
+function wp_prime_attachment_caches( $attachment_ids ) {
+	if ( empty( $attachment_ids ) ) {
+		return;
+	}
+
+	// Sanitize to positive integers and remove duplicates.
+	$attachment_ids = array_unique( array_filter( array_map( 'absint', $attachment_ids ) ) );
+
+	if ( empty( $attachment_ids ) ) {
+		return;
+	}
+
+	/*
+	 * Prime post object and post meta caches in a single batch query.
+	 * The second parameter (false) skips term cache priming since attachments
+	 * rarely need taxonomy data during image rendering. The third parameter
+	 * (true) ensures postmeta is primed, which is critical because
+	 * wp_get_attachment_metadata() and wp_get_attachment_image_alt() read from
+	 * postmeta on every call.
+	 */
+	_prime_post_caches( $attachment_ids, false, true );
+}
+
+/**
+ * Returns and optionally increments the media image cache generation counter.
+ *
+ * Used internally by wp_get_attachment_image_src() and wp_calculate_image_srcset()
+ * to detect when their per-request static caches should be invalidated. The counter
+ * is incremented when attachment caches are cleaned or when attachment metadata is
+ * updated within the same request.
+ *
+ * @since 7.0.0
+ * @access private
+ *
+ * @param bool $bump Optional. Whether to increment the generation counter. Default false.
+ * @return int The current generation counter value.
+ */
+function _wp_media_cache_generation( $bump = false ) {
+	static $generation = 0;
+
+	if ( $bump ) {
+		++$generation;
+	}
+
+	return $generation;
+}
+
+/**
+ * Invalidates per-request static caches for media image functions.
+ *
+ * Called on 'clean_attachment_cache' to ensure that cached image source data
+ * and srcset computations are refreshed after an attachment is modified.
+ *
+ * @since 7.0.0
+ * @access private
+ *
+ * @param int $attachment_id The attachment post ID being cleaned.
+ */
+function _wp_media_invalidate_image_cache( $attachment_id ) {
+	_wp_media_cache_generation( true );
+}
+
+/**
+ * Conditionally invalidates media image caches when attachment metadata is updated.
+ *
+ * Hooked to 'updated_post_meta' to clear cached image source and srcset data
+ * only when the '_wp_attachment_metadata' meta key is changed, ensuring that
+ * subsequent calls to wp_get_attachment_image_src() and wp_calculate_image_srcset()
+ * return fresh results reflecting the new metadata.
+ *
+ * @since 7.0.0
+ * @access private
+ *
+ * @param int    $meta_id   The meta ID after successful update.
+ * @param int    $object_id The object (post) ID.
+ * @param string $meta_key  The meta key that was updated.
+ */
+function _wp_media_invalidate_image_cache_on_meta_update( $meta_id, $object_id, $meta_key ) {
+	if ( '_wp_attachment_metadata' === $meta_key ) {
+		_wp_media_cache_generation( true );
+	}
+}
+
+// Register cache invalidation hooks for media image static caches.
+add_action( 'clean_attachment_cache', '_wp_media_invalidate_image_cache' );
+add_action( 'updated_post_meta', '_wp_media_invalidate_image_cache_on_meta_update', 10, 3 );
 
