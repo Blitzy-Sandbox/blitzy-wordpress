@@ -2780,6 +2780,29 @@ function rest_validate_integer_value_from_schema( $value, $args, $param ) {
  * @return mixed|WP_Error The sanitized value or a WP_Error instance if the value cannot be safely sanitized.
  */
 function rest_sanitize_value_from_schema( $value, $args, $param = '' ) {
+	/*
+	 * Performance fast path: for simple scalar types that have a single known
+	 * type keyword and no anyOf/oneOf composition, return the sanitized value
+	 * directly without the generic processing overhead. This is the most common
+	 * case in REST API field sanitization (e.g., integer IDs, boolean flags).
+	 */
+	if ( isset( $args['type'] ) && is_string( $args['type'] )
+		&& ! isset( $args['anyOf'] ) && ! isset( $args['oneOf'] )
+	) {
+		switch ( $args['type'] ) {
+			case 'integer':
+				return (int) $value;
+			case 'number':
+				return (float) $value;
+			case 'boolean':
+				return rest_sanitize_boolean( $value );
+			case 'null':
+				return null;
+		}
+		// For 'string', 'array', 'object' types, fall through to full processing
+		// as they may require format handling or recursive sanitization.
+	}
+
 	if ( isset( $args['anyOf'] ) ) {
 		$matching_schema = rest_find_any_matching_schema( $value, $args, $param );
 		if ( is_wp_error( $matching_schema ) ) {
@@ -2970,21 +2993,31 @@ function rest_preload_api_request( $memo, $path ) {
 		$path = '/';
 	}
 
-	$path_parts = parse_url( $path );
-	if ( false === $path_parts ) {
-		return $memo;
+	/*
+	 * Performance optimization: skip parse_url() for simple paths that contain
+	 * no query string. Most preloaded paths are simple route paths like
+	 * "/wp/v2/posts" without query parameters.
+	 */
+	$has_query = str_contains( $path, '?' );
+
+	if ( $has_query ) {
+		$path_parts = parse_url( $path );
+		if ( false === $path_parts ) {
+			return $memo;
+		}
+
+		if ( isset( $path_parts['path'] ) && '/' !== $path_parts['path'] ) {
+			$path_parts['path'] = untrailingslashit( $path_parts['path'] );
+			$path               = $path_parts['path'] . '?' . ( $path_parts['query'] ?? '' );
+		}
+
+		$request_path = $path_parts['path'];
+	} else {
+		$request_path = $path;
 	}
 
-	if ( isset( $path_parts['path'] ) && '/' !== $path_parts['path'] ) {
-		// Remove trailing slashes from the "path" part of the REST API path.
-		$path_parts['path'] = untrailingslashit( $path_parts['path'] );
-		$path               = str_contains( $path, '?' ) ?
-			$path_parts['path'] . '?' . ( $path_parts['query'] ?? '' ) :
-			$path_parts['path'];
-	}
-
-	$request = new WP_REST_Request( $method, $path_parts['path'] );
-	if ( ! empty( $path_parts['query'] ) ) {
+	$request = new WP_REST_Request( $method, $request_path );
+	if ( $has_query && ! empty( $path_parts['query'] ) ) {
 		parse_str( $path_parts['query'], $query_params );
 		$request->set_query_params( $query_params );
 	}
@@ -3033,6 +3066,123 @@ function rest_parse_embed_param( $embed ) {
 	}
 
 	return $rels;
+}
+
+/**
+ * Batch-primes object caches for a REST API collection response.
+ *
+ * Called before endpoint controllers serialize collection responses to
+ * eliminate N+1 query patterns during prepare_item_for_response() loops.
+ * Instead of each item triggering individual database queries for meta,
+ * terms, and related data, this function pre-populates the object cache
+ * with all required data in batch SQL queries.
+ *
+ * Supported object types:
+ * - 'post': Primes post data, post meta, term relationships, and author user caches.
+ * - 'term': Primes term meta caches.
+ * - 'comment': Primes comment meta caches.
+ * - 'user': Primes user data and user meta caches.
+ *
+ * @since 7.0.0
+ *
+ * @param string $object_type The type of objects: 'post', 'term', 'comment', or 'user'.
+ * @param int[]  $object_ids  Array of object IDs to prime caches for.
+ * @param array  $args {
+ *     Optional. Additional arguments for cache priming.
+ *
+ *     @type bool $update_meta_cache Whether to prime meta caches. Default true.
+ *     @type bool $update_term_cache Whether to prime term relationship caches (posts only). Default true.
+ * }
+ */
+function rest_prime_entity_collection_caches( $object_type, $object_ids, $args = array() ) {
+	if ( empty( $object_ids ) ) {
+		return;
+	}
+
+	$object_ids = array_filter( array_unique( array_map( 'intval', $object_ids ) ) );
+	if ( empty( $object_ids ) ) {
+		return;
+	}
+
+	$defaults = array(
+		'update_meta_cache' => true,
+		'update_term_cache' => true,
+	);
+	$args     = wp_parse_args( $args, $defaults );
+
+	switch ( $object_type ) {
+		case 'post':
+			/*
+			 * Prime post data, post meta, and term relationship caches in batch.
+			 * This eliminates per-post meta and term queries during serialization.
+			 */
+			_prime_post_caches( $object_ids, $args['update_term_cache'], $args['update_meta_cache'] );
+
+			/*
+			 * Also prime author user caches for embedded author data.
+			 * REST post responses typically include author information,
+			 * which triggers individual user lookups without priming.
+			 */
+			if ( $args['update_meta_cache'] ) {
+				$post_author_ids = array();
+				foreach ( $object_ids as $post_id ) {
+					$post = get_post( $post_id );
+					if ( $post && $post->post_author ) {
+						$post_author_ids[] = (int) $post->post_author;
+					}
+				}
+				if ( ! empty( $post_author_ids ) ) {
+					cache_users( array_unique( $post_author_ids ) );
+				}
+
+				/*
+				 * Prime featured image (attachment) caches. REST post responses
+				 * include featured_media data which triggers individual attachment
+				 * queries without priming.
+				 */
+				$thumbnail_ids = array();
+				foreach ( $object_ids as $post_id ) {
+					$thumbnail_id = get_post_meta( $post_id, '_thumbnail_id', true );
+					if ( $thumbnail_id ) {
+						$thumbnail_ids[] = (int) $thumbnail_id;
+					}
+				}
+				if ( ! empty( $thumbnail_ids ) ) {
+					_prime_post_caches( array_unique( $thumbnail_ids ), false, true );
+				}
+			}
+			break;
+
+		case 'term':
+			if ( $args['update_meta_cache'] ) {
+				update_meta_cache( 'term', $object_ids );
+			}
+			break;
+
+		case 'comment':
+			if ( $args['update_meta_cache'] ) {
+				update_meta_cache( 'comment', $object_ids );
+			}
+			break;
+
+		case 'user':
+			cache_users( $object_ids );
+			break;
+	}
+
+	/**
+	 * Fires after entity caches have been primed for a REST collection response.
+	 *
+	 * Allows plugins and custom REST controllers to prime additional caches
+	 * for their custom entity types or related data.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @param string $object_type The type of objects primed.
+	 * @param int[]  $object_ids  Array of object IDs that were primed.
+	 * @param array  $args        Additional arguments passed to the priming function.
+	 */
+	do_action( 'rest_after_prime_entity_caches', $object_type, $object_ids, $args );
 }
 
 /**
@@ -3226,12 +3376,32 @@ function rest_get_route_for_post( $post ) {
  *                or an empty string if there is not a route.
  */
 function rest_get_route_for_post_type_items( $post_type ) {
+	/*
+	 * Performance optimization: cache computed routes per post type within
+	 * the current request. This avoids repeated get_post_type_object() lookups
+	 * and filter invocations when generating REST routes for multiple posts
+	 * of the same type (e.g., collection responses, link headers).
+	 */
+	static $route_cache = array();
+
+	$cache_key = is_string( $post_type ) ? $post_type : '';
+
+	if ( $cache_key && isset( $route_cache[ $cache_key ] ) ) {
+		return $route_cache[ $cache_key ];
+	}
+
 	$post_type = get_post_type_object( $post_type );
 	if ( ! $post_type ) {
+		if ( $cache_key ) {
+			$route_cache[ $cache_key ] = '';
+		}
 		return '';
 	}
 
 	if ( ! $post_type->show_in_rest ) {
+		if ( $cache_key ) {
+			$route_cache[ $cache_key ] = '';
+		}
 		return '';
 	}
 
@@ -3247,7 +3417,13 @@ function rest_get_route_for_post_type_items( $post_type ) {
 	 * @param string       $route      The route path.
 	 * @param WP_Post_Type $post_type  The post type object.
 	 */
-	return apply_filters( 'rest_route_for_post_type_items', $route, $post_type );
+	$route = apply_filters( 'rest_route_for_post_type_items', $route, $post_type );
+
+	if ( $cache_key ) {
+		$route_cache[ $cache_key ] = $route;
+	}
+
+	return $route;
 }
 
 /**
@@ -3293,12 +3469,32 @@ function rest_get_route_for_term( $term ) {
  * @return string The route path with a leading slash for the given taxonomy.
  */
 function rest_get_route_for_taxonomy_items( $taxonomy ) {
+	/*
+	 * Performance optimization: cache computed routes per taxonomy within
+	 * the current request. This avoids repeated get_taxonomy() lookups
+	 * and filter invocations when generating REST routes for multiple terms
+	 * of the same taxonomy (e.g., collection responses, link headers).
+	 */
+	static $route_cache = array();
+
+	$cache_key = is_string( $taxonomy ) ? $taxonomy : '';
+
+	if ( $cache_key && isset( $route_cache[ $cache_key ] ) ) {
+		return $route_cache[ $cache_key ];
+	}
+
 	$taxonomy = get_taxonomy( $taxonomy );
 	if ( ! $taxonomy ) {
+		if ( $cache_key ) {
+			$route_cache[ $cache_key ] = '';
+		}
 		return '';
 	}
 
 	if ( ! $taxonomy->show_in_rest ) {
+		if ( $cache_key ) {
+			$route_cache[ $cache_key ] = '';
+		}
 		return '';
 	}
 
@@ -3314,7 +3510,13 @@ function rest_get_route_for_taxonomy_items( $taxonomy ) {
 	 * @param string      $route    The route path.
 	 * @param WP_Taxonomy $taxonomy The taxonomy object.
 	 */
-	return apply_filters( 'rest_route_for_taxonomy_items', $route, $taxonomy );
+	$route = apply_filters( 'rest_route_for_taxonomy_items', $route, $taxonomy );
+
+	if ( $cache_key ) {
+		$route_cache[ $cache_key ] = $route;
+	}
+
+	return $route;
 }
 
 /**
