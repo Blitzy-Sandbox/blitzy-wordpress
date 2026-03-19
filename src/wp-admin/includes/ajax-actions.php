@@ -7,6 +7,37 @@
  * @since 2.1.0
  */
 
+/**
+ * Performance optimization: Conditional handler loading.
+ *
+ * Handler functions are grouped and conditionally defined based on the current
+ * AJAX action. This avoids PHP parsing/compiling all 94 handler definitions
+ * (5,600+ lines) when only one handler executes per request.
+ *
+ * When $_REQUEST['action'] is set (normal AJAX dispatch via admin-ajax.php),
+ * only the handler group matching the current action is compiled. When no
+ * action is set (e.g., PHPUnit test bootstrap, direct file inclusion), all
+ * handlers are defined unconditionally for backward compatibility.
+ *
+ * Measurement: Before/after comparison using get_included_files() and
+ * memory_get_peak_usage() on identical AJAX request sequences.
+ *
+ * @since 7.0.0
+ */
+
+/**
+ * Determine the current AJAX action to conditionally load handler groups.
+ * This avoids parsing/compiling all 94 handler definitions when only one is needed.
+ *
+ * When empty, all handler groups are loaded (backward-compatible fallback).
+ *
+ * @since 7.0.0
+ */
+$_wp_ajax_action = '';
+if ( isset( $_REQUEST['action'] ) && is_scalar( $_REQUEST['action'] ) ) {
+	$_wp_ajax_action = sanitize_key( $_REQUEST['action'] );
+}
+
 //
 // No-privilege Ajax handlers.
 //
@@ -74,6 +105,13 @@ function wp_ajax_nopriv_heartbeat() {
 //
 // GET-based Ajax handlers.
 //
+
+
+// Group 1: GET-based general handlers.
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array(
+	'fetch-list', 'ajax-tag-search', 'wp-compression-test', 'imgedit-preview',
+	'oembed-cache', 'autocomplete-user', 'get-community-events', 'dashboard-widgets', 'logged-in',
+), true ) ) {
 
 /**
  * Handles fetching a list table via AJAX.
@@ -442,9 +480,17 @@ function wp_ajax_logged_in() {
 	wp_die( 1 );
 }
 
+} // End conditional group: GET-based general handlers.
+
 //
 // Ajax helpers.
 //
+
+
+// Group 2: Comment handlers (and the private _wp_ajax_delete_comment_response helper).
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array(
+	'delete-comment', 'dim-comment', 'get-comments', 'replyto-comment', 'edit-comment',
+), true ) ) {
 
 /**
  * Sends back current comment total and new page links if they need to be updated.
@@ -576,6 +622,8 @@ function _wp_ajax_delete_comment_response( $comment_id, $delta = -1 ) {
 	);
 	$response->send();
 }
+
+} // End conditional group: Comment handlers.
 
 //
 // POST-based Ajax handlers.
@@ -714,6 +762,12 @@ function _wp_ajax_add_hierarchical_term() {
 	$response->send();
 }
 
+
+// Group 2: Comment handlers (and the private _wp_ajax_delete_comment_response helper).
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array(
+	'delete-comment', 'dim-comment', 'get-comments', 'replyto-comment', 'edit-comment',
+), true ) ) {
+
 /**
  * Handles deleting a comment via AJAX.
  *
@@ -784,6 +838,12 @@ function wp_ajax_delete_comment() {
 	wp_die( 0 );
 }
 
+} // End conditional group: Comment handlers.
+
+
+// Group 3: Tag/Term handlers.
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array( 'delete-tag', 'add-tag', 'get-tagcloud' ), true ) ) {
+
 /**
  * Handles deleting a tag via AJAX.
  *
@@ -811,6 +871,12 @@ function wp_ajax_delete_tag() {
 	}
 }
 
+} // End conditional group: Tag/Term handlers.
+
+
+// Group 4: Link handlers.
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array( 'delete-link', 'add-link-category' ), true ) ) {
+
 /**
  * Handles deleting a link via AJAX.
  *
@@ -836,6 +902,15 @@ function wp_ajax_delete_link() {
 		wp_die( 0 );
 	}
 }
+
+} // End conditional group: Link handlers.
+
+
+// Group 5: Post/Page CRUD handlers.
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array(
+	'delete-meta', 'delete-post', 'trash-post', 'untrash-post', 'delete-page',
+	'add-meta', 'inline-save', 'inline-save-tax', 'find_posts', 'find-posts',
+), true ) ) {
 
 /**
  * Handles deleting meta via AJAX.
@@ -974,6 +1049,14 @@ function wp_ajax_delete_page( $action ) {
 	}
 }
 
+} // End conditional group: Post/Page CRUD handlers.
+
+
+// Group 2: Comment handlers (and the private _wp_ajax_delete_comment_response helper).
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array(
+	'delete-comment', 'dim-comment', 'get-comments', 'replyto-comment', 'edit-comment',
+), true ) ) {
+
 /**
  * Handles dimming a comment via AJAX.
  *
@@ -1030,6 +1113,12 @@ function wp_ajax_dim_comment() {
 	wp_die( 0 );
 }
 
+} // End conditional group: Comment handlers.
+
+
+// Group 4: Link handlers.
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array( 'delete-link', 'add-link-category' ), true ) ) {
+
 /**
  * Handles adding a link category via AJAX.
  *
@@ -1083,6 +1172,12 @@ function wp_ajax_add_link_category( $action ) {
 
 	$response->send();
 }
+
+} // End conditional group: Link handlers.
+
+
+// Group 3: Tag/Term handlers.
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array( 'delete-tag', 'add-tag', 'get-tagcloud' ), true ) ) {
 
 /**
  * Handles adding a tag via AJAX.
@@ -1235,6 +1330,14 @@ function wp_ajax_get_tagcloud() {
 	echo $return;
 	wp_die();
 }
+
+} // End conditional group: Tag/Term handlers.
+
+
+// Group 2: Comment handlers (and the private _wp_ajax_delete_comment_response helper).
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array(
+	'delete-comment', 'dim-comment', 'get-comments', 'replyto-comment', 'edit-comment',
+), true ) ) {
 
 /**
  * Handles getting comments via AJAX.
@@ -1519,6 +1622,14 @@ function wp_ajax_edit_comment() {
 	$response->send();
 }
 
+} // End conditional group: Comment handlers.
+
+
+// Group 8: Menu handlers.
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array(
+	'add-menu-item', 'menu-get-metabox', 'wp-link-ajax', 'menu-locations-save', 'menu-quick-search',
+), true ) ) {
+
 /**
  * Handles adding a menu item via AJAX.
  *
@@ -1608,6 +1719,15 @@ function wp_ajax_add_menu_item() {
 
 	wp_die();
 }
+
+} // End conditional group: Menu handlers.
+
+
+// Group 5: Post/Page CRUD handlers.
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array(
+	'delete-meta', 'delete-post', 'trash-post', 'untrash-post', 'delete-page',
+	'add-meta', 'inline-save', 'inline-save-tax', 'find_posts', 'find-posts',
+), true ) ) {
 
 /**
  * Handles adding meta via AJAX.
@@ -1740,6 +1860,12 @@ function wp_ajax_add_meta() {
 	$response->send();
 }
 
+} // End conditional group: Post/Page CRUD handlers.
+
+
+// Group 6: User handlers.
+if ( '' === $_wp_ajax_action || 'add-user' === $_wp_ajax_action ) {
+
 /**
  * Handles adding a user via AJAX.
  *
@@ -1794,6 +1920,15 @@ function wp_ajax_add_user( $action ) {
 	);
 	$response->send();
 }
+
+} // End conditional group: User handlers.
+
+
+// Group 7: UI State handlers.
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array(
+	'closed-postboxes', 'hidden-columns', 'update-welcome-panel', 'meta-box-order',
+	'get-permalink', 'sample-permalink', 'dismiss-wp-pointer',
+), true ) ) {
 
 /**
  * Handles closed post boxes via AJAX.
@@ -1872,6 +2007,14 @@ function wp_ajax_update_welcome_panel() {
 
 	wp_die( 1 );
 }
+
+} // End conditional group: UI State handlers.
+
+
+// Group 8: Menu handlers.
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array(
+	'add-menu-item', 'menu-get-metabox', 'wp-link-ajax', 'menu-locations-save', 'menu-quick-search',
+), true ) ) {
 
 /**
  * Handles for retrieving menu meta boxes via AJAX.
@@ -1980,6 +2123,15 @@ function wp_ajax_menu_locations_save() {
 	wp_die( 1 );
 }
 
+} // End conditional group: Menu handlers.
+
+
+// Group 7: UI State handlers.
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array(
+	'closed-postboxes', 'hidden-columns', 'update-welcome-panel', 'meta-box-order',
+	'get-permalink', 'sample-permalink', 'dismiss-wp-pointer',
+), true ) ) {
+
 /**
  * Handles saving the meta box order via AJAX.
  *
@@ -2016,6 +2168,14 @@ function wp_ajax_meta_box_order() {
 	wp_send_json_success();
 }
 
+} // End conditional group: UI State handlers.
+
+
+// Group 8: Menu handlers.
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array(
+	'add-menu-item', 'menu-get-metabox', 'wp-link-ajax', 'menu-locations-save', 'menu-quick-search',
+), true ) ) {
+
 /**
  * Handles menu quick searching via AJAX.
  *
@@ -2032,6 +2192,15 @@ function wp_ajax_menu_quick_search() {
 
 	wp_die();
 }
+
+} // End conditional group: Menu handlers.
+
+
+// Group 7: UI State handlers.
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array(
+	'closed-postboxes', 'hidden-columns', 'update-welcome-panel', 'meta-box-order',
+	'get-permalink', 'sample-permalink', 'dismiss-wp-pointer',
+), true ) ) {
 
 /**
  * Handles retrieving a permalink via AJAX.
@@ -2056,6 +2225,15 @@ function wp_ajax_sample_permalink() {
 	$slug    = $_POST['new_slug'] ?? null;
 	wp_die( get_sample_permalink_html( $post_id, $title, $slug ) );
 }
+
+} // End conditional group: UI State handlers.
+
+
+// Group 5: Post/Page CRUD handlers.
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array(
+	'delete-meta', 'delete-post', 'trash-post', 'untrash-post', 'delete-page',
+	'add-meta', 'inline-save', 'inline-save-tax', 'find_posts', 'find-posts',
+), true ) ) {
 
 /**
  * Handles Quick Edit saving a post from a list table via AJAX.
@@ -2306,6 +2484,14 @@ function wp_ajax_find_posts() {
 	wp_send_json_success( $html );
 }
 
+} // End conditional group: Post/Page CRUD handlers.
+
+
+// Group 9: Widget handlers.
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array(
+	'widgets-order', 'save-widget', 'update-widget', 'delete-inactive-widgets',
+), true ) ) {
+
 /**
  * Handles saving the widgets order via AJAX.
  *
@@ -2505,6 +2691,17 @@ function wp_ajax_delete_inactive_widgets() {
 
 	wp_die();
 }
+
+} // End conditional group: Widget handlers.
+
+
+// Group 10: Media/Attachment handlers.
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array(
+	'media-create-image-subsizes', 'upload-attachment', 'image-editor',
+	'set-post-thumbnail', 'get-post-thumbnail-html', 'set-attachment-thumbnail',
+	'get-attachment', 'query-attachments', 'save-attachment', 'save-attachment-compat',
+	'save-attachment-order', 'send-attachment-to-editor', 'send-link-to-editor', 'crop-image',
+), true ) ) {
 
 /**
  * Handles creating missing image sub-sizes for just uploaded images via AJAX.
@@ -2853,6 +3050,14 @@ function wp_ajax_set_attachment_thumbnail() {
 	wp_send_json_error();
 }
 
+} // End conditional group: Media/Attachment handlers.
+
+
+// Group 11: Formatting and post-lock handlers.
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array(
+	'date_format', 'time_format', 'wp-fullscreen-save-post', 'wp-remove-post-lock',
+), true ) ) {
+
 /**
  * Handles formatting a date via AJAX.
  *
@@ -2957,6 +3162,15 @@ function wp_ajax_wp_remove_post_lock() {
 	wp_die( 1 );
 }
 
+} // End conditional group: Formatting and post-lock handlers.
+
+
+// Group 7: UI State handlers.
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array(
+	'closed-postboxes', 'hidden-columns', 'update-welcome-panel', 'meta-box-order',
+	'get-permalink', 'sample-permalink', 'dismiss-wp-pointer',
+), true ) ) {
+
 /**
  * Handles dismissing a WordPress pointer via AJAX.
  *
@@ -2983,6 +3197,17 @@ function wp_ajax_dismiss_wp_pointer() {
 	update_user_meta( get_current_user_id(), 'dismissed_wp_pointers', $dismissed );
 	wp_die( 1 );
 }
+
+} // End conditional group: UI State handlers.
+
+
+// Group 10: Media/Attachment handlers.
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array(
+	'media-create-image-subsizes', 'upload-attachment', 'image-editor',
+	'set-post-thumbnail', 'get-post-thumbnail-html', 'set-attachment-thumbnail',
+	'get-attachment', 'query-attachments', 'save-attachment', 'save-attachment-compat',
+	'save-attachment-order', 'send-attachment-to-editor', 'send-link-to-editor', 'crop-image',
+), true ) ) {
 
 /**
  * Handles getting an attachment via AJAX.
@@ -3454,6 +3679,12 @@ function wp_ajax_send_link_to_editor() {
 	wp_send_json_success( $html );
 }
 
+} // End conditional group: Media/Attachment handlers.
+
+
+// Group 12: Heartbeat (privileged handler).
+if ( '' === $_wp_ajax_action || 'heartbeat' === $_wp_ajax_action ) {
+
 /**
  * Handles the Heartbeat API via AJAX.
  *
@@ -3540,6 +3771,14 @@ function wp_ajax_heartbeat() {
 
 	wp_send_json( $response );
 }
+
+} // End conditional group: Heartbeat.
+
+
+// Group 13: Revision, user preferences, theme browsing.
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array(
+	'get-revision-diffs', 'save-user-color-scheme', 'query-themes',
+), true ) ) {
 
 /**
  * Handles getting revision diffs via AJAX.
@@ -3742,6 +3981,12 @@ function wp_ajax_query_themes() {
 
 	wp_send_json_success( $api );
 }
+
+} // End conditional group: Revision, user preferences, theme browsing.
+
+
+// Group 14: Embed and shortcode parsing.
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array( 'parse-embed', 'parse-media-shortcode' ), true ) ) {
 
 /**
  * Applies [embed] Ajax handlers to a string.
@@ -3973,6 +4218,12 @@ function wp_ajax_parse_media_shortcode() {
 	);
 }
 
+} // End conditional group: Embed and shortcode parsing.
+
+
+// Group 15: Session management.
+if ( '' === $_wp_ajax_action || 'destroy-sessions' === $_wp_ajax_action ) {
+
 /**
  * Handles destroying multiple open sessions for a user via AJAX.
  *
@@ -4010,6 +4261,17 @@ function wp_ajax_destroy_sessions() {
 
 	wp_send_json_success( array( 'message' => $message ) );
 }
+
+} // End conditional group: Session management.
+
+
+// Group 10: Media/Attachment handlers.
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array(
+	'media-create-image-subsizes', 'upload-attachment', 'image-editor',
+	'set-post-thumbnail', 'get-post-thumbnail-html', 'set-attachment-thumbnail',
+	'get-attachment', 'query-attachments', 'save-attachment', 'save-attachment-compat',
+	'save-attachment-order', 'send-attachment-to-editor', 'send-link-to-editor', 'crop-image',
+), true ) ) {
 
 /**
  * Handles cropping an image via AJAX.
@@ -4113,6 +4375,17 @@ function wp_ajax_crop_image() {
 	wp_send_json_success( wp_prepare_attachment_for_js( $attachment_id ) );
 }
 
+} // End conditional group: Media/Attachment handlers.
+
+
+// Group 16: Plugin/Theme install, update, delete, search.
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array(
+	'generate-password', 'save-wporg-username',
+	'install-theme', 'update-theme', 'delete-theme',
+	'install-plugin', 'activate-plugin', 'update-plugin', 'delete-plugin',
+	'search-plugins', 'search-install-plugins', 'edit-theme-plugin-file',
+), true ) ) {
+
 /**
  * Handles generating a password via AJAX.
  *
@@ -4122,6 +4395,8 @@ function wp_ajax_generate_password() {
 	wp_send_json_success( wp_generate_password( 24 ) );
 }
 
+} // End conditional group: Plugin/Theme install, update, delete, search.
+
 /**
  * Handles generating a password in the no-privilege context via AJAX.
  *
@@ -4130,6 +4405,15 @@ function wp_ajax_generate_password() {
 function wp_ajax_nopriv_generate_password() {
 	wp_send_json_success( wp_generate_password( 24 ) );
 }
+
+
+// Group 16: Plugin/Theme install, update, delete, search.
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array(
+	'generate-password', 'save-wporg-username',
+	'install-theme', 'update-theme', 'delete-theme',
+	'install-plugin', 'activate-plugin', 'update-plugin', 'delete-plugin',
+	'search-plugins', 'search-install-plugins', 'edit-theme-plugin-file',
+), true ) ) {
 
 /**
  * Handles saving the user's WordPress.org username via AJAX.
@@ -4929,6 +5213,14 @@ function wp_ajax_edit_theme_plugin_file() {
 	}
 }
 
+} // End conditional group: Plugin/Theme install, update, delete, search.
+
+
+// Group 17: Privacy data export/erasure handlers.
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array(
+	'wp-privacy-export-personal-data', 'wp-privacy-erase-personal-data',
+), true ) ) {
+
 /**
  * Handles exporting a user's personal data via AJAX.
  *
@@ -5355,6 +5647,16 @@ function wp_ajax_wp_privacy_erase_personal_data() {
 	wp_send_json_success( $response );
 }
 
+} // End conditional group: Privacy data export/erasure handlers.
+
+
+// Group 18: Health Check handlers.
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array(
+	'health-check-dotorg-communication', 'health-check-background-updates',
+	'health-check-loopback-requests', 'health-check-site-status-result',
+	'health-check-get-sizes',
+), true ) ) {
+
 /**
  * Handles site health checks on server communication via AJAX.
  *
@@ -5537,6 +5839,14 @@ function wp_ajax_health_check_get_sizes() {
 	wp_send_json_success( $all_sizes );
 }
 
+} // End conditional group: Health Check handlers.
+
+
+// Group 19: Miscellaneous handlers.
+if ( '' === $_wp_ajax_action || in_array( $_wp_ajax_action, array(
+	'rest-nonce', 'toggle-auto-updates', 'send-password-reset',
+), true ) ) {
+
 /**
  * Handles renewing the REST API nonce via AJAX.
  *
@@ -5645,3 +5955,7 @@ function wp_ajax_send_password_reset() {
 		wp_send_json_error( $results->get_error_message() );
 	}
 }
+
+} // End conditional group: Miscellaneous handlers.
+
+unset( $_wp_ajax_action );
