@@ -3013,6 +3013,16 @@ function rest_preload_api_request( $memo, $path ) {
 
 		$request_path = $path_parts['path'];
 	} else {
+		/*
+		 * Normalize the path for consistent memo keys. For paths other than
+		 * the root '/', apply untrailingslashit() to match the query-string
+		 * branch which normalizes $path_parts['path'] only when it is not '/'.
+		 * This ensures consistent memo keys even if a caller passes a path
+		 * with a trailing slash (e.g. "/wp/v2/posts/").
+		 */
+		if ( '/' !== $path ) {
+			$path = untrailingslashit( $path );
+		}
 		$request_path = $path;
 	}
 
@@ -3071,11 +3081,15 @@ function rest_parse_embed_param( $embed ) {
 /**
  * Batch-primes object caches for a REST API collection response.
  *
- * Called before endpoint controllers serialize collection responses to
- * eliminate N+1 query patterns during prepare_item_for_response() loops.
- * Instead of each item triggering individual database queries for meta,
- * terms, and related data, this function pre-populates the object cache
- * with all required data in batch SQL queries.
+ * Pre-populates the object cache with data for a set of objects in batch SQL
+ * queries, eliminating N+1 query patterns that would otherwise occur when
+ * serializing collection responses via prepare_item_for_response() loops.
+ *
+ * Note: WordPress core REST endpoint controllers implement their own inline
+ * batch priming tailored to each controller's specific data needs. This
+ * function is provided as a public API for plugins and themes that register
+ * custom REST controllers and want a convenient, standardized way to batch-
+ * prime caches for their collection responses.
  *
  * Supported object types:
  * - 'post': Primes post data, post meta, term relationships, and author user caches.
@@ -3084,6 +3098,11 @@ function rest_parse_embed_param( $embed ) {
  * - 'user': Primes user data and user meta caches.
  *
  * @since 7.0.0
+ *
+ * @see WP_REST_Posts_Controller::get_items()
+ * @see WP_REST_Terms_Controller::get_items()
+ * @see WP_REST_Comments_Controller::get_items()
+ * @see WP_REST_Users_Controller::get_items()
  *
  * @param string $object_type The type of objects: 'post', 'term', 'comment', or 'user'.
  * @param int[]  $object_ids  Array of object IDs to prime caches for.

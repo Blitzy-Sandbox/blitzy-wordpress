@@ -178,9 +178,9 @@ add_action(
  * making it the ideal hook point: all REST processing is complete, the
  * WP_REST_Response object is fully populated, and headers have not yet been sent.
  *
- * The header is added to the $result WP_REST_Response object so that WordPress
- * includes it when serving the response, rather than calling header() directly
- * which could conflict with the REST server's own header management.
+ * The Server-Timing header is sent directly via PHP's header() function because
+ * this filter fires after WP_REST_Server::send_headers() has already sent the
+ * response object's headers, so adding to the WP_REST_Response would be too late.
  *
  * @since 7.0.0
  */
