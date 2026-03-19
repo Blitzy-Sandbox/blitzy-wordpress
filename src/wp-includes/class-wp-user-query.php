@@ -91,36 +91,37 @@ class WP_User_Query {
 	 */
 	public static function fill_query_vars( $args ) {
 		$defaults = array(
-			'blog_id'             => get_current_blog_id(),
-			'role'                => '',
-			'role__in'            => array(),
-			'role__not_in'        => array(),
-			'capability'          => '',
-			'capability__in'      => array(),
-			'capability__not_in'  => array(),
-			'meta_key'            => '',
-			'meta_value'          => '',
-			'meta_compare'        => '',
-			'include'             => array(),
-			'exclude'             => array(),
-			'search'              => '',
-			'search_columns'      => array(),
-			'orderby'             => 'login',
-			'order'               => 'ASC',
-			'offset'              => '',
-			'number'              => '',
-			'paged'               => 1,
-			'count_total'         => true,
-			'fields'              => 'all',
-			'who'                 => '',
-			'has_published_posts' => null,
-			'nicename'            => '',
-			'nicename__in'        => array(),
-			'nicename__not_in'    => array(),
-			'login'               => '',
-			'login__in'           => array(),
-			'login__not_in'       => array(),
-			'cache_results'       => true,
+			'blog_id'                  => get_current_blog_id(),
+			'role'                     => '',
+			'role__in'                 => array(),
+			'role__not_in'             => array(),
+			'capability'               => '',
+			'capability__in'           => array(),
+			'capability__not_in'       => array(),
+			'meta_key'                 => '',
+			'meta_value'               => '',
+			'meta_compare'             => '',
+			'include'                  => array(),
+			'exclude'                  => array(),
+			'search'                   => '',
+			'search_columns'           => array(),
+			'orderby'                  => 'login',
+			'order'                    => 'ASC',
+			'offset'                   => '',
+			'number'                   => '',
+			'paged'                    => 1,
+			'count_total'              => true,
+			'fields'                   => 'all',
+			'who'                      => '',
+			'has_published_posts'      => null,
+			'nicename'                 => '',
+			'nicename__in'             => array(),
+			'nicename__not_in'         => array(),
+			'login'                    => '',
+			'login__in'                => array(),
+			'login__not_in'            => array(),
+			'cache_results'            => true,
+			'update_user_meta_cache'   => true,
 		);
 
 		return wp_parse_args( $args, $defaults );
@@ -144,6 +145,7 @@ class WP_User_Query {
 	 * @since 5.9.0 Added 'capability', 'capability__in', and 'capability__not_in' parameters.
 	 *              Deprecated the 'who' parameter.
 	 * @since 6.3.0 Added 'cache_results' parameter.
+	 * @since 7.0.0 Added 'update_user_meta_cache' parameter.
 	 *
 	 * @global wpdb     $wpdb     WordPress database abstraction object.
 	 * @global WP_Roles $wp_roles WordPress role management object.
@@ -259,7 +261,12 @@ class WP_User_Query {
 	 *                                                logins will be included in results. Default empty array.
 	 *     @type string[]        $login__not_in       An array of logins to exclude. Users matching one of these
 	 *                                                logins will not be included in results. Default empty array.
-	 *     @type bool            $cache_results       Whether to cache user information. Default true.
+	 *     @type bool            $cache_results            Whether to cache user information. Default true.
+	 *     @type bool            $update_user_meta_cache   Whether to prime the meta cache for returned users.
+	 *                                                     When true and fields is an array containing 'ID',
+	 *                                                     user meta is batch-loaded in a single query instead
+	 *                                                     of individual queries per user. For 'all' fields,
+	 *                                                     meta priming is handled by cache_users(). Default true.
 	 * }
 	 */
 	public function prepare_query( $query = array() ) {
@@ -482,24 +489,32 @@ class WP_User_Query {
 		$caps_with_roles = array();
 
 		foreach ( $available_roles as $role => $role_data ) {
-			$role_caps = array_keys( array_filter( $role_data['capabilities'] ) );
+			/*
+			 * Use direct hash table lookup on the capabilities array instead of
+			 * array_keys( array_filter() ) + in_array(). This avoids creating
+			 * two intermediate arrays per role during capability resolution,
+			 * reducing overhead when many roles are registered.
+			 *
+			 * @since 7.0.0
+			 */
+			$role_capabilities = $role_data['capabilities'];
 
 			foreach ( $capabilities as $cap ) {
-				if ( in_array( $cap, $role_caps, true ) ) {
+				if ( ! empty( $role_capabilities[ $cap ] ) ) {
 					$caps_with_roles[ $cap ][] = $role;
 					break;
 				}
 			}
 
 			foreach ( $capability__in as $cap ) {
-				if ( in_array( $cap, $role_caps, true ) ) {
+				if ( ! empty( $role_capabilities[ $cap ] ) ) {
 					$role__in[] = $role;
 					break;
 				}
 			}
 
 			foreach ( $capability__not_in as $cap ) {
-				if ( in_array( $cap, $role_caps, true ) ) {
+				if ( ! empty( $role_capabilities[ $cap ] ) ) {
 					$role__not_in[] = $role;
 					break;
 				}
@@ -513,6 +528,15 @@ class WP_User_Query {
 		$role__in     = array_unique( $role__in );
 		$role__not_in = array_unique( $role__not_in );
 
+		/*
+		 * Cache the capabilities meta key to avoid repeated get_blog_prefix() calls
+		 * during role and capability meta query construction. The prefix is constant
+		 * for a given blog_id within a single query preparation.
+		 *
+		 * @since 7.0.0
+		 */
+		$cap_meta_key = $blog_id ? $wpdb->get_blog_prefix( $blog_id ) . 'capabilities' : '';
+
 		// Support querying by capabilities added directly to users.
 		if ( $blog_id && ! empty( $capabilities ) ) {
 			$capabilities_clauses = array( 'relation' => 'AND' );
@@ -521,7 +545,7 @@ class WP_User_Query {
 				$clause = array( 'relation' => 'OR' );
 
 				$clause[] = array(
-					'key'     => $wpdb->get_blog_prefix( $blog_id ) . 'capabilities',
+					'key'     => $cap_meta_key,
 					'value'   => '"' . $cap . '"',
 					'compare' => 'LIKE',
 				);
@@ -529,7 +553,7 @@ class WP_User_Query {
 				if ( ! empty( $caps_with_roles[ $cap ] ) ) {
 					foreach ( $caps_with_roles[ $cap ] as $role ) {
 						$clause[] = array(
-							'key'     => $wpdb->get_blog_prefix( $blog_id ) . 'capabilities',
+							'key'     => $cap_meta_key,
 							'value'   => '"' . $role . '"',
 							'compare' => 'LIKE',
 						);
@@ -561,7 +585,7 @@ class WP_User_Query {
 			if ( ! empty( $roles ) ) {
 				foreach ( $roles as $role ) {
 					$roles_clauses[] = array(
-						'key'     => $wpdb->get_blog_prefix( $blog_id ) . 'capabilities',
+						'key'     => $cap_meta_key,
 						'value'   => '"' . $role . '"',
 						'compare' => 'LIKE',
 					);
@@ -574,7 +598,7 @@ class WP_User_Query {
 			if ( ! empty( $role__in ) ) {
 				foreach ( $role__in as $role ) {
 					$role__in_clauses[] = array(
-						'key'     => $wpdb->get_blog_prefix( $blog_id ) . 'capabilities',
+						'key'     => $cap_meta_key,
 						'value'   => '"' . $role . '"',
 						'compare' => 'LIKE',
 					);
@@ -587,7 +611,7 @@ class WP_User_Query {
 			if ( ! empty( $role__not_in ) ) {
 				foreach ( $role__not_in as $role ) {
 					$role__not_in_clauses[] = array(
-						'key'     => $wpdb->get_blog_prefix( $blog_id ) . 'capabilities',
+						'key'     => $cap_meta_key,
 						'value'   => '"' . $role . '"',
 						'compare' => 'NOT LIKE',
 					);
@@ -599,7 +623,7 @@ class WP_User_Query {
 			// If there are no specific roles named, make sure the user is a member of the site.
 			if ( empty( $role_queries ) ) {
 				$role_queries[] = array(
-					'key'     => $wpdb->get_blog_prefix( $blog_id ) . 'capabilities',
+					'key'     => $cap_meta_key,
 					'compare' => 'EXISTS',
 				);
 			}
@@ -882,6 +906,23 @@ class WP_User_Query {
 		) {
 			foreach ( $this->results as $result ) {
 				$result->id = $result->ID;
+			}
+
+			/*
+			 * Batch-prime user meta cache for partial field queries.
+			 *
+			 * When 'fields' is an array containing 'ID', prime the user meta cache
+			 * in a single batch query. This eliminates N+1 queries when callers
+			 * iterate over results and access user meta or capabilities.
+			 *
+			 * For 'all'/'all_with_meta' fields, cache_users() already handles
+			 * meta priming as part of its batch user loading.
+			 *
+			 * @since 7.0.0
+			 */
+			if ( $qv['update_user_meta_cache'] ) {
+				$user_ids = wp_list_pluck( $this->results, 'ID' );
+				update_meta_cache( 'user', $user_ids );
 			}
 		} elseif ( 'all_with_meta' === $qv['fields'] || 'all' === $qv['fields'] ) {
 			if ( function_exists( 'cache_users' ) ) {
