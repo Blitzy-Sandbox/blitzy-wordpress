@@ -124,6 +124,18 @@ function formatValue( metric, value ) {
 		return value;
 	}
 
+	// File count metric from get_included_files() instrumentation.
+	if ( 'wpFilesLoaded' === metric ) {
+		return Math.round( value );
+	}
+
+	// Cache hit/miss count metrics from WP_Object_Cache instrumentation.
+	if ( 'wpCacheHits' === metric || 'wpCacheMisses' === metric ) {
+		return Math.round( value );
+	}
+
+	// Default: time-based metrics (ms) — covers timeToFirstByte, largestContentfulPaint,
+	// lcpMinusTtfb, wpBeforeTemplate, wpTemplate, wpTotal, wpBootstrap, wpPlugins.
 	return `${ value.toFixed( 2 ) } ms`;
 }
 
@@ -183,6 +195,34 @@ function accumulateValues( results ) {
 	}, {} );
 }
 
+/**
+ * Computes a formatted cache hit ratio from raw hit and miss counts.
+ *
+ * Useful for performance summaries where the cache effectiveness
+ * needs to be displayed as a single percentage value.
+ *
+ * @param {number} hits  Total cache hits.
+ * @param {number} misses Total cache misses.
+ * @return {string} Formatted percentage string (e.g. "94.2%") or "N/A" if no cache activity.
+ */
+function formatCacheRatio( hits, misses ) {
+	const total = hits + misses;
+	if ( total === 0 ) {
+		return 'N/A';
+	}
+	return `${ ( ( hits / total ) * 100 ).toFixed( 1 ) }%`;
+}
+
+/**
+ * Formats a PHP file count for human-readable display.
+ *
+ * @param {number} count Number of loaded PHP files.
+ * @return {string} Formatted string (e.g. "243 files").
+ */
+function formatFileCount( count ) {
+	return `${ Math.round( count ) } files`;
+}
+
 module.exports = {
 	parseFile,
 	median,
@@ -193,6 +233,8 @@ module.exports = {
 	standardDeviation,
 	medianAbsoluteDeviation,
 	accumulateValues,
+	formatCacheRatio,
+	formatFileCount,
 	themes,
 	locales,
 };
