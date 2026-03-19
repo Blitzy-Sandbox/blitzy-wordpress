@@ -376,7 +376,19 @@ class WP_REST_Users_Controller extends WP_REST_Controller {
 		if ( ! $is_head_request ) {
 			$users = array();
 
-			foreach ( $query->get_results() as $user ) {
+			// Batch-prime user meta cache to eliminate N+1 queries in prepare_item_for_response().
+			$users_results = $query->get_results();
+			$user_ids      = array_map(
+				static function ( $user ) {
+					return $user->ID;
+				},
+				$users_results
+			);
+			if ( ! empty( $user_ids ) ) {
+				update_meta_cache( 'user', $user_ids );
+			}
+
+			foreach ( $users_results as $user ) {
 				if ( 'edit' === $request['context'] && ! current_user_can( 'edit_user', $user->ID ) ) {
 					continue;
 				}
