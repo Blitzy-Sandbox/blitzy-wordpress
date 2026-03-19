@@ -25,6 +25,7 @@ const { baseDir } = require( './shared' );
  */
 module.exports = function( env = { buildTarget: 'src/', watch: false } ) {
 	const buildTarget = env.buildTarget || 'src/';
+	const codeSplitting = env.codeSplitting || false;
 
 	const baseConfig = {
 		target: 'browserslist',
@@ -49,6 +50,26 @@ module.exports = function( env = { buildTarget: 'src/', watch: false } ) {
 		},
 		watch: env.watch,
 	};
+
+	// When code splitting is enabled, configure splitChunks to extract shared
+	// code between conditionally-loaded admin modules into common chunks.
+	// This supports testing the modularized common.js pattern during development.
+	if ( codeSplitting ) {
+		baseConfig.optimization.splitChunks = {
+			cacheGroups: {
+				default: false,
+				// Extract shared code between conditionally-loaded admin modules
+				// into common chunks for development testing.
+				adminCommon: {
+					name: 'admin-common-shared',
+					chunks: 'all',
+					minChunks: 2,
+					priority: 10,
+					reuseExistingChunk: true,
+				},
+			},
+		};
+	}
 
 	// Config for react-refresh-runtime.js - bundles the runtime and exposes
 	// it as window.ReactRefreshRuntime. No externals - this creates the global.
@@ -91,5 +112,26 @@ module.exports = function( env = { buildTarget: 'src/', watch: false } ) {
 		},
 	};
 
-	return [ runtimeConfig, entryConfig ];
+	const configs = [ runtimeConfig, entryConfig ];
+
+	// When code splitting is enabled, add entry points for the split admin
+	// modules. The modularized common.js is built as a separate config to allow
+	// development testing of conditionally-loaded admin feature modules
+	// (core essentials always loaded, feature sections lazy-initialized).
+	if ( codeSplitting ) {
+		const splitConfig = {
+			...baseConfig,
+			name: 'admin-split-modules',
+			entry: {
+				// Core essentials from common.js — always loaded on admin pages.
+				[ buildTarget + 'wp-admin/js/common-core.js' ]:
+					'./src/js/_enqueues/admin/common.js',
+				[ buildTarget + 'wp-admin/js/common-core.min.js' ]:
+					'./src/js/_enqueues/admin/common.js',
+			},
+		};
+		configs.push( splitConfig );
+	}
+
+	return configs;
 };
