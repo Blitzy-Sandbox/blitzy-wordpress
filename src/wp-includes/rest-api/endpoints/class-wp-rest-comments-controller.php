@@ -330,6 +330,25 @@ class WP_REST_Comments_Controller extends WP_REST_Controller {
 		if ( ! $is_head_request ) {
 			$comments = array();
 
+			// Batch-prime comment meta and author user caches to eliminate N+1 queries.
+			$comment_ids = wp_list_pluck( $query_result, 'comment_ID' );
+			if ( ! empty( $comment_ids ) ) {
+				// Prime comment meta cache if not already handled by WP_Comment_Query.
+				update_meta_cache( 'comment', $comment_ids );
+
+				// Batch-prime author user caches for all comments with registered user authors.
+				$user_ids = array();
+				foreach ( $query_result as $comment ) {
+					if ( ! empty( $comment->user_id ) ) {
+						$user_ids[] = (int) $comment->user_id;
+					}
+				}
+				if ( ! empty( $user_ids ) ) {
+					// cache_users() primes user object cache AND user meta cache in batch.
+					cache_users( array_unique( $user_ids ) );
+				}
+			}
+
 			foreach ( $query_result as $comment ) {
 				if ( ! $this->check_read_permission( $comment, $request ) ) {
 					continue;
