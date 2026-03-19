@@ -389,6 +389,287 @@ function wp_cache_switch_to_blog( $blog_id ) {
 }
 
 /**
+ * Batch-primes post caches for a set of post IDs.
+ *
+ * Primes the post data cache, post meta cache, and term relationship cache
+ * for the given post IDs in a single batch operation. This eliminates N+1
+ * query patterns when accessing multiple posts in template loops, REST API
+ * serialization, or any code path that iterates over a collection of posts.
+ *
+ * Example usage before a custom post loop:
+ *
+ *     $post_ids = array( 1, 2, 3, 4, 5 );
+ *     wp_cache_prime_posts( $post_ids );
+ *     foreach ( $post_ids as $id ) {
+ *         $post = get_post( $id ); // Served from cache, no DB query.
+ *     }
+ *
+ * @since 7.0.0
+ *
+ * @see _prime_post_caches()
+ *
+ * @param int[] $post_ids Array of post IDs to prime caches for.
+ */
+function wp_cache_prime_posts( $post_ids ) {
+	if ( empty( $post_ids ) ) {
+		return;
+	}
+
+	// Sanitize to integers and remove duplicates.
+	$post_ids = array_filter( $post_ids, 'is_numeric' );
+	$post_ids = array_unique( array_map( 'intval', $post_ids ) );
+
+	if ( empty( $post_ids ) ) {
+		return;
+	}
+
+	_prime_post_caches( $post_ids, true, true );
+}
+
+/**
+ * Batch-primes term caches for a set of term IDs.
+ *
+ * Primes the term data cache and term meta cache for the given term IDs
+ * in a single batch operation. This eliminates N+1 query patterns when
+ * accessing multiple terms in taxonomy listings, navigation menus, or
+ * tag clouds.
+ *
+ * Example usage before iterating over terms:
+ *
+ *     $term_ids = array( 10, 20, 30 );
+ *     wp_cache_prime_terms( $term_ids );
+ *     foreach ( $term_ids as $id ) {
+ *         $term = get_term( $id ); // Served from cache, no DB query.
+ *     }
+ *
+ * @since 7.0.0
+ *
+ * @see _prime_term_caches()
+ *
+ * @param int[] $term_ids Array of term IDs to prime caches for.
+ */
+function wp_cache_prime_terms( $term_ids ) {
+	if ( empty( $term_ids ) ) {
+		return;
+	}
+
+	// Sanitize to integers and remove duplicates.
+	$term_ids = array_filter( $term_ids, 'is_numeric' );
+	$term_ids = array_unique( array_map( 'intval', $term_ids ) );
+
+	if ( empty( $term_ids ) ) {
+		return;
+	}
+
+	_prime_term_caches( $term_ids, true );
+}
+
+/**
+ * Batch-primes user caches for a set of user IDs.
+ *
+ * Primes the user data cache and user meta cache for the given user IDs
+ * in a single batch operation. This eliminates N+1 query patterns when
+ * displaying author information in post loops, comment displays, or
+ * contributor listings.
+ *
+ * Example usage before an author loop:
+ *
+ *     $user_ids = array( 1, 2, 3 );
+ *     wp_cache_prime_users( $user_ids );
+ *     foreach ( $user_ids as $id ) {
+ *         $user = get_userdata( $id ); // Served from cache, no DB query.
+ *     }
+ *
+ * @since 7.0.0
+ *
+ * @see cache_users()
+ *
+ * @param int[] $user_ids Array of user IDs to prime caches for.
+ */
+function wp_cache_prime_users( $user_ids ) {
+	if ( empty( $user_ids ) ) {
+		return;
+	}
+
+	// Sanitize to integers and remove duplicates.
+	$user_ids = array_filter( $user_ids, 'is_numeric' );
+	$user_ids = array_unique( array_map( 'intval', $user_ids ) );
+
+	if ( empty( $user_ids ) ) {
+		return;
+	}
+
+	/*
+	 * cache_users() is a pluggable function defined in wp-includes/pluggable.php.
+	 * It may not be available during very early bootstrap before pluggable.php
+	 * is loaded, so verify its existence before calling.
+	 */
+	if ( function_exists( 'cache_users' ) ) {
+		cache_users( $user_ids );
+	}
+}
+
+/**
+ * Batch-primes comment caches for a set of comment IDs.
+ *
+ * Primes the comment data cache and comment meta cache for the given
+ * comment IDs in a single batch operation. This eliminates N+1 query
+ * patterns when displaying comment threads, processing comment collections,
+ * or serializing comments in REST API responses.
+ *
+ * Example usage before a comment display loop:
+ *
+ *     $comment_ids = array( 100, 200, 300 );
+ *     wp_cache_prime_comments( $comment_ids );
+ *     foreach ( $comment_ids as $id ) {
+ *         $comment = get_comment( $id ); // Served from cache, no DB query.
+ *     }
+ *
+ * @since 7.0.0
+ *
+ * @see _prime_comment_caches()
+ *
+ * @param int[] $comment_ids Array of comment IDs to prime caches for.
+ */
+function wp_cache_prime_comments( $comment_ids ) {
+	if ( empty( $comment_ids ) ) {
+		return;
+	}
+
+	// Sanitize to integers and remove duplicates.
+	$comment_ids = array_filter( $comment_ids, 'is_numeric' );
+	$comment_ids = array_unique( array_map( 'intval', $comment_ids ) );
+
+	if ( empty( $comment_ids ) ) {
+		return;
+	}
+
+	_prime_comment_caches( $comment_ids, true );
+}
+
+/**
+ * Batch-warms the object cache for a set of option names.
+ *
+ * Loads the specified options into the object cache using a single database
+ * query, eliminating multiple individual DB roundtrips when accessing several
+ * options in sequence. Options already present in the alloptions cache,
+ * individual option caches, or the notoptions list are skipped.
+ *
+ * This is useful for plugins and themes that know they will need a specific
+ * set of options and want to load them efficiently in a single query rather
+ * than triggering individual queries as each option is first accessed via
+ * get_option().
+ *
+ * Example usage before accessing multiple options:
+ *
+ *     wp_cache_warm_options( array( 'my_plugin_setting_a', 'my_plugin_setting_b', 'my_plugin_setting_c' ) );
+ *     // Each get_option() below is served from cache, no individual DB queries.
+ *     $a = get_option( 'my_plugin_setting_a' );
+ *     $b = get_option( 'my_plugin_setting_b' );
+ *     $c = get_option( 'my_plugin_setting_c' );
+ *
+ * @since 7.0.0
+ *
+ * @global wpdb $wpdb WordPress database abstraction object.
+ *
+ * @param string[] $option_names Array of option names to warm the cache for.
+ */
+function wp_cache_warm_options( $option_names ) {
+	global $wpdb;
+
+	if ( empty( $option_names ) || ! is_array( $option_names ) ) {
+		return;
+	}
+
+	// Sanitize: remove empty strings and duplicate option names.
+	$option_names = array_unique( array_filter( $option_names, 'strlen' ) );
+
+	if ( empty( $option_names ) ) {
+		return;
+	}
+
+	/*
+	 * Load alloptions to check which options are already cached via the
+	 * autoloaded options mechanism. This avoids redundant DB queries for
+	 * options that are already in the alloptions cache.
+	 */
+	$alloptions = wp_load_alloptions();
+
+	// Check individual option caches in a single batch call.
+	$cached_options = wp_cache_get_multiple( $option_names, 'options' );
+
+	// Check the notoptions list for options known to not exist.
+	$notoptions = wp_cache_get( 'notoptions', 'options' );
+	if ( ! is_array( $notoptions ) ) {
+		$notoptions = array();
+	}
+
+	// Filter to only options not already cached anywhere.
+	$options_to_prime = array();
+	foreach ( $option_names as $option ) {
+		if (
+			( ! isset( $cached_options[ $option ] ) || false === $cached_options[ $option ] )
+			&& ! isset( $alloptions[ $option ] )
+			&& ! isset( $notoptions[ $option ] )
+		) {
+			$options_to_prime[] = $option;
+		}
+	}
+
+	// All requested options are already cached — nothing to do.
+	if ( empty( $options_to_prime ) ) {
+		return;
+	}
+
+	// Batch-load uncached options in a single DB roundtrip.
+	$results = $wpdb->get_results(
+		$wpdb->prepare(
+			sprintf(
+				"SELECT option_name, option_value FROM $wpdb->options WHERE option_name IN (%s)",
+				implode( ',', array_fill( 0, count( $options_to_prime ), '%s' ) )
+			),
+			$options_to_prime
+		)
+	);
+
+	/*
+	 * Cache found options. The raw value (not unserialized) is cached,
+	 * matching the behavior of wp_prime_option_caches(). get_option()
+	 * handles unserializing the value as needed on retrieval.
+	 */
+	$options_found = array();
+	if ( $results ) {
+		foreach ( $results as $result ) {
+			$options_found[ $result->option_name ] = $result->option_value;
+		}
+		wp_cache_set_multiple( $options_found, 'options' );
+	}
+
+	// If all options were found, no need to update the notoptions cache.
+	if ( count( $options_found ) === count( $options_to_prime ) ) {
+		return;
+	}
+
+	/*
+	 * Mark options not found in the database as notoptions to prevent
+	 * future DB queries for options that are known not to exist.
+	 */
+	$options_not_found = array_diff( $options_to_prime, array_keys( $options_found ) );
+	$update_notoptions = false;
+
+	foreach ( $options_not_found as $option_name ) {
+		if ( ! isset( $notoptions[ $option_name ] ) ) {
+			$notoptions[ $option_name ] = true;
+			$update_notoptions          = true;
+		}
+	}
+
+	if ( $update_notoptions ) {
+		wp_cache_set( 'notoptions', $notoptions, 'options' );
+	}
+}
+
+/**
  * Resets internal cache keys and structures.
  *
  * If the cache back end uses global blog or site IDs as part of its cache keys,
