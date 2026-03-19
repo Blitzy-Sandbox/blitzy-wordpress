@@ -504,7 +504,11 @@ window.columns = {
 	}
 };
 
-$( function() { columns.init(); } );
+$( function() {
+	if ( document.querySelector( '.manage-column' ) ) {
+		columns.init();
+	}
+} );
 
 /**
  * Validates that the required form fields are not empty.
@@ -704,7 +708,12 @@ $('.contextual-help-tabs').on( 'click', 'a', function(e) {
 
 /**
  * Update custom permalink structure via buttons.
+ *
+ * Only initializes on the Settings > Permalinks page where #permalink_structure exists.
+ * Avoids unnecessary jQuery selector execution and event binding on other admin pages.
  */
+if ( document.getElementById( 'permalink_structure' ) ) {
+
 var permalinkStructureFocused = false,
     $permalinkStructure       = $( '#permalink_structure' ),
     $permalinkStructureInputs = $( '.permalink-structure input:radio' ),
@@ -830,6 +839,8 @@ $availableStructureTags.on( 'click', function() {
 	}
 } );
 
+} // End permalink_structure guard.
+
 $( function() {
 	var checks, first, last, checked, sliced, mobileEvent, transitionTimeout, focusedRowActions,
 		lastClicked = false,
@@ -843,7 +854,7 @@ $( function() {
 		$overlay = $( '#wp-responsive-overlay' ),
 		$toolbar = $( '#wp-toolbar' ),
 		$toolbarPopups = $toolbar.find( 'a[aria-haspopup="true"]' ),
-		$sortables = $('.meta-box-sortables'),
+		$sortables = null,
 		wpResponsiveActive = false,
 		$adminbar = $( '#wpadminbar' ),
 		lastScrollPosition = 0,
@@ -859,6 +870,24 @@ $( function() {
 			menu: $adminMenuWrap.height()
 		},
 		$headerEnd = $( '.wp-header-end' );
+
+	/**
+	 * Lazily initializes and returns the $sortables jQuery collection.
+	 *
+	 * Defers the DOM query for '.meta-box-sortables' until the first time
+	 * sortable-related functionality is actually needed, avoiding unnecessary
+	 * DOM queries on admin pages that have no metaboxes.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @return {jQuery} The meta-box-sortables jQuery collection.
+	 */
+	function getSortables() {
+		if ( $sortables === null ) {
+			$sortables = $( '.meta-box-sortables' );
+		}
+		return $sortables;
+	}
 
 	/**
 	 * Makes the fly-out submenu header clickable, when the menu is folded.
@@ -1841,11 +1870,14 @@ $( function() {
 			$document.on( 'wp-window-resized.wp-responsive', this.trigger.bind( this ) );
 
 			// This needs to run later as UI Sortable may be initialized when the document is ready.
-			$window.on( 'load.wp-responsive', this.maybeDisableSortables );
-			$document.on( 'postbox-toggled', this.maybeDisableSortables );
+			// Only bind sortable-related events when postboxes are present on the page.
+			if ( document.querySelector( '.postbox' ) ) {
+				$window.on( 'load.wp-responsive', this.maybeDisableSortables );
+				$document.on( 'postbox-toggled', this.maybeDisableSortables );
 
-			// When the screen columns are changed, potentially disable sortables.
-			$( '#screen-options-wrap input' ).on( 'click', this.maybeDisableSortables );
+				// When the screen columns are changed, potentially disable sortables.
+				$( '#screen-options-wrap input' ).on( 'click', this.maybeDisableSortables );
+			}
 		},
 
 		/**
@@ -1860,7 +1892,7 @@ $( function() {
 
 			if (
 				( width <= 782 ) ||
-				( 1 >= $sortables.find( '.ui-sortable-handle:visible' ).length && jQuery( '.columns-prefs-1 input' ).prop( 'checked' ) )
+				( 1 >= getSortables().find( '.ui-sortable-handle:visible' ).length && jQuery( '.columns-prefs-1 input' ).prop( 'checked' ) )
 			) {
 				this.disableSortables();
 			} else {
@@ -2013,10 +2045,10 @@ $( function() {
 		 * @return {void}
 		 */
 		disableSortables: function() {
-			if ( $sortables.length ) {
+			if ( getSortables().length ) {
 				try {
-					$sortables.sortable( 'disable' );
-					$sortables.find( '.ui-sortable-handle' ).addClass( 'is-non-sortable' );
+					getSortables().sortable( 'disable' );
+					getSortables().find( '.ui-sortable-handle' ).addClass( 'is-non-sortable' );
 				} catch ( e ) {}
 			}
 		},
@@ -2029,10 +2061,10 @@ $( function() {
 		 * @return {void}
 		 */
 		enableSortables: function() {
-			if ( $sortables.length ) {
+			if ( getSortables().length ) {
 				try {
-					$sortables.sortable( 'enable' );
-					$sortables.find( '.ui-sortable-handle' ).removeClass( 'is-non-sortable' );
+					getSortables().sortable( 'enable' );
+					getSortables().find( '.ui-sortable-handle' ).removeClass( 'is-non-sortable' );
 				} catch ( e ) {}
 			}
 		}
