@@ -12,6 +12,44 @@
 		isReducedMotion = event.matches;
 	});
 
+	/**
+	 * Defer a control's ready initialization until its containing section is expanded.
+	 *
+	 * Follows the pattern established by CodeEditorControl.ready() for section-expand-based
+	 * deferred initialization. Heavy control setup (media frames, Backbone views, DOM event
+	 * binding) is deferred until the user navigates to the control's section, reducing the
+	 * initial Customizer load cost.
+	 *
+	 * @since 7.0.0
+	 * @private
+	 *
+	 * @param {wp.customize.Control} control      The control instance.
+	 * @param {Function}             initCallback  Function to invoke when the section is expanded.
+	 */
+	var _deferControlReady = function( control, initCallback ) {
+		if ( ! control.section() ) {
+			initCallback.call( control );
+			return;
+		}
+
+		api.section( control.section(), function( section ) {
+			section.deferred.embedded.done( function() {
+				var onceExpanded;
+				if ( section.expanded() ) {
+					initCallback.call( control );
+				} else {
+					onceExpanded = function( isExpanded ) {
+						if ( isExpanded ) {
+							initCallback.call( control );
+							section.expanded.unbind( onceExpanded );
+						}
+					};
+					section.expanded.bind( onceExpanded );
+				}
+			} );
+		} );
+	};
+
 	api.OverlayNotification = api.Notification.extend(/** @lends wp.customize.OverlayNotification.prototype */{
 
 		/**
@@ -4212,77 +4250,83 @@
 		 */
 		ready: function() {
 			var control = this;
-			// Shortcut so that we don't have to use _.bind every time we add a callback.
-			_.bindAll( control, 'restoreDefault', 'removeFile', 'openFrame', 'select', 'pausePlayer' );
 
-			// Bind events, with delegation to facilitate re-rendering.
-			control.container.on( 'click keydown', '.upload-button', control.openFrame );
-			control.container.on( 'click keydown', '.upload-button', control.pausePlayer );
-			control.container.on( 'click keydown', '.thumbnail-image img', control.openFrame );
-			control.container.on( 'click keydown', '.default-button', control.restoreDefault );
-			control.container.on( 'click keydown', '.remove-button', control.pausePlayer );
-			control.container.on( 'click keydown', '.remove-button', control.removeFile );
-			control.container.on( 'click keydown', '.remove-button', control.cleanupPlayer );
+			// Performance optimization: Defer DOM binding, event setup, and attachment
+			// data loading until the control's section is expanded. Follows the
+			// CodeEditorControl pattern for section-expand-based deferred initialization.
+			_deferControlReady( control, function() {
+				// Shortcut so that we don't have to use _.bind every time we add a callback.
+				_.bindAll( control, 'restoreDefault', 'removeFile', 'openFrame', 'select', 'pausePlayer' );
 
-			// Resize the player controls when it becomes visible (ie when section is expanded).
-			api.section( control.section() ).container
-				.on( 'expanded', function() {
-					if ( control.player ) {
-						control.player.setControlsSize();
+				// Bind events, with delegation to facilitate re-rendering.
+				control.container.on( 'click keydown', '.upload-button', control.openFrame );
+				control.container.on( 'click keydown', '.upload-button', control.pausePlayer );
+				control.container.on( 'click keydown', '.thumbnail-image img', control.openFrame );
+				control.container.on( 'click keydown', '.default-button', control.restoreDefault );
+				control.container.on( 'click keydown', '.remove-button', control.pausePlayer );
+				control.container.on( 'click keydown', '.remove-button', control.removeFile );
+				control.container.on( 'click keydown', '.remove-button', control.cleanupPlayer );
+
+				// Resize the player controls when it becomes visible (ie when section is expanded).
+				api.section( control.section() ).container
+					.on( 'expanded', function() {
+						if ( control.player ) {
+							control.player.setControlsSize();
+						}
+					})
+					.on( 'collapsed', function() {
+						control.pausePlayer();
+					});
+
+				/**
+				 * Set attachment data and render content.
+				 *
+				 * Note that BackgroundImage.prototype.ready applies this ready method
+				 * to itself. Since BackgroundImage is an UploadControl, the value
+				 * is the attachment URL instead of the attachment ID. In this case
+				 * we skip fetching the attachment data because we have no ID available,
+				 * and it is the responsibility of the UploadControl to set the control's
+				 * attachmentData before calling the renderContent method.
+				 *
+				 * @param {number|string} value Attachment
+				 */
+				function setAttachmentDataAndRenderContent( value ) {
+					var hasAttachmentData = $.Deferred();
+
+					if ( control.extended( api.UploadControl ) ) {
+						hasAttachmentData.resolve();
+					} else {
+						value = parseInt( value, 10 );
+						if ( _.isNaN( value ) || value <= 0 ) {
+							delete control.params.attachment;
+							hasAttachmentData.resolve();
+						} else if ( control.params.attachment && control.params.attachment.id === value ) {
+							hasAttachmentData.resolve();
+						}
 					}
-				})
-				.on( 'collapsed', function() {
-					control.pausePlayer();
-				});
 
-			/**
-			 * Set attachment data and render content.
-			 *
-			 * Note that BackgroundImage.prototype.ready applies this ready method
-			 * to itself. Since BackgroundImage is an UploadControl, the value
-			 * is the attachment URL instead of the attachment ID. In this case
-			 * we skip fetching the attachment data because we have no ID available,
-			 * and it is the responsibility of the UploadControl to set the control's
-			 * attachmentData before calling the renderContent method.
-			 *
-			 * @param {number|string} value Attachment
-			 */
-			function setAttachmentDataAndRenderContent( value ) {
-				var hasAttachmentData = $.Deferred();
+					// Fetch the attachment data.
+					if ( 'pending' === hasAttachmentData.state() ) {
+						wp.media.attachment( value ).fetch().done( function() {
+							control.params.attachment = this.attributes;
+							hasAttachmentData.resolve();
 
-				if ( control.extended( api.UploadControl ) ) {
-					hasAttachmentData.resolve();
-				} else {
-					value = parseInt( value, 10 );
-					if ( _.isNaN( value ) || value <= 0 ) {
-						delete control.params.attachment;
-						hasAttachmentData.resolve();
-					} else if ( control.params.attachment && control.params.attachment.id === value ) {
-						hasAttachmentData.resolve();
+							// Send attachment information to the preview for possible use in `postMessage` transport.
+							wp.customize.previewer.send( control.setting.id + '-attachment-data', this.attributes );
+						} );
 					}
-				}
 
-				// Fetch the attachment data.
-				if ( 'pending' === hasAttachmentData.state() ) {
-					wp.media.attachment( value ).fetch().done( function() {
-						control.params.attachment = this.attributes;
-						hasAttachmentData.resolve();
-
-						// Send attachment information to the preview for possible use in `postMessage` transport.
-						wp.customize.previewer.send( control.setting.id + '-attachment-data', this.attributes );
+					hasAttachmentData.done( function() {
+						control.renderContent();
 					} );
 				}
 
-				hasAttachmentData.done( function() {
-					control.renderContent();
-				} );
-			}
+				// Ensure attachment data is initially set (for dynamically-instantiated controls).
+				setAttachmentDataAndRenderContent( control.setting() );
 
-			// Ensure attachment data is initially set (for dynamically-instantiated controls).
-			setAttachmentDataAndRenderContent( control.setting() );
-
-			// Update the attachment data and re-render the control when the setting changes.
-			control.setting.bind( setAttachmentDataAndRenderContent );
+				// Update the attachment data and re-render the control when the setting changes.
+				control.setting.bind( setAttachmentDataAndRenderContent );
+			} );
 		},
 
 		pausePlayer: function () {
@@ -4877,39 +4921,48 @@
 	 */
 	api.HeaderControl = api.Control.extend(/** @lends wp.customize.HeaderControl.prototype */{
 		ready: function() {
-			this.btnRemove = $('#customize-control-header_image .actions .remove');
-			this.btnNew    = $('#customize-control-header_image .actions .new');
+			var control = this;
 
-			_.bindAll(this, 'openMedia', 'removeImage');
-
-			this.btnNew.on( 'click', this.openMedia );
-			this.btnRemove.on( 'click', this.removeImage );
-
-			api.HeaderTool.currentHeader = this.getInitialHeaderImage();
-
-			new api.HeaderTool.CurrentView({
-				model: api.HeaderTool.currentHeader,
-				el: '#customize-control-header_image .current .container'
-			});
-
-			new api.HeaderTool.ChoiceListView({
-				collection: api.HeaderTool.UploadsList = new api.HeaderTool.ChoiceList(),
-				el: '#customize-control-header_image .choices .uploaded .list'
-			});
-
-			new api.HeaderTool.ChoiceListView({
-				collection: api.HeaderTool.DefaultsList = new api.HeaderTool.DefaultsList(),
-				el: '#customize-control-header_image .choices .default .list'
-			});
-
-			api.HeaderTool.combinedList = api.HeaderTool.CombinedList = new api.HeaderTool.CombinedList([
-				api.HeaderTool.UploadsList,
-				api.HeaderTool.DefaultsList
-			]);
-
-			// Ensure custom-header-crop Ajax requests bootstrap the Customizer to activate the previewed theme.
+			// Ensure custom-header-crop Ajax requests bootstrap the Customizer to activate
+			// the previewed theme. Set eagerly as it affects the shared Cropper prototype.
 			wp.media.controller.Cropper.prototype.defaults.doCropArgs.wp_customize = 'on';
 			wp.media.controller.Cropper.prototype.defaults.doCropArgs.customize_theme = api.settings.theme.stylesheet;
+
+			// Performance optimization: Defer heavy Backbone view instantiation, DOM
+			// element selection, and event binding until the header image section is
+			// expanded. This avoids creating multiple Backbone views and collections
+			// on initial Customizer load when the header section is not visible.
+			_deferControlReady( control, function() {
+				control.btnRemove = $('#customize-control-header_image .actions .remove');
+				control.btnNew    = $('#customize-control-header_image .actions .new');
+
+				_.bindAll(control, 'openMedia', 'removeImage');
+
+				control.btnNew.on( 'click', control.openMedia );
+				control.btnRemove.on( 'click', control.removeImage );
+
+				api.HeaderTool.currentHeader = control.getInitialHeaderImage();
+
+				new api.HeaderTool.CurrentView({
+					model: api.HeaderTool.currentHeader,
+					el: '#customize-control-header_image .current .container'
+				});
+
+				new api.HeaderTool.ChoiceListView({
+					collection: api.HeaderTool.UploadsList = new api.HeaderTool.ChoiceList(),
+					el: '#customize-control-header_image .choices .uploaded .list'
+				});
+
+				new api.HeaderTool.ChoiceListView({
+					collection: api.HeaderTool.DefaultsList = new api.HeaderTool.DefaultsList(),
+					el: '#customize-control-header_image .choices .default .list'
+				});
+
+				api.HeaderTool.combinedList = api.HeaderTool.CombinedList = new api.HeaderTool.CombinedList([
+					api.HeaderTool.UploadsList,
+					api.HeaderTool.DefaultsList
+				]);
+			} );
 		},
 
 		/**
