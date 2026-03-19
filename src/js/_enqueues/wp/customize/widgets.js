@@ -7,6 +7,10 @@
 
 	if ( ! wp || ! wp.customize ) { return; }
 
+	// Performance optimization: defer full initialization until widget panel is confirmed present.
+	// _wpCustomizeWidgetsSettings is only localized when widgets panel is active on the PHP side.
+	if ( typeof _wpCustomizeWidgetsSettings === 'undefined' ) { return; }
+
 	// Set up our namespace...
 	var api = wp.customize,
 		l10n;
@@ -903,41 +907,59 @@
 		 */
 		_setupUpdateUI: function() {
 			var self = this, $widgetRoot, $widgetContent,
-				$saveBtn, updateWidgetDebounced, formSyncHandler;
+				$saveBtn, formSyncHandler;
 
 			$widgetRoot = this.container.find( '.widget:first' );
 			$widgetContent = $widgetRoot.find( '.widget-content:first' );
 
-			// Configure update button.
+			// Configure update button styling (lightweight, always needed).
 			$saveBtn = this.container.find( '.widget-control-save' );
 			$saveBtn.val( l10n.saveBtnLabel );
 			$saveBtn.attr( 'title', l10n.saveBtnTooltip );
 			$saveBtn.removeClass( 'button-primary' );
-			$saveBtn.on( 'click', function( e ) {
-				e.preventDefault();
-				self.updateWidget( { disable_form: true } ); // @todo disable_form is unused?
-			} );
 
-			updateWidgetDebounced = _.debounce( function() {
-				self.updateWidget();
-			}, 250 );
+			/*
+			 * Performance optimization: defer binding of form change handlers
+			 * that trigger updateWidget() AJAX calls until the user first
+			 * interacts with the widget form area. This avoids setting up
+			 * debounced AJAX handlers and input listeners for widgets that
+			 * are never opened during a Customizer session.
+			 */
+			self._formSyncInitialized = false;
+			self.container.one( 'click focus', '.widget-inside', function() {
+				var updateWidgetDebounced;
 
-			// Trigger widget form update when hitting Enter within an input.
-			$widgetContent.on( 'keydown', 'input', function( e ) {
-				if ( 13 === e.which ) { // Enter.
-					e.preventDefault();
-					self.updateWidget( { ignoreActiveElement: true } );
-				}
-			} );
-
-			// Handle widgets that support live previews.
-			$widgetContent.on( 'change input propertychange', ':input', function( e ) {
-				if ( ! self.liveUpdateMode ) {
+				if ( self._formSyncInitialized ) {
 					return;
 				}
-				if ( e.type === 'change' || ( this.checkValidity && this.checkValidity() ) ) {
-					updateWidgetDebounced();
-				}
+				self._formSyncInitialized = true;
+
+				updateWidgetDebounced = _.debounce( function() {
+					self.updateWidget();
+				}, 250 );
+
+				$saveBtn.on( 'click', function( e ) {
+					e.preventDefault();
+					self.updateWidget( { disable_form: true } ); // @todo disable_form is unused?
+				} );
+
+				// Trigger widget form update when hitting Enter within an input.
+				$widgetContent.on( 'keydown', 'input', function( e ) {
+					if ( 13 === e.which ) { // Enter.
+						e.preventDefault();
+						self.updateWidget( { ignoreActiveElement: true } );
+					}
+				} );
+
+				// Handle widgets that support live previews.
+				$widgetContent.on( 'change input propertychange', ':input', function( e ) {
+					if ( ! self.liveUpdateMode ) {
+						return;
+					}
+					if ( e.type === 'change' || ( this.checkValidity && this.checkValidity() ) ) {
+						updateWidgetDebounced();
+					}
+				} );
 			} );
 
 			// Remove loading indicators when the setting is saved and the preview updates.
@@ -1893,6 +1915,48 @@
 			this.isReordering = false;
 
 			/**
+			 * Keyboard-accessible reordering (lightweight, always bind).
+			 */
+			this.container.find( '.reorder-toggle' ).on( 'click', function() {
+				self.toggleReordering( ! self.isReordering );
+			} );
+
+			/*
+			 * Performance optimization: defer jQuery UI Sortable and Droppable
+			 * initialization until the sidebar section is first expanded.
+			 * This avoids the overhead of initializing sortable for all
+			 * registered sidebars when most are never opened during a session.
+			 */
+			self._sortableInitialized = false;
+			api.section( self.section(), function( section ) {
+				var onSectionExpanded = function( isExpanded ) {
+					if ( isExpanded && ! self._sortableInitialized ) {
+						self._sortableInitialized = true;
+						section.expanded.unbind( onSectionExpanded );
+						self._initSortable();
+					}
+				};
+				if ( section.expanded() ) {
+					onSectionExpanded( true );
+				} else {
+					section.expanded.bind( onSectionExpanded );
+				}
+			} );
+		},
+
+		/**
+		 * Initialize jQuery UI Sortable and Droppable for widget reordering.
+		 *
+		 * Extracted from _setupSortable() to support deferred initialization
+		 * on first sidebar section expand.
+		 *
+		 * @since 7.0.0
+		 * @private
+		 */
+		_initSortable: function() {
+			var self = this;
+
+			/**
 			 * Update widget order setting when controls are re-ordered
 			 */
 			this.$sectionContent.sortable( {
@@ -1925,21 +1989,19 @@
 						completeCallback: function () {
 							// @todo It is not clear when refreshPositions should be called on which sections, or if it is even needed.
 							api.section.each( function ( otherSection ) {
+								var $sortableContent;
 								if ( otherSection.container.find( '.customize-control-sidebar_widgets' ).length ) {
-									otherSection.container.find( '.accordion-section-content:first' ).sortable( 'refreshPositions' );
+									$sortableContent = otherSection.container.find( '.accordion-section-content:first' );
+									// Guard: only refresh positions on sections with sortable initialized.
+									if ( $sortableContent.data( 'ui-sortable' ) ) {
+										$sortableContent.sortable( 'refreshPositions' );
+									}
 								}
 							} );
 						}
 					});
 				}
 			});
-
-			/**
-			 * Keyboard-accessible reordering
-			 */
-			this.container.find( '.reorder-toggle' ).on( 'click', function() {
-				self.toggleReordering( ! self.isReordering );
-			} );
 		},
 
 		/**
