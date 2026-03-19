@@ -36,87 +36,145 @@ require_once dirname( __DIR__ ) . '/wp-load.php';
 
 nocache_headers();
 
-if ( get_option( 'db_upgraded' ) ) {
+/*
+ * DB upgrade check — optimized for request type.
+ *
+ * Non-AJAX requests: Full upgrade check including version mismatch detection
+ * and multisite remote upgrade. AJAX requests: Only handle the post-upgrade
+ * flag (flush rewrite rules and clear the flag) to avoid unnecessary version
+ * comparison and potential redirect on asynchronous requests.
+ *
+ * @since 7.0.0 Restructured for AJAX fast path — skips version mismatch
+ *              check and multisite remote upgrade on AJAX requests.
+ */
+if ( ! wp_doing_ajax() ) {
+	if ( get_option( 'db_upgraded' ) ) {
 
+		flush_rewrite_rules();
+		update_option( 'db_upgraded', false, true );
+
+		/**
+		 * Fires on the next page load after a successful DB upgrade.
+		 *
+		 * @since 2.8.0
+		 */
+		do_action( 'after_db_upgrade' );
+
+	} elseif ( empty( $_POST )
+		&& (int) get_option( 'db_version' ) !== $wp_db_version
+	) {
+
+		if ( ! is_multisite() ) {
+			wp_redirect( admin_url( 'upgrade.php?_wp_http_referer=' . urlencode( wp_unslash( $_SERVER['REQUEST_URI'] ) ) ) );
+			exit;
+		}
+
+		/**
+		 * Filters whether to attempt to perform the multisite DB upgrade routine.
+		 *
+		 * In single site, the user would be redirected to wp-admin/upgrade.php.
+		 * In multisite, the DB upgrade routine is automatically fired, but only
+		 * when this filter returns true.
+		 *
+		 * If the network is 50 sites or less, it will run every time. Otherwise,
+		 * it will throttle itself to reduce load.
+		 *
+		 * @since MU (3.0.0)
+		 *
+		 * @param bool $do_mu_upgrade Whether to perform the Multisite upgrade routine. Default true.
+		 */
+		if ( apply_filters( 'do_mu_upgrade', true ) ) {
+			$blog_count = get_blog_count();
+
+			/*
+			 * If there are 50 or fewer sites, run every time. Otherwise, throttle to reduce load:
+			 * attempt to do no more than threshold value, with some +/- allowed.
+			 */
+			if ( $blog_count <= 50 || ( $blog_count > 50 && mt_rand( 0, (int) ( $blog_count / 50 ) ) === 1 ) ) {
+				require_once ABSPATH . WPINC . '/http.php';
+
+				$response = wp_remote_get(
+					admin_url( 'upgrade.php?step=1' ),
+					array(
+						'timeout'     => 120,
+						'httpversion' => '1.1',
+					)
+				);
+
+				/** This action is documented in wp-admin/network/upgrade.php */
+				do_action( 'after_mu_upgrade', $response );
+
+				unset( $response );
+			}
+
+			unset( $blog_count );
+		}
+	}
+} elseif ( get_option( 'db_upgraded' ) ) {
+	/*
+	 * AJAX fast path: still clear the db_upgraded flag so the next full page
+	 * load does not repeat the flush, but skip the version mismatch / multisite
+	 * remote upgrade path which is inappropriate for background requests.
+	 */
 	flush_rewrite_rules();
 	update_option( 'db_upgraded', false, true );
 
-	/**
-	 * Fires on the next page load after a successful DB upgrade.
-	 *
-	 * @since 2.8.0
-	 */
+	/** This action is documented in wp-admin/admin.php */
 	do_action( 'after_db_upgrade' );
-
-} elseif ( ! wp_doing_ajax() && empty( $_POST )
-	&& (int) get_option( 'db_version' ) !== $wp_db_version
-) {
-
-	if ( ! is_multisite() ) {
-		wp_redirect( admin_url( 'upgrade.php?_wp_http_referer=' . urlencode( wp_unslash( $_SERVER['REQUEST_URI'] ) ) ) );
-		exit;
-	}
-
-	/**
-	 * Filters whether to attempt to perform the multisite DB upgrade routine.
-	 *
-	 * In single site, the user would be redirected to wp-admin/upgrade.php.
-	 * In multisite, the DB upgrade routine is automatically fired, but only
-	 * when this filter returns true.
-	 *
-	 * If the network is 50 sites or less, it will run every time. Otherwise,
-	 * it will throttle itself to reduce load.
-	 *
-	 * @since MU (3.0.0)
-	 *
-	 * @param bool $do_mu_upgrade Whether to perform the Multisite upgrade routine. Default true.
-	 */
-	if ( apply_filters( 'do_mu_upgrade', true ) ) {
-		$blog_count = get_blog_count();
-
-		/*
-		 * If there are 50 or fewer sites, run every time. Otherwise, throttle to reduce load:
-		 * attempt to do no more than threshold value, with some +/- allowed.
-		 */
-		if ( $blog_count <= 50 || ( $blog_count > 50 && mt_rand( 0, (int) ( $blog_count / 50 ) ) === 1 ) ) {
-			require_once ABSPATH . WPINC . '/http.php';
-
-			$response = wp_remote_get(
-				admin_url( 'upgrade.php?step=1' ),
-				array(
-					'timeout'     => 120,
-					'httpversion' => '1.1',
-				)
-			);
-
-			/** This action is documented in wp-admin/network/upgrade.php */
-			do_action( 'after_mu_upgrade', $response );
-
-			unset( $response );
-		}
-
-		unset( $blog_count );
-	}
 }
 
 require_once ABSPATH . 'wp-admin/includes/admin.php';
 
 auth_redirect();
 
-// Schedule Trash collection.
-if ( ! wp_next_scheduled( 'wp_scheduled_delete' ) && ! wp_installing() ) {
-	wp_schedule_event( time(), 'daily', 'wp_scheduled_delete' );
-}
+/*
+ * Schedule Trash collection and transient cleanup.
+ *
+ * The wp_next_scheduled() calls below load and unserialize the full cron array
+ * from the 'cron' autoloaded option. On a site with many scheduled events this
+ * can be non-trivial work. Because the events are daily, the scheduling check
+ * only needs to succeed once — after that, the events exist in the cron table
+ * and re-checking on every admin page load is wasted effort.
+ *
+ * A short-lived transient acts as a gate so the checks run at most once per
+ * hour instead of on every request. The transient intentionally uses the
+ * database (autoload) transport so it works without an external object-cache
+ * backend.
+ *
+ * @since 7.0.0 Gated behind a transient to reduce per-request overhead.
+ */
+if ( ! get_transient( '_wp_cron_check_lock' ) ) {
+	if ( ! wp_installing() ) {
+		if ( ! wp_next_scheduled( 'wp_scheduled_delete' ) ) {
+			wp_schedule_event( time(), 'daily', 'wp_scheduled_delete' );
+		}
 
-// Schedule transient cleanup.
-if ( ! wp_next_scheduled( 'delete_expired_transients' ) && ! wp_installing() ) {
-	wp_schedule_event( time(), 'daily', 'delete_expired_transients' );
+		if ( ! wp_next_scheduled( 'delete_expired_transients' ) ) {
+			wp_schedule_event( time(), 'daily', 'delete_expired_transients' );
+		}
+	}
+
+	set_transient( '_wp_cron_check_lock', 1, HOUR_IN_SECONDS );
 }
 
 set_screen_options();
 
 $date_format = __( 'F j, Y' );
 $time_format = __( 'g:i a' );
+
+/**
+ * Fires before the 'common' admin script is enqueued.
+ *
+ * This hook allows plugins and themes to conditionally modify which common
+ * admin scripts are loaded based on the current admin page. For example, a
+ * plugin could use this hook to dequeue optional common.js modules on pages
+ * where they are not needed, reducing JavaScript parse and execute cost.
+ *
+ * @since 7.0.0
+ *
+ * @param string $pagenow The filename of the current admin screen (e.g. 'edit.php', 'post-new.php').
+ */
+do_action( 'pre_admin_enqueue_common_scripts', $pagenow );
 
 wp_enqueue_script( 'common' );
 
