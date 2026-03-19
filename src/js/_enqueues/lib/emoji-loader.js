@@ -359,78 +359,199 @@ settings.supports = {
 	everythingExceptFlag: true
 };
 
-// Obtain the emoji support from the browser, asynchronously when possible.
-new Promise( ( resolve ) => {
-	let supportTests = getSessionSupportTests();
-	if ( supportTests ) {
-		resolve( supportTests );
+/**
+ * Performs a quick single-character canvas test for native emoji support.
+ *
+ * This is much faster than the full detection pipeline as it only tests a single
+ * commonly-supported emoji (grinning face U+1F600). If the browser can render this
+ * character, it is a strong indicator of general native emoji support, avoiding
+ * the expensive multi-character canvas comparisons and potential Worker offloading.
+ *
+ * @since 7.0.0
+ *
+ * @private
+ *
+ * @return {boolean} True if the browser appears to natively support emoji rendering.
+ */
+function quickNativeEmojiCheck() {
+	try {
+		const canvas = document.createElement( 'canvas' );
+		const ctx = canvas.getContext( '2d', { willReadFrequently: true } );
+		if ( ! ctx ) {
+			return false;
+		}
+		ctx.textBaseline = 'top';
+		ctx.font = '32px Arial';
+		// Test a commonly supported emoji: grinning face (U+1F600).
+		ctx.fillText( '\uD83D\uDE00', 0, 0 );
+		const data = ctx.getImageData( 16, 16, 1, 1 ).data;
+		// Non-zero alpha channel means the emoji was rendered.
+		return data[ 3 ] > 0;
+	} catch ( e ) {
+		return false;
+	}
+}
+
+/**
+ * Checks if the document body contains emoji characters.
+ *
+ * Scans the document body text content for characters in common emoji Unicode ranges.
+ * Covers emoticons (U+1F600-U+1F64F), miscellaneous symbols (U+1F300-U+1F5FF),
+ * transport and map symbols (U+1F680-U+1F6FF), flags (U+1F1E0-U+1F1FF),
+ * supplemental symbols (U+1F900-U+1FAFF), variation selectors (U+FE0F),
+ * zero-width joiners (U+200D), combining enclosing keycaps (U+20E3),
+ * and other common emoji-related blocks (U+2600-U+27BF).
+ *
+ * In JavaScript's UCS-2 string representation, emoji from supplementary planes
+ * (>= U+10000) appear as surrogate pairs: high surrogates \uD83C-\uD83E
+ * followed by low surrogates \uDC00-\uDFFF.
+ *
+ * @since 7.0.0
+ *
+ * @private
+ *
+ * @return {boolean} True if emoji characters are detected in the document body.
+ */
+function documentContainsEmoji() {
+	const text = document.body ? document.body.textContent : '';
+	return /[\uD83C-\uD83E][\uDC00-\uDFFF]|\u200D|\uFE0F|\u20E3|[\u2600-\u27BF]/.test( text );
+}
+
+/**
+ * Runs the emoji detection pipeline with layered early-exit optimizations.
+ *
+ * This function implements a multi-tier detection strategy to minimize main-thread
+ * work on modern browsers and pages without emoji content:
+ *
+ * 1. Content detection — skip entirely if no emoji characters in the document body
+ *    and no polyfill source is configured by the PHP side.
+ * 2. Session cache — use cached results from a previous page load (sessionStorage).
+ * 3. Quick native check — fast single-character canvas test that avoids the expensive
+ *    full detection pipeline on browsers with native emoji support.
+ * 4. Full detection — Worker-offloaded or main-thread canvas testing of multiple
+ *    emoji categories (flag and general emoji).
+ *
+ * @since 7.0.0
+ *
+ * @private
+ */
+function runEmojiDetection() {
+	/*
+	 * Early exit: if the document body contains no emoji characters and the
+	 * PHP side has not configured a polyfill source URL (meaning emoji support
+	 * was not explicitly enabled for this page), skip the detection pipeline.
+	 *
+	 * The default settings.supports values (everything: true, everythingExceptFlag: true)
+	 * remain, ensuring no polyfill script is loaded unnecessarily.
+	 */
+	const emojiSourceConfigured = settings.source && ( settings.source.concatemoji || ( settings.source.wpemoji && settings.source.twemoji ) );
+	if ( ! documentContainsEmoji() && ! emojiSourceConfigured ) {
 		return;
 	}
 
-	if ( supportsWorkerOffloading() ) {
-		try {
-			// Note that the functions are being passed as arguments due to minification.
-			const workerScript =
-				'postMessage(' +
-				testEmojiSupports.toString() +
-				'(' +
-				[
-					JSON.stringify( tests ),
-					browserSupportsEmoji.toString(),
-					emojiSetsRenderIdentically.toString(),
-					emojiRendersEmptyCenterPoint.toString()
-				].join( ',' ) +
-				'));';
-			const blob = new Blob( [ workerScript ], {
-				type: 'text/javascript'
-			} );
-			const worker = new Worker( URL.createObjectURL( blob ), { name: 'wpTestEmojiSupports' } );
-			worker.onmessage = ( event ) => {
-				supportTests = event.data;
-				setSessionSupportTests( supportTests );
-				worker.terminate();
-				resolve( supportTests );
-			};
+	// Obtain the emoji support from the browser, asynchronously when possible.
+	new Promise( ( resolve ) => {
+		// Fast path: use cached session results from a previous page load.
+		let supportTests = getSessionSupportTests();
+		if ( supportTests ) {
+			resolve( supportTests );
 			return;
-		} catch ( e ) {}
-	}
+		}
 
-	supportTests = testEmojiSupports( tests, browserSupportsEmoji, emojiSetsRenderIdentically, emojiRendersEmptyCenterPoint );
-	setSessionSupportTests( supportTests );
-	resolve( supportTests );
-} )
-	// Once the browser emoji support has been obtained from the session, finalize the settings.
-	.then( ( supportTests ) => {
 		/*
-		 * Tests the browser support for flag emojis and other emojis, and adjusts the
-		 * support settings accordingly.
+		 * Quick native emoji check: a fast single-character canvas test.
+		 * If the browser can render a basic emoji natively, skip the expensive
+		 * full detection pipeline (which tests flag emoji, newer Unicode emoji, etc.).
+		 * Cache the positive result so subsequent page loads use the session fast path.
 		 */
-		for ( const test in supportTests ) {
-			settings.supports[ test ] = supportTests[ test ];
-
-			settings.supports.everything =
-				settings.supports.everything && settings.supports[ test ];
-
-			if ( 'flag' !== test ) {
-				settings.supports.everythingExceptFlag =
-					settings.supports.everythingExceptFlag &&
-					settings.supports[ test ];
-			}
+		if ( quickNativeEmojiCheck() ) {
+			supportTests = {};
+			tests.forEach( ( test ) => {
+				supportTests[ test ] = true;
+			} );
+			setSessionSupportTests( supportTests );
+			resolve( supportTests );
+			return;
 		}
 
-		settings.supports.everythingExceptFlag =
-			settings.supports.everythingExceptFlag &&
-			! settings.supports.flag;
-
-		// When the browser can not render everything we need to load a polyfill.
-		if ( ! settings.supports.everything ) {
-			const src = settings.source || {};
-
-			if ( src.concatemoji ) {
-				addScript( src.concatemoji );
-			} else if ( src.wpemoji && src.twemoji ) {
-				addScript( src.twemoji );
-				addScript( src.wpemoji );
-			}
+		// Full detection: try Worker offloading first for non-blocking execution.
+		if ( supportsWorkerOffloading() ) {
+			try {
+				// Note that the functions are being passed as arguments due to minification.
+				const workerScript =
+					'postMessage(' +
+					testEmojiSupports.toString() +
+					'(' +
+					[
+						JSON.stringify( tests ),
+						browserSupportsEmoji.toString(),
+						emojiSetsRenderIdentically.toString(),
+						emojiRendersEmptyCenterPoint.toString()
+					].join( ',' ) +
+					'));';
+				const blob = new Blob( [ workerScript ], {
+					type: 'text/javascript'
+				} );
+				const worker = new Worker( URL.createObjectURL( blob ), { name: 'wpTestEmojiSupports' } );
+				worker.onmessage = ( event ) => {
+					supportTests = event.data;
+					setSessionSupportTests( supportTests );
+					worker.terminate();
+					resolve( supportTests );
+				};
+				return;
+			} catch ( e ) {}
 		}
-	} );
+
+		// Fallback: main-thread canvas testing.
+		supportTests = testEmojiSupports( tests, browserSupportsEmoji, emojiSetsRenderIdentically, emojiRendersEmptyCenterPoint );
+		setSessionSupportTests( supportTests );
+		resolve( supportTests );
+	} )
+		// Once the browser emoji support has been obtained from the session, finalize the settings.
+		.then( ( supportTests ) => {
+			/*
+			 * Tests the browser support for flag emojis and other emojis, and adjusts the
+			 * support settings accordingly.
+			 */
+			for ( const test in supportTests ) {
+				settings.supports[ test ] = supportTests[ test ];
+
+				settings.supports.everything =
+					settings.supports.everything && settings.supports[ test ];
+
+				if ( 'flag' !== test ) {
+					settings.supports.everythingExceptFlag =
+						settings.supports.everythingExceptFlag &&
+						settings.supports[ test ];
+				}
+			}
+
+			settings.supports.everythingExceptFlag =
+				settings.supports.everythingExceptFlag &&
+				! settings.supports.flag;
+
+			// When the browser can not render everything we need to load a polyfill.
+			if ( ! settings.supports.everything ) {
+				const src = settings.source || {};
+
+				if ( src.concatemoji ) {
+					addScript( src.concatemoji );
+				} else if ( src.wpemoji && src.twemoji ) {
+					addScript( src.twemoji );
+					addScript( src.wpemoji );
+				}
+			}
+		} );
+}
+
+/*
+ * Defer emoji detection to avoid blocking initial page render.
+ * Uses requestIdleCallback when available to run during browser idle periods,
+ * falling back to setTimeout for browsers without requestIdleCallback support.
+ */
+if ( typeof requestIdleCallback === 'function' ) {
+	requestIdleCallback( runEmojiDetection );
+} else {
+	setTimeout( runEmojiDetection, 0 );
+}
