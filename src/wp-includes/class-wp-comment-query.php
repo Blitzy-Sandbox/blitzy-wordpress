@@ -482,7 +482,10 @@ class WP_Comment_Query {
 		$comment_ids = array_map( 'intval', $comment_ids );
 
 		if ( $this->query_vars['update_comment_meta_cache'] ) {
-			wp_lazyload_comment_meta( $comment_ids );
+			// Eager batch-prime comment meta cache for all returned comment IDs,
+			// replacing lazy loading to eliminate N+1 meta queries when accessing
+			// comment metadata in template loops or REST API serialization.
+			update_meta_cache( 'comment', $comment_ids );
 		}
 
 		if ( 'ids' === $this->query_vars['fields'] ) {
@@ -509,6 +512,22 @@ class WP_Comment_Query {
 			}
 
 			_prime_post_caches( $comment_post_ids, false, false );
+		}
+
+		// Batch-prime comment author user caches to avoid N+1 queries
+		// when accessing author display names, avatars, or capabilities
+		// during comment rendering loops.
+		if ( ! empty( $_comments ) ) {
+			$comment_user_ids = array();
+			foreach ( $_comments as $_comment ) {
+				if ( ! empty( $_comment->user_id ) ) {
+					$comment_user_ids[] = (int) $_comment->user_id;
+				}
+			}
+
+			if ( ! empty( $comment_user_ids ) ) {
+				cache_users( array_unique( $comment_user_ids ) );
+			}
 		}
 
 		/**

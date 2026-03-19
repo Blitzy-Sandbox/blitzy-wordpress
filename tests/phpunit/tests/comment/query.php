@@ -4881,7 +4881,8 @@ class Tests_Comment_Query extends WP_UnitTestCase {
 			)
 		);
 
-		++$num_queries;
+		// 1 query for comment IDs + 1 query for eager meta cache priming.
+		$num_queries += 2;
 		$this->assertSame( $num_queries, get_num_queries() );
 		$this->assertSameSets( array( $c ), $q->comments );
 	}
@@ -4955,7 +4956,8 @@ class Tests_Comment_Query extends WP_UnitTestCase {
 			)
 		);
 
-		++$num_queries;
+		// 1 query for comment IDs + 1 query for eager meta cache priming.
+		$num_queries += 2;
 		$this->assertSame( $num_queries, get_num_queries() );
 		$this->assertSameSets( array( $c ), $q->comments );
 	}
@@ -5492,7 +5494,9 @@ class Tests_Comment_Query extends WP_UnitTestCase {
 
 		$this->assertSameSets( array( $comments['comment'], $comments['pingback'] ), $found );
 		$this->assertNotContains( $comments['note'], $found );
-		$note_count = substr_count( $wpdb->last_query, "'note'" );
+		// Use $query->request instead of $wpdb->last_query because eager meta cache priming
+		// may execute an additional query after the comment IDs query.
+		$note_count = substr_count( $query->request, "'note'" );
 		$this->assertSame( 1, $note_count, 'The note type should only appear once in the query' );
 	}
 
