@@ -20,6 +20,19 @@
 	 * @return {Object} The wpEmoji parse and test functions.
 	 */
 	function wpEmoji() {
+		/*
+		 * Early exit for browsers with full native emoji support.
+		 * When the browser renders all emoji natively, no Twemoji replacement,
+		 * MutationObserver, or library loading is needed. Return lightweight stub
+		 * functions that preserve the public API contract with zero runtime cost.
+		 */
+		if ( settings.supports.everything ) {
+			return {
+				parse: function( obj ) { return obj; },
+				test: function() { return false; }
+			};
+		}
+
 		var MutationObserver = window.MutationObserver || window.WebKitMutationObserver || window.MozMutationObserver,
 
 		// Compression and maintain local scope.
@@ -29,7 +42,25 @@
 		twemoji, timer,
 		loaded = false,
 		count = 0,
-		ie11 = window.navigator.userAgent.indexOf( 'Trident/7.0' ) > 0;
+
+		/**
+		 * Initialization state machine tracking Twemoji loading progress.
+		 * Transitions: 'uninitialized' → 'loading' → 'ready'.
+		 *
+		 * @type {string}
+		 */
+		initState = 'uninitialized',
+
+		/**
+		 * Queue of DOM element parse operations requested before Twemoji was
+		 * available. Each entry is { object: HTMLElement, args: Object|undefined }.
+		 * String parse calls cannot be meaningfully queued because the caller
+		 * already received the unmodified return value, so only DOM element
+		 * operations are stored here.
+		 *
+		 * @type {Array}
+		 */
+		parseQueue = [];
 
 		/**
 		 * Detect if the browser supports SVG.
@@ -53,19 +84,26 @@
 		}
 
 		/**
-		 * Runs when the document load event is fired, so we can do our first parse of
-		 * the page.
+		 * Initializes emoji replacement infrastructure.
 		 *
-		 * Listens to all the DOM mutations and checks for added nodes that contain
-		 * emoji characters and replaces those with twitter emoji images.
+		 * Polls for the Twemoji library on window.twemoji, sets up a MutationObserver
+		 * to watch for dynamically added content, and performs the initial parse of
+		 * document.body. This function is NOT called automatically at construction
+		 * time — it is triggered lazily by the first call to parse() that requires
+		 * emoji replacement, avoiding all setup cost on pages where no emoji content
+		 * is encountered.
 		 *
 		 * @since 4.2.0
 		 * @private
 		 */
 		function load() {
+			var queued;
+
 			if ( loaded ) {
 				return;
 			}
+
+			initState = 'loading';
 
 			// Ensure twemoji is available on the global window before proceeding.
 			if ( typeof window.twemoji === 'undefined' ) {
@@ -84,6 +122,7 @@
 
 			twemoji = window.twemoji;
 			loaded = true;
+			initState = 'ready';
 
 			// Initialize the mutation observer, which checks all added nodes for
 			// replaceable emoji characters.
@@ -127,21 +166,6 @@
 									continue;
 								}
 
-								if ( ie11 ) {
-									/*
-									 * IE 11's implementation of MutationObserver is buggy.
-									 * It unnecessarily splits text nodes when it encounters a HTML
-									 * template interpolation symbol ( "{{", for example ). So, we
-									 * join the text nodes back together as a work-around.
-									 *
-									 * Node type 3 is a TEXT_NODE.
-									 */
-									while( node.nextSibling && 3 === node.nextSibling.nodeType ) {
-										node.nodeValue = node.nodeValue + node.nextSibling.nodeValue;
-										node.parentNode.removeChild( node.nextSibling );
-									}
-								}
-
 								node = node.parentNode;
 							}
 
@@ -157,6 +181,13 @@
 			}
 
 			parse( document.body );
+
+			// Process any DOM element parse operations that were queued while
+			// waiting for Twemoji to become available.
+			while ( parseQueue.length ) {
+				queued = parseQueue.shift();
+				parse( queued.object, queued.args );
+			}
 		}
 
 		/**
@@ -204,12 +235,34 @@
 			var params;
 
 			/*
-			 * If the browser has full support, twemoji is not loaded or our
-			 * object is not what was expected, we do not parse anything.
+			 * If the browser has full support or our object is not what was
+			 * expected, we do not parse anything.
 			 */
-			if ( settings.supports.everything || ! twemoji || ! object ||
+			if ( settings.supports.everything || ! object ||
 				( 'string' !== typeof object && ( ! object.childNodes || ! object.childNodes.length ) ) ) {
 
+				return object;
+			}
+
+			/*
+			 * Trigger lazy initialization on the first parse call that needs work.
+			 * This starts the Twemoji polling loop and defers MutationObserver
+			 * setup until emoji replacement is actually requested.
+			 */
+			if ( initState === 'uninitialized' ) {
+				load();
+			}
+
+			/*
+			 * If Twemoji is not yet available (still loading via the polling loop),
+			 * queue DOM element parse operations for processing once the library is
+			 * ready. String parse calls return unchanged because the caller already
+			 * received the return value and cannot benefit from deferred processing.
+			 */
+			if ( ! twemoji ) {
+				if ( 'string' !== typeof object ) {
+					parseQueue.push( { object: object, args: args } );
+				}
 				return object;
 			}
 
@@ -277,7 +330,12 @@
 			return twemoji.parse( object, params );
 		}
 
-		load();
+		/*
+		 * load() is NOT called here. It is triggered lazily by the first call
+		 * to parse() that encounters content needing emoji replacement. This
+		 * avoids MutationObserver setup, Twemoji polling, and document.body
+		 * parsing on pages where no emoji replacement is needed.
+		 */
 
 		return {
 			parse: parse,
