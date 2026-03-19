@@ -134,8 +134,16 @@ function formatValue( metric, value ) {
 		return Math.round( value );
 	}
 
+	// JS transfer size metric collected as bytes via Resource Timing API.
+	if ( 'jsTransferSize' === metric ) {
+		if ( value >= 1048576 ) {
+			return `${ ( value / 1048576 ).toFixed( 2 ) } MB`;
+		}
+		return `${ ( value / 1024 ).toFixed( 1 ) } KB`;
+	}
+
 	// Default: time-based metrics (ms) — covers timeToFirstByte, largestContentfulPaint,
-	// lcpMinusTtfb, wpBeforeTemplate, wpTemplate, wpTotal, wpBootstrap, wpPlugins.
+	// lcpMinusTtfb, domContentLoaded, wpBeforeTemplate, wpTemplate, wpTotal, wpBootstrap, wpPlugins.
 	return `${ value.toFixed( 2 ) } ms`;
 }
 
