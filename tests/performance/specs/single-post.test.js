@@ -12,6 +12,13 @@ const results = {
 	timeToFirstByte: [],
 	largestContentfulPaint: [],
 	lcpMinusTtfb: [],
+	wpMemoryUsage: [],
+	wpFilesLoaded: [],
+	wpCacheHits: [],
+	wpCacheMisses: [],
+	wpBootstrap: [],
+	wpPlugins: [],
+	wpDbQueries: [],
 };
 
 test.describe( 'Single Post', () => {
@@ -42,6 +49,13 @@ test.describe( 'Single Post', () => {
 					results.largestContentfulPaint = [];
 					results.timeToFirstByte = [];
 					results.lcpMinusTtfb = [];
+					results.wpMemoryUsage = [];
+					results.wpFilesLoaded = [];
+					results.wpCacheHits = [];
+					results.wpCacheMisses = [];
+					results.wpBootstrap = [];
+					results.wpPlugins = [];
+					results.wpDbQueries = [];
 				} );
 
 				const iterations = Number( process.env.TEST_RUNS );
