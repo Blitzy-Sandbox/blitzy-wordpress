@@ -6964,7 +6964,15 @@ EOF;
 			$this->assertNull( $found_style_text_content );
 		}
 		$this->assertSame( 'very-early-enqueued', array_shift( $enqueued ) );
-		$this->assertContains( 'wp-emoji-styles', $enqueued );
+		/*
+		 * wp-emoji-styles is no longer enqueued on the front end since the emoji
+		 * conditional loading optimization (wp_maybe_load_emoji_scripts) removes
+		 * emoji assets from front-end requests by default. The assertion is
+		 * preserved for admin contexts where emoji styles remain active.
+		 */
+		if ( is_admin() ) {
+			$this->assertContains( 'wp-emoji-styles', $enqueued );
+		}
 		$this->assertContains( 'wp-block-library', $enqueued );
 	}
 

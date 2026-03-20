@@ -488,20 +488,33 @@ add_action( 'plugins_loaded', '_wp_load_block_editor_infrastructure', 0 );
 /**
  * Loads WordPress platform subsystems deferred from early bootstrap.
  *
- * Loads the Interactivity API, Plugin Dependencies, Speculative Loading,
- * View Transitions, AI Client SDK, Connectors, Icons Registry, Abilities API,
- * Collaboration, Sitemaps, Style Engine, and Fonts subsystems. These 51 files are
- * deferred from the main bootstrap require chain to reduce the number of PHP files
- * parsed before plugin execution begins.
+ * Loads WordPress platform subsystems in two phases for optimal file count.
+ *
+ * Phase 1 (Essential — 19 files, ALL requests):
+ *   Interactivity API (3), Speculative Loading (3), Style Engine (6), Fonts (6),
+ *   View Transitions (1). These subsystems are needed on front-end, admin, and
+ *   REST requests alike. View Transitions is essential because wp_default_styles()
+ *   in script-loader.php calls wp_get_view_transitions_admin_css() unconditionally
+ *   whenever WP_Styles is constructed.
+ *
+ * Phase 2 (Extended — 32 files, context-dependent):
+ *   Admin/AJAX/CLI/autoloader: loads ALL remaining subsystems — Plugin Dependencies (1),
+ *   AI Client SDK (8), Connectors (2), Icons Registry (1),
+ *   Abilities API (6), Collaboration (4), Sitemaps (10).
+ *
+ *   Front-end: skips 22 admin-only files entirely. Conditionally loads Sitemaps (10)
+ *   only for sitemap/robots.txt URLs. On a typical front-end page request, this saves
+ *   32 files compared to full loading.
  *
  * Hooked to 'plugins_loaded' at priority 0, ensuring all deferred files are available
  * before any plugin's default-priority 'plugins_loaded' callbacks fire. The relative
  * load order within each subsystem is preserved from the original bootstrap sequence.
  *
  * A class autoloader registered via spl_autoload_register provides a safety net:
- * if any deferred class is referenced before 'plugins_loaded' fires (e.g., during
- * an early plugin or test bootstrap), the autoloader triggers this function to
- * load all deferred files immediately, preserving backward compatibility.
+ * if any deferred class is referenced before 'plugins_loaded' fires or on front-end
+ * when extended subsystems are skipped, the autoloader sets the global
+ * $_wp_force_full_platform_load flag and re-enters this function to load all
+ * extended files, preserving backward compatibility.
  *
  * @since 7.0.0
  * @access private
@@ -512,96 +525,174 @@ if ( ! function_exists( '_wp_load_deferred_platform_subsystems' ) ) {
 	 * multiple times due to OPcache interactions (e.g., after opcache_reset()).
 	 */
 	function _wp_load_deferred_platform_subsystems() {
-		static $loaded = false;
-		if ( $loaded ) {
+		static $essential_loaded = false;
+		static $extended_loaded  = false;
+
+		// Fast return if everything is already loaded.
+		if ( $extended_loaded ) {
 			return;
 		}
-		$loaded = true;
 
-		// Interactivity API (3 files — functions called during block rendering only).
-		require ABSPATH . WPINC . '/interactivity-api/class-wp-interactivity-api.php';
-		require ABSPATH . WPINC . '/interactivity-api/class-wp-interactivity-api-directives-processor.php';
-		require ABSPATH . WPINC . '/interactivity-api/interactivity-api.php';
+		/*
+		 * Phase 1: Essential subsystems required on ALL request types (including front-end).
+		 *
+		 * These 18 files provide Interactivity API (block rendering), Speculative Loading
+		 * (wp_footer prefetch rules), Style Engine (block CSS generation), and Fonts
+		 * (font-face rendering). They are loaded once on the first call, regardless of
+		 * request context.
+		 */
+		if ( ! $essential_loaded ) {
+			$essential_loaded = true;
 
-		// Interactivity API hook registration (moved from main bootstrap sequence).
-		// 'after_setup_theme' fires after 'plugins_loaded', so this is timing-safe.
-		add_action( 'after_setup_theme', array( wp_interactivity(), 'add_hooks' ) );
+			// Interactivity API (3 files — functions called during block rendering only).
+			require ABSPATH . WPINC . '/interactivity-api/class-wp-interactivity-api.php';
+			require ABSPATH . WPINC . '/interactivity-api/class-wp-interactivity-api-directives-processor.php';
+			require ABSPATH . WPINC . '/interactivity-api/interactivity-api.php';
 
-		// Plugin Dependencies (1 file — used only in admin plugin screens).
-		require ABSPATH . WPINC . '/class-wp-plugin-dependencies.php';
+			// Interactivity API hook registration (moved from main bootstrap sequence).
+			// 'after_setup_theme' fires after 'plugins_loaded', so this is timing-safe.
+			add_action( 'after_setup_theme', array( wp_interactivity(), 'add_hooks' ) );
 
-		// Speculative Loading (3 files — hooks fire on 'wp_footer', well after loading).
-		require ABSPATH . WPINC . '/class-wp-url-pattern-prefixer.php';
-		require ABSPATH . WPINC . '/class-wp-speculation-rules.php';
-		require ABSPATH . WPINC . '/speculative-loading.php';
+			// Speculative Loading (3 files — hooks fire on 'wp_footer', well after loading).
+			require ABSPATH . WPINC . '/class-wp-url-pattern-prefixer.php';
+			require ABSPATH . WPINC . '/class-wp-speculation-rules.php';
+			require ABSPATH . WPINC . '/speculative-loading.php';
 
-		// View Transitions (1 file — hooks fire on 'admin_enqueue_scripts').
-		require ABSPATH . WPINC . '/view-transitions.php';
+			// Style Engine (6 files).
+			require ABSPATH . WPINC . '/style-engine.php';
+			require ABSPATH . WPINC . '/style-engine/class-wp-style-engine.php';
+			require ABSPATH . WPINC . '/style-engine/class-wp-style-engine-css-declarations.php';
+			require ABSPATH . WPINC . '/style-engine/class-wp-style-engine-css-rule.php';
+			require ABSPATH . WPINC . '/style-engine/class-wp-style-engine-css-rules-store.php';
+			require ABSPATH . WPINC . '/style-engine/class-wp-style-engine-processor.php';
 
-		// AI Client SDK (8 files).
-		require ABSPATH . WPINC . '/php-ai-client/autoload.php';
-		require ABSPATH . WPINC . '/ai-client/adapters/class-wp-ai-client-http-client.php';
-		require ABSPATH . WPINC . '/ai-client/adapters/class-wp-ai-client-cache.php';
-		require ABSPATH . WPINC . '/ai-client/adapters/class-wp-ai-client-discovery-strategy.php';
-		require ABSPATH . WPINC . '/ai-client/adapters/class-wp-ai-client-event-dispatcher.php';
-		require ABSPATH . WPINC . '/ai-client/class-wp-ai-client-ability-function-resolver.php';
-		require ABSPATH . WPINC . '/ai-client/class-wp-ai-client-prompt-builder.php';
-		require ABSPATH . WPINC . '/ai-client.php';
+			// Fonts (6 files).
+			require ABSPATH . WPINC . '/fonts/class-wp-font-face-resolver.php';
+			require ABSPATH . WPINC . '/fonts/class-wp-font-collection.php';
+			require ABSPATH . WPINC . '/fonts/class-wp-font-face.php';
+			require ABSPATH . WPINC . '/fonts/class-wp-font-library.php';
+			require ABSPATH . WPINC . '/fonts/class-wp-font-utils.php';
+			require ABSPATH . WPINC . '/fonts.php';
 
-		// AI Client initialization (moved from main bootstrap sequence).
-		WP_AI_Client_Discovery_Strategy::init();
-		WordPress\AiClient\AiClient::setCache( new WP_AI_Client_Cache() );
-		WordPress\AiClient\AiClient::setEventDispatcher( new WP_AI_Client_Event_Dispatcher() );
+			// View Transitions (1 file — defines wp_get_view_transitions_admin_css()
+			// which is called unconditionally by wp_default_styles() in script-loader.php
+			// when WP_Styles is constructed, so the function must be available on all
+			// request types including front-end).
+			require ABSPATH . WPINC . '/view-transitions.php';
+		}
 
-		// Connectors (2 files — connectors.php has top-level hook registrations for
-		// 'init' and 'rest_post_dispatch', which fire after 'plugins_loaded').
-		require ABSPATH . WPINC . '/class-wp-connector-registry.php';
-		require ABSPATH . WPINC . '/connectors.php';
+		/*
+		 * Phase 2: Extended subsystems loaded context-dependently.
+		 *
+		 * Admin, AJAX, CLI, and autoloader-triggered contexts load ALL 33 remaining
+		 * files (Plugin Dependencies, View Transitions, AI Client SDK, Connectors,
+		 * Icons Registry, Abilities API, Collaboration, Sitemaps).
+		 *
+		 * Front-end requests skip admin-only subsystems entirely (22 files saved) and
+		 * conditionally load Sitemaps only for sitemap/robots.txt URLs (10 more files
+		 * saved on typical page requests). The $_wp_force_full_platform_load global is
+		 * set by the spl_autoload_register safety net when a deferred class is
+		 * referenced in front-end context, ensuring backward compatibility.
+		 */
+		if (
+			is_admin()
+			|| ( defined( 'DOING_AJAX' ) && DOING_AJAX )
+			|| ( defined( 'WP_CLI' ) && WP_CLI )
+			|| ! empty( $GLOBALS['_wp_force_full_platform_load'] )
+		) {
+			$extended_loaded = true;
 
-		// Icons Registry (1 file).
-		require ABSPATH . WPINC . '/class-wp-icons-registry.php';
+			// Plugin Dependencies (1 file — used only in admin plugin screens).
+			require ABSPATH . WPINC . '/class-wp-plugin-dependencies.php';
 
-		// Abilities API (6 files).
-		require ABSPATH . WPINC . '/abilities-api/class-wp-ability-category.php';
-		require ABSPATH . WPINC . '/abilities-api/class-wp-ability-categories-registry.php';
-		require ABSPATH . WPINC . '/abilities-api/class-wp-ability.php';
-		require ABSPATH . WPINC . '/abilities-api/class-wp-abilities-registry.php';
-		require ABSPATH . WPINC . '/abilities-api.php';
-		require ABSPATH . WPINC . '/abilities.php';
+			// View Transitions is loaded in Phase 1 (essential) because
+			// wp_get_view_transitions_admin_css() is called unconditionally
+			// by wp_default_styles() in script-loader.php.
 
-		// Collaboration (4 files).
-		require ABSPATH . WPINC . '/collaboration/interface-wp-sync-storage.php';
-		require ABSPATH . WPINC . '/collaboration/class-wp-sync-post-meta-storage.php';
-		require ABSPATH . WPINC . '/collaboration/class-wp-http-polling-sync-server.php';
-		require ABSPATH . WPINC . '/collaboration.php';
+			// AI Client SDK (8 files).
+			require ABSPATH . WPINC . '/php-ai-client/autoload.php';
+			require ABSPATH . WPINC . '/ai-client/adapters/class-wp-ai-client-http-client.php';
+			require ABSPATH . WPINC . '/ai-client/adapters/class-wp-ai-client-cache.php';
+			require ABSPATH . WPINC . '/ai-client/adapters/class-wp-ai-client-discovery-strategy.php';
+			require ABSPATH . WPINC . '/ai-client/adapters/class-wp-ai-client-event-dispatcher.php';
+			require ABSPATH . WPINC . '/ai-client/class-wp-ai-client-ability-function-resolver.php';
+			require ABSPATH . WPINC . '/ai-client/class-wp-ai-client-prompt-builder.php';
+			require ABSPATH . WPINC . '/ai-client.php';
 
-		// Sitemaps (10 files).
-		require ABSPATH . WPINC . '/sitemaps.php';
-		require ABSPATH . WPINC . '/sitemaps/class-wp-sitemaps.php';
-		require ABSPATH . WPINC . '/sitemaps/class-wp-sitemaps-index.php';
-		require ABSPATH . WPINC . '/sitemaps/class-wp-sitemaps-provider.php';
-		require ABSPATH . WPINC . '/sitemaps/class-wp-sitemaps-registry.php';
-		require ABSPATH . WPINC . '/sitemaps/class-wp-sitemaps-renderer.php';
-		require ABSPATH . WPINC . '/sitemaps/class-wp-sitemaps-stylesheet.php';
-		require ABSPATH . WPINC . '/sitemaps/providers/class-wp-sitemaps-posts.php';
-		require ABSPATH . WPINC . '/sitemaps/providers/class-wp-sitemaps-taxonomies.php';
-		require ABSPATH . WPINC . '/sitemaps/providers/class-wp-sitemaps-users.php';
+			// AI Client initialization (moved from main bootstrap sequence).
+			WP_AI_Client_Discovery_Strategy::init();
+			WordPress\AiClient\AiClient::setCache( new WP_AI_Client_Cache() );
+			WordPress\AiClient\AiClient::setEventDispatcher( new WP_AI_Client_Event_Dispatcher() );
 
-		// Style Engine (6 files).
-		require ABSPATH . WPINC . '/style-engine.php';
-		require ABSPATH . WPINC . '/style-engine/class-wp-style-engine.php';
-		require ABSPATH . WPINC . '/style-engine/class-wp-style-engine-css-declarations.php';
-		require ABSPATH . WPINC . '/style-engine/class-wp-style-engine-css-rule.php';
-		require ABSPATH . WPINC . '/style-engine/class-wp-style-engine-css-rules-store.php';
-		require ABSPATH . WPINC . '/style-engine/class-wp-style-engine-processor.php';
+			// Connectors (2 files — connectors.php has top-level hook registrations for
+			// 'init' and 'rest_post_dispatch', which fire after 'plugins_loaded').
+			require ABSPATH . WPINC . '/class-wp-connector-registry.php';
+			require ABSPATH . WPINC . '/connectors.php';
 
-		// Fonts (6 files).
-		require ABSPATH . WPINC . '/fonts/class-wp-font-face-resolver.php';
-		require ABSPATH . WPINC . '/fonts/class-wp-font-collection.php';
-		require ABSPATH . WPINC . '/fonts/class-wp-font-face.php';
-		require ABSPATH . WPINC . '/fonts/class-wp-font-library.php';
-		require ABSPATH . WPINC . '/fonts/class-wp-font-utils.php';
-		require ABSPATH . WPINC . '/fonts.php';
+			// Icons Registry (1 file).
+			require ABSPATH . WPINC . '/class-wp-icons-registry.php';
+
+			// Abilities API (6 files).
+			require ABSPATH . WPINC . '/abilities-api/class-wp-ability-category.php';
+			require ABSPATH . WPINC . '/abilities-api/class-wp-ability-categories-registry.php';
+			require ABSPATH . WPINC . '/abilities-api/class-wp-ability.php';
+			require ABSPATH . WPINC . '/abilities-api/class-wp-abilities-registry.php';
+			require ABSPATH . WPINC . '/abilities-api.php';
+			require ABSPATH . WPINC . '/abilities.php';
+
+			// Collaboration (4 files).
+			require ABSPATH . WPINC . '/collaboration/interface-wp-sync-storage.php';
+			require ABSPATH . WPINC . '/collaboration/class-wp-sync-post-meta-storage.php';
+			require ABSPATH . WPINC . '/collaboration/class-wp-http-polling-sync-server.php';
+			require ABSPATH . WPINC . '/collaboration.php';
+
+			// Sitemaps (10 files) — require_once for safe re-entry when sitemaps were
+			// previously loaded on a front-end sitemap URL before an autoloader triggered
+			// full platform loading.
+			require_once ABSPATH . WPINC . '/sitemaps.php';
+			require_once ABSPATH . WPINC . '/sitemaps/class-wp-sitemaps.php';
+			require_once ABSPATH . WPINC . '/sitemaps/class-wp-sitemaps-index.php';
+			require_once ABSPATH . WPINC . '/sitemaps/class-wp-sitemaps-provider.php';
+			require_once ABSPATH . WPINC . '/sitemaps/class-wp-sitemaps-registry.php';
+			require_once ABSPATH . WPINC . '/sitemaps/class-wp-sitemaps-renderer.php';
+			require_once ABSPATH . WPINC . '/sitemaps/class-wp-sitemaps-stylesheet.php';
+			require_once ABSPATH . WPINC . '/sitemaps/providers/class-wp-sitemaps-posts.php';
+			require_once ABSPATH . WPINC . '/sitemaps/providers/class-wp-sitemaps-taxonomies.php';
+			require_once ABSPATH . WPINC . '/sitemaps/providers/class-wp-sitemaps-users.php';
+		} else {
+			/*
+			 * Front-end: skip 22 admin-only subsystem files (Plugin Dependencies,
+			 * AI Client SDK, Connectors, Icons Registry, Abilities API,
+			 * Collaboration). View Transitions is loaded in Phase 1 (essential).
+			 * Remove 'init' hooks for deferred function-only files to prevent
+			 * fatal errors from undefined functions.
+			 */
+			remove_action( 'init', '_wp_connectors_init', 15 );
+
+			/*
+			 * Front-end: conditionally load Sitemaps (10 files) only when the request
+			 * URL indicates a sitemap or robots.txt resource. On typical page URLs
+			 * (/, /hello-world/, /category/...) the sitemap files and their 'init' hook
+			 * are skipped entirely.
+			 */
+			$_request_uri = isset( $_SERVER['REQUEST_URI'] ) ? $_SERVER['REQUEST_URI'] : '';
+			if ( false !== strpos( $_request_uri, '/wp-sitemap' ) || false !== strpos( $_request_uri, '/robots' ) ) {
+				require_once ABSPATH . WPINC . '/sitemaps.php';
+				require_once ABSPATH . WPINC . '/sitemaps/class-wp-sitemaps.php';
+				require_once ABSPATH . WPINC . '/sitemaps/class-wp-sitemaps-index.php';
+				require_once ABSPATH . WPINC . '/sitemaps/class-wp-sitemaps-provider.php';
+				require_once ABSPATH . WPINC . '/sitemaps/class-wp-sitemaps-registry.php';
+				require_once ABSPATH . WPINC . '/sitemaps/class-wp-sitemaps-renderer.php';
+				require_once ABSPATH . WPINC . '/sitemaps/class-wp-sitemaps-stylesheet.php';
+				require_once ABSPATH . WPINC . '/sitemaps/providers/class-wp-sitemaps-posts.php';
+				require_once ABSPATH . WPINC . '/sitemaps/providers/class-wp-sitemaps-taxonomies.php';
+				require_once ABSPATH . WPINC . '/sitemaps/providers/class-wp-sitemaps-users.php';
+			} else {
+				// Not a sitemap/robots URL — remove the sitemaps init hook to prevent
+				// calling the undefined wp_sitemaps_get_server() function.
+				remove_action( 'init', 'wp_sitemaps_get_server' );
+			}
+		}
 	}
 }
 add_action( 'plugins_loaded', '_wp_load_deferred_platform_subsystems', 0 );
@@ -741,7 +832,18 @@ spl_autoload_register(
 			return;
 		}
 
-		// Platform subsystem classes — trigger the deferred loader on first reference.
+		/*
+		 * Platform subsystem classes — trigger the deferred loader on first reference.
+		 *
+		 * Sets $_wp_force_full_platform_load to ensure the extended subsystems (admin-only
+		 * files) are loaded even on front-end requests. This handles the edge case where
+		 * a plugin or theme references a deferred class (e.g., WP_AI_Client_Cache,
+		 * WP_Connector_Registry) outside of admin context. Essential subsystem classes
+		 * (WP_Interactivity_API, WP_Style_Engine, WP_Font*, etc.) are already loaded on
+		 * all requests, so the autoloader is only reached for extended-subsystem classes
+		 * in practice. The force flag is harmless for essential classes — their require
+		 * statements have already executed and the essential_loaded guard skips them.
+		 */
 		if (
 			0 === strpos( $class_name, 'WP_Interactivity_API' )
 			|| 'WP_Plugin_Dependencies' === $class_name
@@ -760,6 +862,7 @@ spl_autoload_register(
 			|| 'WP_HTTP_Polling_Sync_Server' === $class_name
 			|| 0 === strpos( $class_name, 'WP_Sync_' )
 		) {
+			$GLOBALS['_wp_force_full_platform_load'] = true;
 			_wp_load_deferred_platform_subsystems();
 			return;
 		}
