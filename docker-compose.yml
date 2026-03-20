@@ -52,7 +52,9 @@ services:
       - ./:/var/www
 
     # Copy or delete the Memcached dropin plugin file as appropriate.
-    command: /bin/sh -c "if [ $LOCAL_PHP_MEMCACHED = true ]; then cp -n /var/www/tests/phpunit/includes/object-cache.php /var/www/src/wp-content/object-cache.php; else rm -f /var/www/src/wp-content/object-cache.php; fi && exec php-fpm"
+    # Copy the performance-instrumentation mu-plugin so Server-Timing
+    # headers are emitted on every request type (front-end, admin, REST, AJAX).
+    command: /bin/sh -c "if [ $LOCAL_PHP_MEMCACHED = true ]; then cp -n /var/www/tests/phpunit/includes/object-cache.php /var/www/src/wp-content/object-cache.php; else rm -f /var/www/src/wp-content/object-cache.php; fi && mkdir -p /var/www/src/wp-content/mu-plugins && cp /var/www/tests/performance/wp-content/mu-plugins/server-timing.php /var/www/src/wp-content/mu-plugins/server-timing.php && exec php-fpm"
 
     # The init directive ensures the command runs with a PID > 1, so Ctrl+C works correctly.
     init: true
