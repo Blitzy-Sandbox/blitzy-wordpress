@@ -87,7 +87,9 @@ add_filter(
 					}
 					$header_values[] = sprintf( 'wp-%1$s;dur=%2$s', $slug, $value );
 				}
-				header( 'Server-Timing: ' . implode( ', ', $header_values ) );
+				if ( ! headers_sent() ) {
+					header( 'Server-Timing: ' . implode( ', ', $header_values ) );
+				}
 
 				echo $output;
 			},
@@ -159,7 +161,9 @@ add_action(
 					}
 					$header_values[] = sprintf( 'wp-%1$s;dur=%2$s', $slug, $value );
 				}
-				header( 'Server-Timing: ' . implode( ', ', $header_values ) );
+				if ( ! headers_sent() ) {
+					header( 'Server-Timing: ' . implode( ', ', $header_values ) );
+				}
 
 				echo $output;
 			},
@@ -242,8 +246,12 @@ add_filter(
 		 * so adding headers to the $result WP_REST_Response object would be too late.
 		 * However, PHP has not yet started output (echo) at this point, so direct
 		 * header() calls are still valid and will be included in the response.
+		 *
+		 * Guard against headers already sent (e.g. PHPUnit test harness output).
 		 */
-		header( 'Server-Timing: ' . implode( ', ', $header_values ) );
+		if ( ! headers_sent() ) {
+			header( 'Server-Timing: ' . implode( ', ', $header_values ) );
+		}
 
 		return $served;
 	},
