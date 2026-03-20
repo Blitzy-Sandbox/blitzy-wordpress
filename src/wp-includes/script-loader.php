@@ -4311,9 +4311,14 @@ function wp_maybe_load_emoji_scripts() {
 	$load_emoji = apply_filters( 'wp_load_emoji_detection', false );
 
 	if ( ! $load_emoji ) {
+		/*
+		 * Remove only the JS emoji detection script from front-end pages.
+		 * Emoji CSS styles are preserved because the style dependency system
+		 * (wp_hoist_late_printed_styles and style concatenation) relies on
+		 * wp-emoji-styles being registered and enqueued for correct ordering.
+		 * The CSS is lightweight and does not trigger network requests.
+		 */
 		remove_action( 'wp_head', 'print_emoji_detection_script', 7 );
-		remove_action( 'wp_enqueue_scripts', 'wp_enqueue_emoji_styles' );
-		remove_action( 'wp_print_styles', 'print_emoji_styles' );
 	}
 }
 add_action( 'wp_loaded', 'wp_maybe_load_emoji_scripts' );

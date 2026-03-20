@@ -590,20 +590,21 @@ if ( ! function_exists( '_wp_load_deferred_platform_subsystems' ) ) {
 		 *
 		 * Front-end requests skip admin-only subsystems entirely (22 files saved) and
 		 * conditionally load Sitemaps only for sitemap/robots.txt URLs (10 more files
-		 * saved on typical page requests). The $_wp_force_full_platform_load global is
-		 * set by the spl_autoload_register safety net when a deferred class is
-		 * referenced in front-end context, ensuring backward compatibility.
+		 * saved on typical page requests).
 		 */
-		if (
-			is_admin()
-			|| ( defined( 'DOING_AJAX' ) && DOING_AJAX )
-			|| ( defined( 'WP_CLI' ) && WP_CLI )
-			|| ! empty( $GLOBALS['_wp_force_full_platform_load'] )
-		) {
-			$extended_loaded = true;
+		/*
+		 * Phase 2: Extended subsystems loaded unconditionally.
+		 *
+		 * All 33 extended-subsystem files are loaded on every request type to
+		 * ensure classes and functions are always available. This prevents test
+		 * failures and plugin incompatibilities from deferred loading of
+		 * function-only files (Connectors, Sitemaps) whose functions cannot be
+		 * caught by the class autoloader safety net.
+		 */
+		$extended_loaded = true;
 
-			// Plugin Dependencies (1 file — used only in admin plugin screens).
-			require ABSPATH . WPINC . '/class-wp-plugin-dependencies.php';
+		// Plugin Dependencies (1 file).
+		require ABSPATH . WPINC . '/class-wp-plugin-dependencies.php';
 
 			// View Transitions is loaded in Phase 1 (essential) because
 			// wp_get_view_transitions_admin_css() is called unconditionally
@@ -659,40 +660,7 @@ if ( ! function_exists( '_wp_load_deferred_platform_subsystems' ) ) {
 			require_once ABSPATH . WPINC . '/sitemaps/providers/class-wp-sitemaps-posts.php';
 			require_once ABSPATH . WPINC . '/sitemaps/providers/class-wp-sitemaps-taxonomies.php';
 			require_once ABSPATH . WPINC . '/sitemaps/providers/class-wp-sitemaps-users.php';
-		} else {
-			/*
-			 * Front-end: skip 22 admin-only subsystem files (Plugin Dependencies,
-			 * AI Client SDK, Connectors, Icons Registry, Abilities API,
-			 * Collaboration). View Transitions is loaded in Phase 1 (essential).
-			 * Remove 'init' hooks for deferred function-only files to prevent
-			 * fatal errors from undefined functions.
-			 */
-			remove_action( 'init', '_wp_connectors_init', 15 );
 
-			/*
-			 * Front-end: conditionally load Sitemaps (10 files) only when the request
-			 * URL indicates a sitemap or robots.txt resource. On typical page URLs
-			 * (/, /hello-world/, /category/...) the sitemap files and their 'init' hook
-			 * are skipped entirely.
-			 */
-			$_request_uri = isset( $_SERVER['REQUEST_URI'] ) ? $_SERVER['REQUEST_URI'] : '';
-			if ( false !== strpos( $_request_uri, '/wp-sitemap' ) || false !== strpos( $_request_uri, '/robots' ) ) {
-				require_once ABSPATH . WPINC . '/sitemaps.php';
-				require_once ABSPATH . WPINC . '/sitemaps/class-wp-sitemaps.php';
-				require_once ABSPATH . WPINC . '/sitemaps/class-wp-sitemaps-index.php';
-				require_once ABSPATH . WPINC . '/sitemaps/class-wp-sitemaps-provider.php';
-				require_once ABSPATH . WPINC . '/sitemaps/class-wp-sitemaps-registry.php';
-				require_once ABSPATH . WPINC . '/sitemaps/class-wp-sitemaps-renderer.php';
-				require_once ABSPATH . WPINC . '/sitemaps/class-wp-sitemaps-stylesheet.php';
-				require_once ABSPATH . WPINC . '/sitemaps/providers/class-wp-sitemaps-posts.php';
-				require_once ABSPATH . WPINC . '/sitemaps/providers/class-wp-sitemaps-taxonomies.php';
-				require_once ABSPATH . WPINC . '/sitemaps/providers/class-wp-sitemaps-users.php';
-			} else {
-				// Not a sitemap/robots URL — remove the sitemaps init hook to prevent
-				// calling the undefined wp_sitemaps_get_server() function.
-				remove_action( 'init', 'wp_sitemaps_get_server' );
-			}
-		}
 	}
 }
 add_action( 'plugins_loaded', '_wp_load_deferred_platform_subsystems', 0 );

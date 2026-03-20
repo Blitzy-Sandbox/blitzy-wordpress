@@ -337,6 +337,11 @@ class Tests_Pluggable_Signatures extends WP_UnitTestCase {
 					'wp_cache_add_non_persistent_groups' => array( 'groups' ),
 					'wp_cache_switch_to_blog'            => array( 'blog_id' ),
 					'wp_cache_reset'                     => array(),
+					'wp_cache_prime_posts'               => array( 'post_ids' ),
+					'wp_cache_prime_terms'               => array( 'term_ids' ),
+					'wp_cache_prime_users'               => array( 'user_ids' ),
+					'wp_cache_prime_comments'            => array( 'comment_ids' ),
+					'wp_cache_warm_options'              => array( 'option_names' ),
 				)
 			);
 		}

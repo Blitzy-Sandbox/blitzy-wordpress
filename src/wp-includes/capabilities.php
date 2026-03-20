@@ -45,69 +45,6 @@
 function map_meta_cap( $cap, $user_id, ...$args ) {
 	$caps = array();
 
-	/*
-	 * Performance optimization: memoize results for repeated capability checks
-	 * within the same request. The cache key includes all function inputs to
-	 * ensure correctness. The cache is invalidated when user, post, term, or
-	 * option data changes, or when meta auth callbacks are registered, via
-	 * _wp_clear_map_meta_cap_cache() and its companion hooks.
-	 *
-	 * @since 7.0.0
-	 */
-	static $memo = array();
-	static $memo_generation = 0;
-	static $hooks_registered = false;
-
-	// Register cache-clearing hooks on first invocation.
-	if ( ! $hooks_registered ) {
-		$hooks_registered = true;
-
-		// Invalidate when user, post, or term data changes.
-		add_action( 'clean_user_cache', '_wp_clear_map_meta_cap_cache' );
-		add_action( 'clean_post_cache', '_wp_clear_map_meta_cap_cache' );
-		add_action( 'clean_term_cache', '_wp_clear_map_meta_cap_cache' );
-
-		// Invalidate when options change (e.g. link_manager_enabled, page_for_posts).
-		// Uses a targeted callback that skips transient options to avoid excessive invalidation.
-		add_action( 'updated_option', '_wp_clear_map_meta_cap_cache_on_option_change' );
-		add_action( 'added_option', '_wp_clear_map_meta_cap_cache_on_option_change' );
-		add_action( 'deleted_option', '_wp_clear_map_meta_cap_cache_on_option_change' );
-
-		// Invalidate when meta auth callbacks change via register_meta().
-		add_filter( 'register_meta_args', '_wp_clear_map_meta_cap_cache_on_register_meta', 99 );
-
-		// Invalidate when post types are registered/unregistered (affects default case).
-		add_action( 'registered_post_type', '_wp_clear_map_meta_cap_cache' );
-		add_action( 'unregistered_post_type', '_wp_clear_map_meta_cap_cache' );
-	}
-
-	// Check if the cache was invalidated via generation counter.
-	global $_wp_map_meta_cap_generation;
-	if ( ! isset( $_wp_map_meta_cap_generation ) ) {
-		$_wp_map_meta_cap_generation = 0;
-	}
-	if ( $memo_generation !== $_wp_map_meta_cap_generation ) {
-		$memo            = array();
-		$memo_generation = $_wp_map_meta_cap_generation;
-	}
-
-	// Build a cache key from all inputs.
-	$cache_key = $cap . '|' . $user_id;
-	if ( ! empty( $args ) ) {
-		foreach ( $args as $arg ) {
-			if ( is_object( $arg ) ) {
-				$cache_key .= '|o' . spl_object_id( $arg );
-			} else {
-				$cache_key .= '|' . $arg;
-			}
-		}
-	}
-
-	// Return the cached result if available.
-	if ( isset( $memo[ $cache_key ] ) ) {
-		return $memo[ $cache_key ];
-	}
-
 	switch ( $cap ) {
 		case 'remove_user':
 			// In multisite the user must be a super admin to remove themselves.
@@ -903,10 +840,7 @@ function map_meta_cap( $cap, $user_id, ...$args ) {
 			// Handle meta capabilities for custom post types.
 			global $post_type_meta_caps;
 			if ( isset( $post_type_meta_caps[ $cap ] ) ) {
-				$mapped_caps = map_meta_cap( $post_type_meta_caps[ $cap ], $user_id, ...$args );
-				// Cache the result for repeated lookups of this custom meta cap.
-				$memo[ $cache_key ] = $mapped_caps;
-				return $mapped_caps;
+				return map_meta_cap( $post_type_meta_caps[ $cap ], $user_id, ...$args );
 			}
 
 			// Block capabilities map to their post equivalent.
@@ -943,9 +877,6 @@ function map_meta_cap( $cap, $user_id, ...$args ) {
 	 *                          starting with an object ID.
 	 */
 	$caps = apply_filters( 'map_meta_cap', $caps, $cap, $user_id, $args );
-
-	// Store the post-filter result in the memoization cache.
-	$memo[ $cache_key ] = $caps;
 
 	return $caps;
 }
@@ -1148,34 +1079,7 @@ function user_can( $user, $capability, ...$args ) {
 		$user->init( new stdClass() );
 	}
 
-	/*
-	 * Check the per-request capability result cache for an early return.
-	 *
-	 * This avoids the full has_cap() → map_meta_cap() → user_has_cap filter
-	 * chain on repeated identical capability checks within a single request
-	 * (e.g., multiple current_user_can('edit_posts') calls during template
-	 * rendering or REST API serialization).
-	 *
-	 * The function_exists() guard handles the early bootstrap window where
-	 * capabilities.php (line 188 in wp-settings.php) is loaded before
-	 * user.php (line 213) which defines the cache functions.
-	 */
-	if ( function_exists( '_wp_get_user_capability_cache' ) ) {
-		$cached = _wp_get_user_capability_cache( $user->ID, $capability, $args );
-
-		if ( null !== $cached ) {
-			return $cached;
-		}
-	}
-
-	$result = $user->has_cap( $capability, ...$args );
-
-	// Store the computed result in the per-request capability cache.
-	if ( function_exists( '_wp_set_user_capability_cache' ) ) {
-		_wp_set_user_capability_cache( $user->ID, $capability, $args, $result );
-	}
-
-	return $result;
+	return $user->has_cap( $capability, ...$args );
 }
 
 /**

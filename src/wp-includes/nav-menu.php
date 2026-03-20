@@ -758,7 +758,20 @@ function wp_get_nav_menu_items( $menu, $args = array() ) {
 	$last_changed = wp_cache_get_last_changed( 'posts' );
 	$cache_key    = $menu->term_id . ':' . $last_changed . ':' . md5( serialize( $args ) );
 	if ( isset( $menu_items_cache[ $cache_key ] ) ) {
-		return $menu_items_cache[ $cache_key ];
+		/*
+		 * Return deep-cloned copies from pre-filter cache and always
+		 * apply the filter so that Customizer preview filters and any
+		 * other dynamic filters take effect on every call.
+		 */
+		$cached_items = array_map(
+			static function ( $item ) {
+				return clone $item;
+			},
+			$menu_items_cache[ $cache_key ]
+		);
+
+		/** This filter is documented below in this function. */
+		return apply_filters( 'wp_get_nav_menu_items', $cached_items, $menu, $args );
 	}
 
 	if ( $menu->count > 0 ) {
@@ -817,13 +830,12 @@ function wp_get_nav_menu_items( $menu, $args = array() ) {
 	 * @param object $menu  The menu object.
 	 * @param array  $args  An array of arguments used to retrieve menu item objects.
 	 */
-	$items = apply_filters( 'wp_get_nav_menu_items', $items, $menu, $args );
-
 	/*
-	 * Store deep copies in the static cache to prevent external code (e.g.,
-	 * Walker_Nav_Menu adding CSS classes) from mutating the cached objects.
-	 * PHP objects are reference-counted, so without cloning, modifications
-	 * made by the caller would leak into the cache and corrupt future reads.
+	 * Store deep copies of PRE-FILTER results in the static cache.
+	 * Caching before apply_filters() ensures that dynamic filter changes
+	 * (e.g., Customizer preview adding/removing items) always take effect
+	 * on subsequent calls. Deep cloning prevents Walker_Nav_Menu CSS class
+	 * additions from mutating the cached objects.
 	 */
 	$menu_items_cache[ $cache_key ] = array_map(
 		static function ( $item ) {
@@ -831,6 +843,8 @@ function wp_get_nav_menu_items( $menu, $args = array() ) {
 		},
 		$items
 	);
+
+	$items = apply_filters( 'wp_get_nav_menu_items', $items, $menu, $args );
 
 	return $items;
 }
