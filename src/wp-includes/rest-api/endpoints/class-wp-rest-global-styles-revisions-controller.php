@@ -247,6 +247,17 @@ class WP_REST_Global_Styles_Revisions_Controller extends WP_REST_Revisions_Contr
 		if ( ! $is_head_request ) {
 			$response = array();
 
+			/*
+			 * Batch-prime post meta cache for all revision IDs to eliminate
+			 * N+1 queries in prepare_item_for_response(). Each revision
+			 * serialization may call get_post_meta() for custom fields;
+			 * priming here serves them from the object cache.
+			 */
+			$revision_ids = wp_list_pluck( $revisions, 'ID' );
+			if ( ! empty( $revision_ids ) ) {
+				update_postmeta_cache( $revision_ids );
+			}
+
 			foreach ( $revisions as $revision ) {
 				$data       = $this->prepare_item_for_response( $revision, $request );
 				$response[] = $this->prepare_response_for_collection( $data );

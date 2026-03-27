@@ -367,6 +367,19 @@ class WP_REST_Revisions_Controller extends WP_REST_Controller {
 		if ( ! $is_head_request ) {
 			$response = array();
 
+			/*
+			 * Batch-prime post meta cache for all revision IDs to eliminate
+			 * N+1 queries in prepare_item_for_response().
+			 *
+			 * Each call to prepare_item_for_response() may trigger individual
+			 * get_post_meta() lookups. By priming the cache in a single query,
+			 * subsequent per-revision meta reads are served from the object cache.
+			 */
+			$revision_ids = wp_list_pluck( $revisions, 'ID' );
+			if ( ! empty( $revision_ids ) ) {
+				update_postmeta_cache( $revision_ids );
+			}
+
 			foreach ( $revisions as $revision ) {
 				$data       = $this->prepare_item_for_response( $revision, $request );
 				$response[] = $this->prepare_response_for_collection( $data );

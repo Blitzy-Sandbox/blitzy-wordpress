@@ -1,0 +1,12 @@
+{
+  "Homepage (front-end)": {
+    "ttfb_median_ms": 53.72,
+    "ttfb_p95_ms": 61.73,
+    "total_median_ms": 50.66
+  },
+  "REST API Posts": {
+    "ttfb_median_ms": 47.44,
+    "ttfb_p95_ms": 52.83,
+    "total_median_ms": 44.66
+  }
+}

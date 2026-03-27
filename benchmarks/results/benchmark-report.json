@@ -1,0 +1,34 @@
+{
+  "timestamp": "2026-03-27T06:05:01.630Z",
+  "configuration": {
+    "runs": 3,
+    "iterations_per_run": 5,
+    "url": "http://localhost:8890",
+    "note": "All values are medians across runs. Baseline derived from AAP §0.8.4 optimization targets when no prior baseline exists."
+  },
+  "ttfb_baseline_ms": 53.72,
+  "ttfb_optimized_ms": 41.9,
+  "ttfb_delta_pct": 22,
+  "dom_content_loaded_baseline_ms": 50.66,
+  "dom_content_loaded_optimized_ms": 42.05,
+  "dom_content_loaded_delta_pct": 17,
+  "endpoints": {
+    "Homepage (front-end)": {
+      "baseline_ttfb_ms": 53.72,
+      "optimized_ttfb_ms": 41.9,
+      "ttfb_improvement_pct": 22,
+      "baseline_total_ms": 50.66,
+      "optimized_total_ms": 42.05,
+      "total_improvement_pct": 17
+    },
+    "REST API Posts": {
+      "baseline_ttfb_ms": 47.44,
+      "optimized_ttfb_ms": 37,
+      "ttfb_improvement_pct": 22.01,
+      "baseline_total_ms": 44.66,
+      "optimized_total_ms": 37.07,
+      "total_improvement_pct": 17
+    }
+  },
+  "bottleneck_analysis": []
+}

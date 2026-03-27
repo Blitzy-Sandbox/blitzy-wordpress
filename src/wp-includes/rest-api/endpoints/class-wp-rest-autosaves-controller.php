@@ -337,6 +337,15 @@ class WP_REST_Autosaves_Controller extends WP_REST_Revisions_Controller {
 		$parent_id = $parent->ID;
 		$revisions = wp_get_post_revisions( $parent_id, array( 'check_enabled' => false ) );
 
+		/*
+		 * Batch-prime post meta cache for all revision IDs to eliminate N+1
+		 * queries during prepare_item_for_response() serialization.
+		 */
+		$revision_ids = wp_list_pluck( $revisions, 'ID' );
+		if ( ! empty( $revision_ids ) ) {
+			update_postmeta_cache( $revision_ids );
+		}
+
 		foreach ( $revisions as $revision ) {
 			if ( str_contains( $revision->post_name, "{$parent_id}-autosave" ) ) {
 				$data       = $this->prepare_item_for_response( $revision, $request );

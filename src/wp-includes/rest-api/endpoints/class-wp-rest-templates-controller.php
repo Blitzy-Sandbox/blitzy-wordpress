@@ -285,8 +285,26 @@ class WP_REST_Templates_Controller extends WP_REST_Controller {
 			$query['post_type'] = $request['post_type'];
 		}
 
-		$templates = array();
-		foreach ( get_block_templates( $query, $this->post_type ) as $template ) {
+		$templates      = array();
+		$block_templates = get_block_templates( $query, $this->post_type );
+
+		/*
+		 * Batch-prime post meta cache for all template post IDs to eliminate
+		 * N+1 queries during prepare_item_for_response() serialization.
+		 * Template objects backed by DB posts (wp_id > 0) may trigger
+		 * individual get_post_meta() calls during response preparation.
+		 */
+		$template_post_ids = array();
+		foreach ( $block_templates as $tmpl ) {
+			if ( ! empty( $tmpl->wp_id ) ) {
+				$template_post_ids[] = $tmpl->wp_id;
+			}
+		}
+		if ( ! empty( $template_post_ids ) ) {
+			update_postmeta_cache( $template_post_ids );
+		}
+
+		foreach ( $block_templates as $template ) {
 			$data        = $this->prepare_item_for_response( $template, $request );
 			$templates[] = $this->prepare_response_for_collection( $data );
 		}

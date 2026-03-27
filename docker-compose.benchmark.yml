@@ -1,0 +1,229 @@
+##
+# Docker Compose Benchmark Environment
+#
+# Purpose: Measures TTFB and DOMContentLoaded against a baseline configuration.
+# Usage:
+#   docker compose -f docker-compose.benchmark.yml up --abort-on-container-exit
+#
+# Produces: benchmarks/results/benchmark-report.json
+#   Contains: ttfb_baseline_ms, ttfb_optimized_ms, ttfb_delta_pct,
+#             dom_content_loaded_baseline_ms, dom_content_loaded_optimized_ms,
+#             dom_content_loaded_delta_pct
+#
+# Architecture:
+#   1. wordpress-benchmark (Nginx) — serves the optimized WordPress build
+#   2. php-benchmark (PHP-FPM) — runs the PHP application with Server-Timing headers
+#   3. mysql-benchmark (MySQL 8.0) — database backend
+#   4. benchmark-runner (Node.js) — executes Playwright-based performance collection
+#      and generates the JSON diff report
+##
+
+services:
+
+  ##
+  # Nginx web server serving the WordPress build.
+  # Uses the same nginx template as the primary docker-compose.yml.
+  # The template references 'php:9000' as the FastCGI upstream, so
+  # the PHP service below uses a network alias 'php' on benchnet.
+  ##
+  wordpress-benchmark:
+    image: nginx:alpine
+    networks:
+      benchnet:
+        aliases:
+          - wordpress-benchmark
+    ports:
+      - "8890:80"
+    environment:
+      LOCAL_DIR: src
+    volumes:
+      - ./tools/local-env/default.template:/etc/nginx/conf.d/default.template
+      - ./:/var/www
+    command: /bin/sh -c "envsubst '$$LOCAL_DIR' < /etc/nginx/conf.d/default.template > /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'"
+    depends_on:
+      php:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:80/ || exit 1"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      start_period: 15s
+
+  ##
+  # PHP-FPM container with Server-Timing instrumentation mu-plugin.
+  # Service name 'php' matches the FastCGI upstream in default.template.
+  ##
+  php:
+    image: wordpressdevelop/php:${LOCAL_PHP-latest}
+    networks:
+      - benchnet
+    environment:
+      LOCAL_PHP_XDEBUG: "false"
+      LOCAL_PHP_MEMCACHED: "false"
+      PHP_FPM_UID: ${PHP_FPM_UID-1000}
+      PHP_FPM_GID: ${PHP_FPM_GID-1000}
+      GITHUB_REF: "false"
+      GITHUB_EVENT_NAME: "false"
+    volumes:
+      - ./tools/local-env/php-config.ini:/usr/local/etc/php/conf.d/php-config.ini
+      - ./:/var/www
+    command: >
+      /bin/sh -c "
+        rm -f /var/www/src/wp-content/object-cache.php &&
+        mkdir -p /var/www/src/wp-content/mu-plugins &&
+        cp /var/www/tests/performance/wp-content/mu-plugins/server-timing.php /var/www/src/wp-content/mu-plugins/server-timing.php &&
+        exec php-fpm
+      "
+    init: true
+    extra_hosts:
+      - localhost:host-gateway
+
+  ##
+  # MySQL 8.0 database for benchmarking.
+  # Service name 'mysql' matches the default WP DB_HOST configuration.
+  ##
+  mysql:
+    image: mysql:8.0
+    networks:
+      - benchnet
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+    volumes:
+      - ./tools/local-env/mysql-init.sql:/docker-entrypoint-initdb.d/mysql-init.sql
+      - benchmark-mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost"]
+      timeout: 5s
+      interval: 5s
+      retries: 10
+
+  ##
+  # WP-CLI container for initial WordPress setup (install, seed content).
+  # Creates wp-config.php, installs WordPress, and seeds benchmark data.
+  ##
+  cli:
+    image: wordpressdevelop/cli:${LOCAL_PHP-latest}
+    networks:
+      - benchnet
+    environment:
+      LOCAL_PHP_XDEBUG: "false"
+      LOCAL_PHP_MEMCACHED: "false"
+    volumes:
+      - ./:/var/www
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        WP_PATH="/var/www/src"
+        echo "=== WordPress Benchmark Setup ==="
+        echo "Waiting for MySQL to be ready..."
+        for i in $$(seq 1 30); do
+          if wp db check --path=$$WP_PATH --dbuser=root --dbpass=password --dbhost=mysql --allow-root 2>/dev/null; then
+            echo "MySQL is ready."
+            break
+          fi
+          sleep 2
+        done
+
+        # Create wp-config.php if it doesn't exist.
+        if [ ! -f "$$WP_PATH/wp-config.php" ]; then
+          echo "Creating wp-config.php..."
+          wp config create \
+            --path=$$WP_PATH \
+            --dbname=wordpress_develop \
+            --dbuser=root \
+            --dbpass=password \
+            --dbhost=mysql \
+            --force \
+            --allow-root 2>/dev/null || true
+          # Enable SAVEQUERIES for benchmark instrumentation.
+          wp config set SAVEQUERIES true --raw --type=constant --path=$$WP_PATH --allow-root 2>/dev/null || true
+          wp config set WP_DEBUG false --raw --type=constant --path=$$WP_PATH --allow-root 2>/dev/null || true
+        fi
+
+        # Install WordPress if not already installed.
+        if ! wp core is-installed --path=$$WP_PATH --allow-root 2>/dev/null; then
+          echo "Installing WordPress..."
+          wp db reset --yes --path=$$WP_PATH --allow-root 2>/dev/null || true
+          wp core install \
+            --path=$$WP_PATH \
+            --url=http://wordpress-benchmark \
+            --title="Benchmark Site" \
+            --admin_user=admin \
+            --admin_password=password \
+            --admin_email=admin@example.com \
+            --skip-email \
+            --allow-root 2>/dev/null || true
+          wp rewrite structure '/%year%/%monthnum%/%postname%/' --path=$$WP_PATH --allow-root 2>/dev/null || true
+        fi
+
+        # Seed content for representative benchmarks.
+        echo "Seeding benchmark content..."
+        wp post generate --path=$$WP_PATH --count=50 --post_status=publish --allow-root 2>/dev/null || true
+        wp term generate category --path=$$WP_PATH --count=10 --allow-root 2>/dev/null || true
+        wp comment generate --path=$$WP_PATH --count=100 --allow-root 2>/dev/null || true
+        echo "WordPress benchmark environment seeded."
+
+        # Signal readiness.
+        mkdir -p /var/www/benchmarks
+        touch /var/www/benchmarks/.wp-ready
+        echo "=== Setup complete, waiting indefinitely ==="
+        sleep infinity
+    init: true
+    depends_on:
+      wordpress-benchmark:
+        condition: service_healthy
+
+  ##
+  # Benchmark runner — executes performance measurements and produces report.
+  ##
+  benchmark-runner:
+    image: node:20-slim
+    networks:
+      - benchnet
+    working_dir: /app
+    volumes:
+      - ./:/app
+      - ./benchmarks/results:/app/benchmarks/results
+    environment:
+      BENCHMARK_URL: "http://wordpress-benchmark"
+      BENCHMARK_RUNS: "3"
+      BENCHMARK_ITERATIONS: "5"
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        echo "=== WordPress Performance Benchmark Runner ==="
+        # Wait for WordPress readiness signal from cli.
+        echo "Waiting for WordPress to be ready..."
+        for i in $$(seq 1 120); do
+          if [ -f /app/benchmarks/.wp-ready ]; then
+            echo "WordPress is ready."
+            break
+          fi
+          if [ "$$i" = "120" ]; then
+            echo "WARNING: Timed out waiting for WP setup, proceeding anyway..."
+          fi
+          sleep 2
+        done
+
+        mkdir -p /app/benchmarks/results
+
+        # Execute the benchmark script.
+        node /app/benchmarks/run-benchmark.js
+
+        echo "=== Benchmark complete ==="
+        echo "Results written to /app/benchmarks/results/benchmark-report.json"
+    depends_on:
+      cli:
+        condition: service_started
+
+volumes:
+  benchmark-mysql: {}
+
+networks:
+  benchnet:
+    driver: bridge

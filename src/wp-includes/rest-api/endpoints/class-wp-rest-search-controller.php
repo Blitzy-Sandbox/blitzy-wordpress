@@ -146,6 +146,16 @@ class WP_REST_Search_Controller extends WP_REST_Controller {
 		if ( ! $is_head_request ) {
 			$results = array();
 
+			/*
+			 * Batch-prime post caches for all result IDs to eliminate N+1
+			 * queries in prepare_item_for_response(). Search results are
+			 * typically post IDs; priming ensures post data, meta, and
+			 * terms are loaded in batch queries rather than per-result.
+			 */
+			if ( ! empty( $ids ) ) {
+				_prime_post_caches( (array) $ids, true, true );
+			}
+
 			foreach ( $ids as $id ) {
 				$data      = $this->prepare_item_for_response( $id, $request );
 				$results[] = $this->prepare_response_for_collection( $data );
