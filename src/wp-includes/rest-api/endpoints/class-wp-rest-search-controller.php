@@ -148,11 +148,12 @@ class WP_REST_Search_Controller extends WP_REST_Controller {
 
 			/*
 			 * Batch-prime post caches for all result IDs to eliminate N+1
-			 * queries in prepare_item_for_response(). Search results are
-			 * typically post IDs; priming ensures post data, meta, and
-			 * terms are loaded in batch queries rather than per-result.
+			 * queries in prepare_item_for_response(). Only applies to the
+			 * 'post' search type where IDs are integer post IDs; other
+			 * search types (e.g. 'post-format', 'term') return string
+			 * identifiers that are not valid post IDs.
 			 */
-			if ( ! empty( $ids ) ) {
+			if ( ! empty( $ids ) && 'post' === $handler->get_type() ) {
 				_prime_post_caches( (array) $ids, true, true );
 			}
 

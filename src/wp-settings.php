@@ -289,6 +289,7 @@ require ABSPATH . WPINC . '/class-wp-http-encoding.php';
 require ABSPATH . WPINC . '/class-wp-http-response.php';
 require ABSPATH . WPINC . '/class-wp-http-requests-response.php';
 require ABSPATH . WPINC . '/class-wp-http-requests-hooks.php';
+
 /*
  * Performance: AI Client SDK (8 files), Connectors (2 files), Icons Registry (1 file),
  * Abilities API (6 files), and Collaboration (4 files) are deferred to 'plugins_loaded'
@@ -312,6 +313,7 @@ require ABSPATH . WPINC . '/rest-api/class-wp-rest-server.php';
 require ABSPATH . WPINC . '/rest-api/class-wp-rest-response.php';
 require ABSPATH . WPINC . '/rest-api/class-wp-rest-request.php';
 require ABSPATH . WPINC . '/rest-api/endpoints/class-wp-rest-controller.php';
+
 /*
  * Performance: REST endpoint controllers (44 files), field handlers (5 files), and
  * search handlers (4 files) are deferred to 'rest_api_init' (priority 0). These 53
@@ -334,6 +336,7 @@ require ABSPATH . WPINC . '/rest-api/endpoints/class-wp-rest-controller.php';
  * @see _wp_load_deferred_platform_subsystems()
  * @since 7.0.0
  */
+
 /*
  * Performance: Block editor infrastructure (48 files) is deferred to 'plugins_loaded'
  * (priority 0). Block types, block supports, block bindings, block patterns, the block
@@ -497,24 +500,22 @@ add_action( 'plugins_loaded', '_wp_load_block_editor_infrastructure', 0 );
  *   in script-loader.php calls wp_get_view_transitions_admin_css() unconditionally
  *   whenever WP_Styles is constructed.
  *
- * Phase 2 (Extended — 32 files, context-dependent):
- *   Admin/AJAX/CLI/autoloader: loads ALL remaining subsystems — Plugin Dependencies (1),
- *   AI Client SDK (8), Connectors (2), Icons Registry (1),
- *   Abilities API (6), Collaboration (4), Sitemaps (10).
- *
- *   Front-end: skips 22 admin-only files entirely. Conditionally loads Sitemaps (10)
- *   only for sitemap/robots.txt URLs. On a typical front-end page request, this saves
- *   32 files compared to full loading.
+ * Phase 2 (Extended — 33 files, ALL requests):
+ *   All remaining subsystems are loaded unconditionally on every request type:
+ *   Plugin Dependencies (1), AI Client SDK (8), Connectors (2), Icons Registry (1),
+ *   Abilities API (6), Collaboration (4), Sitemaps (10), URL Pattern Prefixer (1).
+ *   This ensures classes and functions are always available, preventing test failures
+ *   and plugin incompatibilities from deferred loading of function-only files whose
+ *   functions cannot be caught by the class autoloader safety net.
  *
  * Hooked to 'plugins_loaded' at priority 0, ensuring all deferred files are available
  * before any plugin's default-priority 'plugins_loaded' callbacks fire. The relative
  * load order within each subsystem is preserved from the original bootstrap sequence.
  *
  * A class autoloader registered via spl_autoload_register provides a safety net:
- * if any deferred class is referenced before 'plugins_loaded' fires or on front-end
- * when extended subsystems are skipped, the autoloader sets the global
- * $_wp_force_full_platform_load flag and re-enters this function to load all
- * extended files, preserving backward compatibility.
+ * if any deferred class is referenced before 'plugins_loaded' fires, the autoloader
+ * triggers this function to load all deferred files immediately, preserving backward
+ * compatibility.
  *
  * @since 7.0.0
  * @access private
@@ -581,17 +582,6 @@ if ( ! function_exists( '_wp_load_deferred_platform_subsystems' ) ) {
 			require ABSPATH . WPINC . '/view-transitions.php';
 		}
 
-		/*
-		 * Phase 2: Extended subsystems loaded context-dependently.
-		 *
-		 * Admin, AJAX, CLI, and autoloader-triggered contexts load ALL 33 remaining
-		 * files (Plugin Dependencies, View Transitions, AI Client SDK, Connectors,
-		 * Icons Registry, Abilities API, Collaboration, Sitemaps).
-		 *
-		 * Front-end requests skip admin-only subsystems entirely (22 files saved) and
-		 * conditionally load Sitemaps only for sitemap/robots.txt URLs (10 more files
-		 * saved on typical page requests).
-		 */
 		/*
 		 * Phase 2: Extended subsystems loaded unconditionally.
 		 *
@@ -660,7 +650,6 @@ if ( ! function_exists( '_wp_load_deferred_platform_subsystems' ) ) {
 			require_once ABSPATH . WPINC . '/sitemaps/providers/class-wp-sitemaps-posts.php';
 			require_once ABSPATH . WPINC . '/sitemaps/providers/class-wp-sitemaps-taxonomies.php';
 			require_once ABSPATH . WPINC . '/sitemaps/providers/class-wp-sitemaps-users.php';
-
 	}
 }
 add_action( 'plugins_loaded', '_wp_load_deferred_platform_subsystems', 0 );

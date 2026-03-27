@@ -63,9 +63,11 @@ function wp_print_styles( $handles = false ) {
 		if ( ! $handles ) {
 			return array(); // No need to instantiate if nothing is there.
 		}
+		// Performance: Inline initialization avoids wp_styles() function call overhead.
+		$wp_styles = new WP_Styles();
 	}
 
-	return wp_styles()->do_items( $handles );
+	return $wp_styles->do_items( $handles );
 }
 
 /**
@@ -101,7 +103,13 @@ function wp_add_inline_style( $handle, $data ) {
 		$data = trim( (string) preg_replace( '#<style[^>]*>(.*)</style>#is', '$1', $data ) );
 	}
 
-	return wp_styles()->add_inline_style( $handle, $data );
+	global $wp_styles;
+
+	if ( ! ( $wp_styles instanceof WP_Styles ) ) {
+		$wp_styles = new WP_Styles();
+	}
+
+	return $wp_styles->add_inline_style( $handle, $data );
 }
 
 /**
@@ -129,7 +137,13 @@ function wp_add_inline_style( $handle, $data ) {
 function wp_register_style( $handle, $src, $deps = array(), $ver = false, $media = 'all' ) {
 	_wp_scripts_maybe_doing_it_wrong( __FUNCTION__, $handle );
 
-	return wp_styles()->add( $handle, $src, $deps, $ver, $media );
+	global $wp_styles;
+
+	if ( ! ( $wp_styles instanceof WP_Styles ) ) {
+		$wp_styles = new WP_Styles();
+	}
+
+	return $wp_styles->add( $handle, $src, $deps, $ver, $media );
 }
 
 /**
@@ -144,7 +158,13 @@ function wp_register_style( $handle, $src, $deps = array(), $ver = false, $media
 function wp_deregister_style( $handle ) {
 	_wp_scripts_maybe_doing_it_wrong( __FUNCTION__, $handle );
 
-	wp_styles()->remove( $handle );
+	global $wp_styles;
+
+	if ( ! ( $wp_styles instanceof WP_Styles ) ) {
+		$wp_styles = new WP_Styles();
+	}
+
+	$wp_styles->remove( $handle );
 }
 
 /**
@@ -173,7 +193,11 @@ function wp_deregister_style( $handle ) {
 function wp_enqueue_style( $handle, $src = '', $deps = array(), $ver = false, $media = 'all' ) {
 	_wp_scripts_maybe_doing_it_wrong( __FUNCTION__, $handle );
 
-	$wp_styles = wp_styles();
+	global $wp_styles;
+
+	if ( ! ( $wp_styles instanceof WP_Styles ) ) {
+		$wp_styles = new WP_Styles();
+	}
 
 	if ( $src ) {
 		$_handle = explode( '?', $handle );
@@ -195,7 +219,13 @@ function wp_enqueue_style( $handle, $src = '', $deps = array(), $ver = false, $m
 function wp_dequeue_style( $handle ) {
 	_wp_scripts_maybe_doing_it_wrong( __FUNCTION__, $handle );
 
-	wp_styles()->dequeue( $handle );
+	global $wp_styles;
+
+	if ( ! ( $wp_styles instanceof WP_Styles ) ) {
+		$wp_styles = new WP_Styles();
+	}
+
+	$wp_styles->dequeue( $handle );
 }
 
 /**
@@ -211,7 +241,13 @@ function wp_dequeue_style( $handle ) {
 function wp_style_is( $handle, $status = 'enqueued' ) {
 	_wp_scripts_maybe_doing_it_wrong( __FUNCTION__, $handle );
 
-	return (bool) wp_styles()->query( $handle, $status );
+	global $wp_styles;
+
+	if ( ! ( $wp_styles instanceof WP_Styles ) ) {
+		$wp_styles = new WP_Styles();
+	}
+
+	return (bool) $wp_styles->query( $handle, $status );
 }
 
 /**
@@ -242,5 +278,11 @@ function wp_style_is( $handle, $status = 'enqueued' ) {
  * @return bool True on success, false on failure.
  */
 function wp_style_add_data( $handle, $key, $value ) {
-	return wp_styles()->add_data( $handle, $key, $value );
+	global $wp_styles;
+
+	if ( ! ( $wp_styles instanceof WP_Styles ) ) {
+		$wp_styles = new WP_Styles();
+	}
+
+	return $wp_styles->add_data( $handle, $key, $value );
 }
