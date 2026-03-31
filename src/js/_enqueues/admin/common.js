@@ -752,7 +752,7 @@ $permalinkStructure.on( 'focus', function( event ) {
  *
  * @param {Object} button Button jQuery object.
  */
-function changeStructureTagButtonState( button ) {
+var changeStructureTagButtonState = function( button ) {
 	if ( -1 !== $permalinkStructure.val().indexOf( button.text().trim() ) ) {
 		button.attr( 'data-label', button.attr( 'aria-label' ) );
 		button.attr( 'aria-label', button.attr( 'data-used' ) );
@@ -763,7 +763,7 @@ function changeStructureTagButtonState( button ) {
 		button.attr( 'aria-pressed', false );
 		button.removeClass( 'active' );
 	}
-}
+};
 
 // Check initial button state.
 $availableStructureTags.each( function() {

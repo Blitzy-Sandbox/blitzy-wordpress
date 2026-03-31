@@ -3,6 +3,7 @@
  */
 
 /* eslint-env es6 */
+/* global requestIdleCallback */
 
 // Note: This is loaded as a script module, so there is no need for an IIFE to prevent pollution of the global scope.
 
