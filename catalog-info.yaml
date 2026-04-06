@@ -10,6 +10,7 @@ metadata:
   labels:
     blitzy.com/language: php
   annotations:
+    backstage.io/techdocs-ref: dir:.
     github.com/project-slug: Blitzy-Sandbox/blitzy-wordpress
     backstage.io/source-location: url:https://github.com/Blitzy-Sandbox/blitzy-wordpress/tree/trunk/
   links:
