@@ -1,0 +1,29 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: blitzy-wordpress
+  description: "WordPress 7.0 cross-cutting performance optimization — PHP runtime, database, cache, JS delivery, and observability"
+  tags:
+    - php
+    - web-app
+    - in-progress
+  labels:
+    blitzy.com/status: in-progress
+    blitzy.com/language: php
+  annotations:
+    github.com/project-slug: Blitzy-Sandbox/blitzy-wordpress
+    backstage.io/source-location: url:https://github.com/Blitzy-Sandbox/blitzy-wordpress/tree/trunk/
+  links:
+    - url: https://github.com/Blitzy-Sandbox/blitzy-wordpress
+      title: GitHub Repository
+    - url: https://github.com/Blitzy-Sandbox/blitzy-wordpress/pull/1
+      title: "PR #1: WP 7.0 Performance Optimization"
+      icon: github
+    - url: https://github.com/Blitzy-Sandbox/blitzy-wordpress/tree/trunk/blitzy/documentation
+      title: Blitzy Documentation
+      icon: docs
+spec:
+  type: website
+  lifecycle: experimental
+  owner: blitzy-sandbox
+  system: blitzy-sandbox-projects
