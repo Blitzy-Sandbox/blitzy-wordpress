@@ -6,9 +6,8 @@ metadata:
   tags:
     - php
     - web-app
-    - in-progress
+    - refactor
   labels:
-    blitzy.com/status: in-progress
     blitzy.com/language: php
   annotations:
     github.com/project-slug: Blitzy-Sandbox/blitzy-wordpress
