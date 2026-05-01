@@ -3,6 +3,10 @@ nav:
   - Home: index.md
   - Project Guide: project-guide.md
   - Technical Specifications: technical-specifications.md
+  - Decision Log: decision-log.md
+  - Documentation Coverage: documentation-coverage-report.md
+  - Documentation Style Guide: documentation-style-guide.md
+  - Architecture Diagrams: architecture-diagrams.md
 plugins:
   - techdocs-core
   - mermaid2
