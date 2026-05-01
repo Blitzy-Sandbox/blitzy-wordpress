@@ -3,9 +3,15 @@
  * Confirms that the activation key that is sent in an email after a user signs
  * up for a new site matches the key for that user and then displays confirmation.
  *
+ * Multisite-only endpoint. On single-site installs, redirects to
+ * wp_registration_url(). The activation key is read from $_GET['key'],
+ * $_POST['key'], or the wp-activate-{COOKIEHASH} cookie (in that priority).
+ *
  * @package WordPress
  */
 
+// SECURITY: WP_INSTALLING short-circuits get_option() defaults and skips
+// plugin loading; activation must run before site setup completes.
 define( 'WP_INSTALLING', true );
 
 /** Sets up the WordPress Environment. */
@@ -13,19 +19,33 @@ require __DIR__ . '/wp-load.php';
 
 require __DIR__ . '/wp-blog-header.php';
 
+// SECTION: Multisite gate.
+//
+// Single-site installs use wp-login.php?action=register; redirect there.
 if ( ! is_multisite() ) {
 	wp_redirect( wp_registration_url() );
 	die();
 }
 
+// These error codes are not "real" failures -- they mean the visitor is
+// following a stale link to an already-active signup. Render confirmation
+// rather than an error page.
 $valid_error_codes = array( 'already_active', 'blog_taken' );
 
+// QUIRK: explode-and-list pattern grabs only the path portion of REQUEST_URI
+// for cookie scoping; the query string is intentionally discarded. The
+// cookie name is per-install (COOKIEHASH derives from siteurl) so multiple
+// installs do not collide.
 list( $activate_path ) = explode( '?', wp_unslash( $_SERVER['REQUEST_URI'] ) );
 $activate_cookie       = 'wp-activate-' . COOKIEHASH;
 
 $key    = '';
 $result = null;
 
+// SECTION: Activation key resolution (priority: GET -> POST -> cookie).
+//
+// SECURITY: tampering check -- if both GET and POST keys are present and
+// disagree, refuse the activation.
 if ( isset( $_GET['key'] ) && isset( $_POST['key'] ) && $_GET['key'] !== $_POST['key'] ) {
 	wp_die( __( 'A key value mismatch has been detected. Please follow the link provided in your activation email.' ), __( 'An error occurred during the activation' ), 400 );
 } elseif ( ! empty( $_GET['key'] ) ) {
@@ -35,36 +55,56 @@ if ( isset( $_GET['key'] ) && isset( $_POST['key'] ) && $_GET['key'] !== $_POST[
 }
 
 if ( $key ) {
+	// Strip 'key' from the URL so it disappears from history/referrer headers.
 	$redirect_url = remove_query_arg( 'key' );
 
+	// Inferred: this branch fires only when the URL still has *other* query
+	// args after 'key' was removed; persist the key in a cookie and redirect
+	// to the cleaned URL. Assumption: based on the empty-vs-non-empty
+	// redirect target distinction.
 	if ( remove_query_arg( false ) !== $redirect_url ) {
+		// Persist the activation key in a same-path cookie so the redirect
+		// form submission can recover it.
 		setcookie( $activate_cookie, $key, 0, $activate_path, COOKIE_DOMAIN, is_ssl(), true );
 		wp_safe_redirect( $redirect_url );
 		exit;
 	} else {
+		// Apply the activation: creates the user, optionally creates the
+		// site, returns success metadata or WP_Error.
 		$result = wpmu_activate_signup( $key );
 	}
 }
 
+// Cookie fallback: form POSTed without preserving the key in the URL --
+// recover from the cookie set above.
 if ( null === $result && isset( $_COOKIE[ $activate_cookie ] ) ) {
 	$key    = $_COOKIE[ $activate_cookie ];
 	$result = wpmu_activate_signup( $key );
+	// Erase the activation cookie immediately after consumption (set in past
+	// with empty value).
 	setcookie( $activate_cookie, ' ', time() - YEAR_IN_SECONDS, $activate_path, COOKIE_DOMAIN, is_ssl(), true );
 }
 
+// SECTION: HTTP status code resolution.
 if ( null === $result || ( is_wp_error( $result ) && 'invalid_key' === $result->get_error_code() ) ) {
+	// 404 for invalid/missing keys; matches the experience of clicking a
+	// stale activation email link.
 	status_header( 404 );
 } elseif ( is_wp_error( $result ) ) {
 	$error_code = $result->get_error_code();
 
+	// Other WP_Error codes (expired, malformed, network failure) -> 400 Bad Request.
 	if ( ! in_array( $error_code, $valid_error_codes, true ) ) {
 		status_header( 400 );
 	}
 }
 
+// SECURITY: do not cache activation responses -- they reveal account state.
 nocache_headers();
 
 // Fix for page title.
+// QUIRK: wp() may have set is_404 = true earlier; clear it so the rendered
+// page reports as a real 200/4xx response not a 404.
 $wp_query->is_404 = false;
 
 /**
@@ -111,13 +151,20 @@ function wpmu_activate_stylesheet() {
 	</style>
 	<?php
 }
+// SECTION: Hook registrations.
 add_action( 'wp_head', 'wpmu_activate_stylesheet' );
 add_action( 'wp_head', 'wp_strict_cross_origin_referrer' );
 add_filter( 'wp_robots', 'wp_robots_sensitive_page' );
 
+// Renders header-wp-activate.php template part if the active theme provides
+// one; otherwise falls back to header.php.
 get_header( 'wp-activate' );
 
+// Resolve current network site so subsequent links use the correct
+// path/domain.
 $blog_details = get_site();
+
+// SECTION: HTML output (form vs success vs error states).
 ?>
 
 <div id="signup-content" class="widecolumn">
@@ -212,4 +259,5 @@ $blog_details = get_site();
 	</div>
 </div>
 <?php
+// Counterpart to the get_header( 'wp-activate' ) call above.
 get_footer( 'wp-activate' );
