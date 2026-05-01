@@ -33,6 +33,7 @@ if ( function_exists( 'error_reporting' ) ) {
 	 * This will be adapted in wp_debug_mode() located in wp-includes/load.php based on WP_DEBUG.
 	 * @see https://www.php.net/manual/en/errorfunc.constants.php List of known error levels.
 	 */
+	// QUIRK: this is the EARLIEST error_reporting() call; wp_debug_mode() in wp-includes/load.php will adjust again later based on WP_DEBUG, WP_DEBUG_LOG, and WP_DEBUG_DISPLAY.
 	error_reporting( E_CORE_ERROR | E_CORE_WARNING | E_COMPILE_ERROR | E_ERROR | E_WARNING | E_PARSE | E_USER_ERROR | E_USER_WARNING | E_RECOVERABLE_ERROR );
 }
 
@@ -44,44 +45,57 @@ if ( function_exists( 'error_reporting' ) ) {
  *
  * If neither set of conditions is true, initiate loading the setup process.
  */
+// SECTION: wp-config.php discovery (root -> parent -> setup redirect).
 if ( file_exists( ABSPATH . 'wp-config.php' ) ) {
 
+	// Loading wp-config.php transitively loads wp-settings.php; the rest of WordPress comes online here.
 	/** The config file resides in ABSPATH */
 	require_once ABSPATH . 'wp-config.php';
 
 } elseif ( @file_exists( dirname( ABSPATH ) . '/wp-config.php' ) && ! @file_exists( dirname( ABSPATH ) . '/wp-settings.php' ) ) {
 
+	// QUIRK: parent-directory fallback supports installations where wp-config.php is one level above the WordPress root for security (out of webroot). The suppressed @ on file_exists silences open_basedir warnings on restrictive shared hosts. The secondary !@file_exists(.../wp-settings.php) clause prevents cross-bootstrapping into a sibling WordPress install that lives in the parent directory.
 	/** The config file resides one level above ABSPATH but is not part of another installation */
 	require_once dirname( ABSPATH ) . '/wp-config.php';
 
 } else {
 
+	// SECTION: First-run / missing-config error path.
 	// A config file doesn't exist.
 
+	// Define WPINC manually here. wp-settings.php (which usually defines it) cannot run without wp-config.php, so the constant must be available before the requires below resolve their paths.
 	define( 'WPINC', 'wp-includes' );
+	// Load the bare minimum core needed for wp_check_php_mysql_versions() (from load.php) and for wp_load_translations_early() further down the error path.
 	require_once ABSPATH . WPINC . '/version.php';
 	require_once ABSPATH . WPINC . '/compat.php';
 	require_once ABSPATH . WPINC . '/load.php';
 
 	// Check for the required PHP version and for the MySQL extension or a database drop-in.
+	// FRAGILE: this check runs BEFORE wp-config.php is loaded; if the PHP version is too low or a required extension is missing, wp_check_php_mysql_versions() emits a 500 response and calls exit(1), so the operator never reaches the setup wizard.
 	wp_check_php_mysql_versions();
 
 	// Standardize $_SERVER variables across setups.
 	wp_fix_server_vars();
 
+	// WP_CONTENT_DIR is needed by wp_load_translations_early() below to locate language files under wp-content/languages.
 	define( 'WP_CONTENT_DIR', ABSPATH . 'wp-content' );
+	// functions.php provides wp_die(), __(), esc_html(), and wp_guess_url() that the error message below depends on.
 	require_once ABSPATH . WPINC . '/functions.php';
 
+	// Inferred: wp_guess_url() reads $_SERVER['HTTP_HOST'] and REQUEST_URI to compose an absolute URL pointing at the install-time setup screen. Assumption: based on the wp_guess_url() definition in src/wp-includes/functions.php.
 	$path = wp_guess_url() . '/wp-admin/setup-config.php';
 
 	// Redirect to setup-config.php.
+	// Avoid a redirect loop: if the request is already targeting /wp-admin/setup-config.php, fall through and render the static error page instead of issuing another Location header.
 	if ( ! str_contains( $_SERVER['REQUEST_URI'], 'setup-config' ) ) {
 		header( 'Location: ' . $path );
 		exit;
 	}
 
+	// Pre-load core translations so the wp_die() message below is localized for the visitor's locale.
 	wp_load_translations_early();
 
+	// SECTION: WSOD-style (White Screen of Death) error page rendering.
 	// Die with an error message.
 	$die = '<p>' . sprintf(
 		/* translators: %s: wp-config.php */
@@ -101,5 +115,6 @@ if ( file_exists( ABSPATH . 'wp-config.php' ) ) {
 	) . '</p>';
 	$die .= '<p><a href="' . $path . '" class="button button-large">' . __( 'Create a Configuration File' ) . '</a></p>';
 
+	// Render WordPress' built-in error page; this is the WSOD that visitors see when wp-config.php is missing and a setup-config redirect is not possible.
 	wp_die( $die, __( 'WordPress &rsaquo; Error' ) );
 }
