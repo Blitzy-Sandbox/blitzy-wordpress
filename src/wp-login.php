@@ -5,6 +5,13 @@
  * Handles authentication, registering, resetting passwords, forgot password,
  * and other user handling.
  *
+ * Action dispatcher for the wp-login.php endpoint. Reads $_REQUEST['action']
+ * (default: 'login'), validates it against the whitelist of built-in
+ * handlers (login, logout, lostpassword, retrievepassword, resetpass, rp,
+ * register, checkemail, confirmaction, confirm_admin_email, postpass), and
+ * routes to the matching switch case below. Plugins extend the whitelist
+ * via the 'login_form_{action}' action.
+ *
  * @package WordPress
  */
 
@@ -46,7 +53,9 @@ function login_header( $title = null, $message = '', $wp_error = null ) {
 	}
 
 	// Don't index any of these forms.
+	// SECURITY: login/signup pages are marked noindex/nofollow to prevent search engines from cataloging account-state pages and exposing private URLs.
 	add_filter( 'wp_robots', 'wp_robots_sensitive_page' );
+	// SECURITY: strict cross-origin referrer policy on login pages prevents referrer leakage of redirect_to URLs and other sensitive query parameters to third-party sites.
 	add_action( 'login_head', 'wp_strict_cross_origin_referrer' );
 
 	add_action( 'login_head', 'wp_login_viewport_meta' );
@@ -56,6 +65,7 @@ function login_header( $title = null, $message = '', $wp_error = null ) {
 	}
 
 	// Shake it!
+	// Inferred: certain error codes trigger a CSS shake animation on the form via wp_shake_js() in the footer to give visible feedback that the credentials were rejected. Assumption: based on the wp_shake_js() handler defined later in this file.
 	$shake_error_codes = array( 'empty_password', 'empty_email', 'invalid_email', 'invalidcombo', 'empty_username', 'invalid_username', 'incorrect_password', 'retrieve_password_email_failure' );
 	/**
 	 * Filters the error codes array for shaking the login form.
@@ -479,9 +489,11 @@ function wp_login_viewport_meta() {
  * Check the request and redirect or display a form based on the current action.
  */
 
+// QUIRK: $action arrives as a free-form string from $_REQUEST; the $default_actions whitelist below restricts it to known handlers, otherwise defaults to 'login'. The is_string() guard rejects array payloads that would otherwise satisfy isset().
 $action = isset( $_REQUEST['action'] ) && is_string( $_REQUEST['action'] ) ? $_REQUEST['action'] : 'login';
 $errors = new WP_Error();
 
+// QUIRK: presence of $_GET['key'] forces the resetpass branch even if 'action' was something else; same for 'checkemail'. This supports password-reset email links that omit the action parameter.
 if ( isset( $_GET['key'] ) ) {
 	$action = 'resetpass';
 }
@@ -490,6 +502,7 @@ if ( isset( $_GET['checkemail'] ) ) {
 	$action = 'checkemail';
 }
 
+// SECURITY: only whitelisted actions are dispatched directly; unknown actions fall through to 'login' unless a plugin registered a 'login_form_{action}' filter, preventing arbitrary action names from reaching the switch.
 $default_actions = array(
 	'confirm_admin_email',
 	'postpass',
@@ -510,10 +523,12 @@ if ( ! in_array( $action, $default_actions, true ) && false === has_filter( 'log
 	$action = 'login';
 }
 
+// SECURITY: refuse intermediary caches for auth pages; cookie-bearing responses must always reach the origin so each request is freshly authenticated.
 nocache_headers();
 
 header( 'Content-Type: ' . get_bloginfo( 'html_type' ) . '; charset=' . get_bloginfo( 'charset' ) );
 
+// QUIRK: the RELOCATE constant lets a site administrator update siteurl on the next login when an install was moved between hostnames; rarely used and intentionally guarded behind a wp-config.php opt-in.
 if ( defined( 'RELOCATE' ) && RELOCATE ) { // Move flag is set.
 	if ( isset( $_SERVER['PATH_INFO'] ) && ( $_SERVER['PATH_INFO'] !== $_SERVER['PHP_SELF'] ) ) {
 		$_SERVER['PHP_SELF'] = str_replace( $_SERVER['PATH_INFO'], '', $_SERVER['PHP_SELF'] );
@@ -527,6 +542,7 @@ if ( defined( 'RELOCATE' ) && RELOCATE ) { // Move flag is set.
 }
 
 // Set a cookie now to see if they are supported by the browser.
+// Cookie support detection: TEST_COOKIE is set here and validated in the 'login' case below to confirm the browser accepts cookies before attempting authentication. Without cookies, no auth session can persist.
 $secure = ( 'https' === parse_url( wp_login_url(), PHP_URL_SCHEME ) );
 setcookie( TEST_COOKIE, 'WP Cookie check', 0, COOKIEPATH, COOKIE_DOMAIN, $secure, true );
 
@@ -534,6 +550,7 @@ if ( SITECOOKIEPATH !== COOKIEPATH ) {
 	setcookie( TEST_COOKIE, 'WP Cookie check', 0, SITECOOKIEPATH, COOKIE_DOMAIN, $secure, true );
 }
 
+// Locale persistence: the wp_lang query var lets the visitor choose a UI language for the login page; the cookie carries that choice across requests so error messages and labels stay in the chosen locale.
 if ( isset( $_GET['wp_lang'] ) ) {
 	setcookie( 'wp_lang', sanitize_text_field( $_GET['wp_lang'] ), 0, COOKIEPATH, COOKIE_DOMAIN, $secure, true );
 }
@@ -582,8 +599,10 @@ $interim_login = isset( $_REQUEST['interim-login'] );
  */
 $login_link_separator = apply_filters( 'login_link_separator', ' | ' );
 
+// SECTION: Main action dispatch (case order: confirm_admin_email -> postpass -> logout -> lostpassword/retrievepassword -> resetpass/rp -> register -> checkemail -> confirmaction -> login/default which also covers WP_Recovery_Mode_Link_Service::LOGIN_ACTION_ENTERED).
 switch ( $action ) {
 
+	// SECTION: Action handler - 'confirm_admin_email' (post-login admin email confirmation prompt; introduced in 5.3.0 to periodically verify the site administrator's email is still correct).
 	case 'confirm_admin_email':
 		/*
 		 * Note that `is_user_logged_in()` will return false immediately after logging in
@@ -763,6 +782,7 @@ switch ( $action ) {
 		login_footer();
 		break;
 
+	// SECTION: Action handler - 'postpass' (password-protected post password submission; sets a hashed cookie that get_the_password_form() / post_password_required() consume to gate the post body).
 	case 'postpass':
 		$redirect_to = $_POST['redirect_to'] ?? wp_get_referer();
 
@@ -792,16 +812,20 @@ switch ( $action ) {
 			$secure = false;
 		}
 
+		// SECURITY: the post password is hashed (not stored plaintext) in the wp-postpass cookie via PHPass; the hash, not the password, is later compared by post_password_required() to authorise rendering the post body.
 		setcookie( 'wp-postpass_' . COOKIEHASH, $hasher->HashPassword( wp_unslash( $_POST['post_password'] ) ), $expire, COOKIEPATH, COOKIE_DOMAIN, $secure );
 
 		wp_safe_redirect( $redirect_to );
 		exit;
 
+	// SECTION: Action handler - 'logout' (clears auth cookies via wp_logout(); supports interim-login dialog return path; redirects to the wp_login_url with loggedout=true unless a redirect_to was supplied).
 	case 'logout':
+		// SECURITY: 'log-out' nonce required to prevent CSRF (Cross-Site Request Forgery) attacks that would otherwise let a malicious page log the visitor out via a crafted link.
 		check_admin_referer( 'log-out' );
 
 		$user = wp_get_current_user();
 
+		// FROZEN: wp_logout() is the public WordPress authentication API that clears auth cookies and fires the 'wp_logout' action; preserved for plugin compatibility.
 		wp_logout();
 
 		if ( ! empty( $_REQUEST['redirect_to'] ) && is_string( $_REQUEST['redirect_to'] ) ) {
@@ -833,7 +857,9 @@ switch ( $action ) {
 		wp_safe_redirect( $redirect_to );
 		exit;
 
+	// SECTION: Action handlers - 'lostpassword' / 'retrievepassword' (request-password-reset form; on POST, calls retrieve_password() which emails a signed reset link).
 	case 'lostpassword':
+	// QUIRK: 'retrievepassword' is the legacy alias for 'lostpassword'; both fall through to the same handler. Preserved for back-compat with plugins and old links that point at the older action name.
 	case 'retrievepassword':
 		if ( $http_post ) {
 			$errors = retrieve_password();
@@ -935,7 +961,9 @@ switch ( $action ) {
 		login_footer( 'user_login' );
 		break;
 
+	// SECTION: Action handlers - 'resetpass' / 'rp' (consume password-reset key from the email link, then render the new-password form and persist the new password).
 	case 'resetpass':
+	// QUIRK: 'rp' is the short alias used in password-reset email links to keep the URL compact; falls through to the 'resetpass' handler. Both names are part of the public URL contract.
 	case 'rp':
 		list( $rp_path ) = explode( '?', wp_unslash( $_SERVER['REQUEST_URI'] ) );
 		$rp_cookie       = 'wp-resetpass-' . COOKIEHASH;
@@ -951,6 +979,7 @@ switch ( $action ) {
 		if ( isset( $_COOKIE[ $rp_cookie ] ) && 0 < strpos( $_COOKIE[ $rp_cookie ], ':' ) ) {
 			list( $rp_login, $rp_key ) = explode( ':', wp_unslash( $_COOKIE[ $rp_cookie ] ), 2 );
 
+			// SECURITY: validates the reset key (signed token bound to user_login) before allowing password change. FROZEN: check_password_reset_key() is the public WordPress authentication API.
 			$user = check_password_reset_key( $rp_key, $rp_login );
 
 			if ( isset( $_POST['pass1'] ) && ! hash_equals( $rp_key, $_POST['rp_key'] ) ) {
@@ -1098,6 +1127,7 @@ switch ( $action ) {
 		login_footer( 'pass1' );
 		break;
 
+	// SECTION: Action handler - 'register' (single-site user registration form; on multisite this case redirects to wp-signup.php which owns the multisite signup state machine).
 	case 'register':
 		if ( is_multisite() ) {
 			/**
@@ -1111,6 +1141,7 @@ switch ( $action ) {
 			exit;
 		}
 
+		// SECURITY: respect the global "Anyone can register" setting; if disabled, redirect to the login screen with a registration=disabled flag so the visitor sees an error instead of a usable form.
 		if ( ! get_option( 'users_can_register' ) ) {
 			wp_redirect( site_url( 'wp-login.php?registration=disabled' ) );
 			exit;
@@ -1210,6 +1241,7 @@ switch ( $action ) {
 		login_footer( 'user_login' );
 		break;
 
+	// SECTION: Action handler - 'checkemail' ("check your email" notice rendered after lostpassword (?checkemail=confirm) or register (?checkemail=registered) succeeds; no form, just a message).
 	case 'checkemail':
 		$redirect_to = admin_url();
 		$errors      = new WP_Error();
@@ -1243,6 +1275,7 @@ switch ( $action ) {
 		login_footer();
 		break;
 
+	// SECTION: Action handler - 'confirmaction' (privacy-related action confirmation: data export request, account erasure). Linked from emails sent by the privacy-tools subsystem.
 	case 'confirmaction':
 		if ( ! isset( $_GET['request_id'] ) ) {
 			wp_die( __( 'Missing request ID.' ) );
@@ -1254,6 +1287,7 @@ switch ( $action ) {
 
 		$request_id = (int) $_GET['request_id'];
 		$key        = sanitize_text_field( wp_unslash( $_GET['confirm_key'] ) );
+		// SECURITY: privacy confirmation links contain a signed key bound to the request_id; wp_validate_user_request_key() rejects forged or replayed links before any user-initiated privacy action is performed.
 		$result     = wp_validate_user_request_key( $request_id, $key );
 
 		if ( is_wp_error( $result ) ) {
@@ -1281,6 +1315,7 @@ switch ( $action ) {
 		login_footer();
 		exit;
 
+	// SECTION: Action handler - 'login' (default; renders the username/password form, processes POST submissions via wp_signon(), redirects on success). Also catches WP_Recovery_Mode_Link_Service::LOGIN_ACTION_ENTERED and any unmatched action that survived the whitelist via a 'login_form_{action}' filter.
 	case 'login':
 	default:
 		$secure_cookie   = '';
@@ -1319,6 +1354,7 @@ switch ( $action ) {
 
 		$reauth = ! empty( $_REQUEST['reauth'] );
 
+		// FROZEN: wp_signon() is the public WordPress authentication API. It runs the 'authenticate' filter chain and on success fires the 'wp_login' action. Preserved for plugin compatibility - signature must not change.
 		$user = wp_signon( array(), $secure_cookie );
 
 		if ( empty( $_COOKIE[ LOGGED_IN_COOKIE ] ) ) {
@@ -1359,6 +1395,7 @@ switch ( $action ) {
 		$redirect_to = apply_filters( 'login_redirect', $redirect_to, $requested_redirect_to, $user );
 
 		if ( ! is_wp_error( $user ) && ! $reauth ) {
+			// QUIRK: interim-login is the modal-style login dialog shown inside an iframe when a session expires while the visitor is editing a post in wp-admin. On success this branch closes the modal rather than redirecting the parent window.
 			if ( $interim_login ) {
 				$message       = '<p class="message">' . __( 'You have logged in successfully.' ) . '</p>';
 				$interim_login = 'success';
@@ -1422,6 +1459,7 @@ switch ( $action ) {
 				exit;
 			}
 
+			// SECURITY: wp_safe_redirect() restricts the redirect target to allowed hosts (the wp_allowed_redirect_hosts filter), preventing open-redirect attacks via a crafted redirect_to value supplied by an attacker.
 			wp_safe_redirect( $redirect_to );
 			exit;
 		}
@@ -1448,6 +1486,7 @@ switch ( $action ) {
 				$errors->add( 'registerdisabled', __( '<strong>Error:</strong> User registration is currently not allowed.' ) );
 			} elseif ( str_contains( $redirect_to, 'about.php?updated' ) ) {
 				$errors->add( 'updated', __( '<strong>You have successfully updated WordPress!</strong> Please log back in to see what&#8217;s new.' ), 'message' );
+			// SECTION: Action handler - recovery-mode entry (renders the recovery-mode banner after the visitor clicks the signed link in the wp-die fatal-error email; full handling lives in WP_Recovery_Mode further upstream).
 			} elseif ( WP_Recovery_Mode_Link_Service::LOGIN_ACTION_ENTERED === $action ) {
 				$errors->add( 'enter_recovery_mode', __( 'Recovery Mode Initialized. Please log in to continue.' ), 'message' );
 			} elseif ( isset( $_GET['redirect_to'] ) && is_string( $_GET['redirect_to'] )
