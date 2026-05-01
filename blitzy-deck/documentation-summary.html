@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Executive summary of inline source-code documentation work for the blitzy-wordpress repository.">
+  <title>Documenting blitzy-wordpress — Executive Summary</title>
+
+  <!--
+    Single self-contained reveal.js executive deck.
+
+    Three CDN dependencies, all version-pinned per AAP §0.10.2.3:
+      - reveal.js 5.1.0  (core JS + reset.css + reveal.css)
+      - Mermaid    11.4.0 (ESM module)
+      - Lucide     0.460.0 (UMD bundle for SVG icons)
+
+    Google Fonts: Inter (400/500/600/700), Space Grotesk (500/600/700), Fira Code (400/500).
+  -->
+
+  <!-- Google Fonts: preconnect first for performance, then load three families in a single request. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=Fira+Code:wght@400;500&display=swap">
+
+  <!-- reveal.js 5.1.0 base styles (reset + framework). Pinned versions; loaded from jsDelivr. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+
+  <style>
+    /* ============================================================
+     *  Blitzy reveal.js theme — embedded inline so the deck remains
+     *  byte-by-byte self-contained. CSS custom properties are the
+     *  single source of truth for the palette, typography, and
+     *  gradients used across every slide.
+     * ============================================================ */
+    :root {
+      --blitzy-primary: #5B39F3;
+      --blitzy-primary-dark: #2D1C77;
+      --blitzy-primary-navy: #1A105F;
+      --blitzy-primary-light: #7A6DEC;
+      --blitzy-primary-deep: #4101DB;
+      --blitzy-accent-teal: #94FAD5;
+      --blitzy-surface-0: #FFFFFF;
+      --blitzy-surface-1: #F4EFF6;
+      --blitzy-surface-2: #F2F0FE;
+      --blitzy-surface-3: #F5F5F5;
+      --blitzy-border: #D9D9D9;
+      --blitzy-border-soft: rgba(91, 57, 243, 0.18);
+      --blitzy-text: #333333;
+      --blitzy-text-muted: #999999;
+      --blitzy-text-invert: #FFFFFF;
+      --ff-body: 'Inter', system-ui, sans-serif;
+      --ff-display: 'Space Grotesk', 'Inter', sans-serif;
+      --ff-mono: 'Fira Code', 'Courier New', monospace;
+      --gradient-hero: linear-gradient(68deg, #7A6DEC 15.56%, #5B39F3 62.74%, #4101DB 84.44%);
+      --gradient-divider: linear-gradient(135deg, #2D1C77 0%, #5B39F3 100%);
+      --gradient-accent-bar: linear-gradient(90deg, #5B39F3 0%, #94FAD5 100%);
+    }
+
+    /* ----------------------------------------------------------------
+     *  Reveal.js host overrides — base typography + slide canvas.
+     *  Reveal renders slides into .reveal .slides; default-style
+     *  Content slides land on a white surface for high contrast.
+     * ---------------------------------------------------------------- */
+    html, body {
+      background: var(--blitzy-surface-3);
+    }
+    .reveal {
+      font-family: var(--ff-body);
+      color: var(--blitzy-text);
+      font-weight: 400;
+      letter-spacing: 0.01em;
+    }
+    .reveal .slides {
+      text-align: left;
+    }
+    .reveal .slides section {
+      box-sizing: border-box;
+      padding: 4rem 5rem;
+      background: var(--blitzy-surface-0);
+      height: 100%;
+      width: 100%;
+      vertical-align: top;
+    }
+    .reveal h1,
+    .reveal h2,
+    .reveal h3,
+    .reveal h4 {
+      font-family: var(--ff-display);
+      color: var(--blitzy-text);
+      letter-spacing: -0.01em;
+      line-height: 1.1;
+      text-transform: none;
+      margin: 0 0 1rem 0;
+    }
+    .reveal h1 { font-size: 4.25rem; font-weight: 700; }
+    .reveal h2 { font-size: 3rem;    font-weight: 700; }
+    .reveal h3 { font-size: 2rem;    font-weight: 600; }
+    .reveal p,
+    .reveal li {
+      font-family: var(--ff-body);
+      font-size: 1.4rem;
+      line-height: 1.5;
+    }
+    .reveal a {
+      color: var(--blitzy-primary);
+      text-decoration: none;
+      border-bottom: 1px solid var(--blitzy-border-soft);
+    }
+    .reveal code,
+    .reveal .mono {
+      font-family: var(--ff-mono);
+      font-size: 0.95em;
+      color: var(--blitzy-primary);
+      background: var(--blitzy-surface-2);
+      padding: 0.05em 0.4em;
+      border-radius: 4px;
+    }
+    .reveal ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* ----------------------------------------------------------------
+     *  Slide-type classes
+     *  (slide-title, slide-divider, slide-closing).
+     *  Default Content slides have no class and inherit the white
+     *  background defined above.
+     * ---------------------------------------------------------------- */
+    .reveal .slides section.slide-title {
+      background: var(--gradient-hero);
+      color: var(--blitzy-text-invert);
+      padding: 0;
+    }
+    .reveal .slides section.slide-title .slide-content {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+      width: 100%;
+      height: 100%;
+      padding: 5rem 6rem;
+      box-sizing: border-box;
+    }
+    .reveal .slides section.slide-title h1,
+    .reveal .slides section.slide-title h2,
+    .reveal .slides section.slide-title p {
+      color: var(--blitzy-text-invert);
+    }
+    .reveal .slides section.slide-title .eyebrow {
+      color: var(--blitzy-accent-teal);
+    }
+    .reveal .slides section.slide-title .hero-icon {
+      color: var(--blitzy-text-invert);
+      margin-bottom: 1.5rem;
+    }
+    .reveal .slides section.slide-title .brand-lockup {
+      position: absolute;
+      right: 5rem;
+      bottom: 4rem;
+      color: var(--blitzy-text-invert);
+      opacity: 0.85;
+    }
+
+    .reveal .slides section.slide-divider {
+      background: var(--gradient-divider);
+      color: var(--blitzy-text-invert);
+      padding: 0;
+    }
+    .reveal .slides section.slide-divider .slide-content {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      width: 100%;
+      height: 100%;
+      padding: 5rem;
+      box-sizing: border-box;
+    }
+    .reveal .slides section.slide-divider h2 {
+      color: var(--blitzy-text-invert);
+      font-size: 4rem;
+      margin-top: 1.5rem;
+    }
+    .reveal .slides section.slide-divider .eyebrow {
+      color: var(--blitzy-accent-teal);
+    }
+    .reveal .slides section.slide-divider .hero-icon {
+      color: var(--blitzy-accent-teal);
+    }
+
+    .reveal .slides section.slide-closing {
+      background: var(--blitzy-primary-navy);
+      color: var(--blitzy-text-invert);
+      padding: 0;
+    }
+    .reveal .slides section.slide-closing .slide-content {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+      width: 100%;
+      height: 100%;
+      padding: 5rem 6rem;
+      box-sizing: border-box;
+    }
+    .reveal .slides section.slide-closing .eyebrow {
+      color: var(--blitzy-accent-teal);
+    }
+    .reveal .slides section.slide-closing h2 {
+      color: var(--blitzy-text-invert);
+      font-size: 3.75rem;
+      margin-bottom: 2rem;
+    }
+    .reveal .slides section.slide-closing ul {
+      margin-bottom: 2rem;
+    }
+    .reveal .slides section.slide-closing li {
+      color: var(--blitzy-text-invert);
+      font-size: 1.45rem;
+      padding: 0.4rem 0;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .reveal .slides section.slide-closing li::before {
+      content: "";
+      display: inline-block;
+      width: 0.55rem;
+      height: 0.55rem;
+      border-radius: 50%;
+      background: var(--blitzy-accent-teal);
+      flex: 0 0 auto;
+    }
+    .reveal .slides section.slide-closing .brand-lockup {
+      margin-top: 1.5rem;
+      color: var(--blitzy-text-invert);
+      opacity: 0.85;
+    }
+
+    /* ----------------------------------------------------------------
+     *  Component classes
+     *  KPI cards, eyebrows, hero icons, icon rows, accent bars,
+     *  brand lockups, and Mermaid containers.
+     * ---------------------------------------------------------------- */
+    .eyebrow {
+      font-family: var(--ff-mono);
+      font-size: 0.95rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--blitzy-primary);
+      font-weight: 500;
+      margin-bottom: 1.25rem;
+      display: inline-block;
+    }
+
+    .hero-icon {
+      width: 96px;
+      height: 96px;
+      stroke-width: 1.75;
+      display: block;
+      margin-bottom: 1.5rem;
+    }
+    .reveal .slides section.slide-divider .hero-icon {
+      width: 110px;
+      height: 110px;
+      margin-bottom: 0.5rem;
+    }
+
+    .accent-bar {
+      width: 240px;
+      height: 8px;
+      border-radius: 4px;
+      background: var(--gradient-accent-bar);
+      margin: 1.5rem 0 0 0;
+    }
+
+    .brand-lockup {
+      font-family: var(--ff-mono);
+      font-size: 1rem;
+      letter-spacing: 0.1em;
+      color: var(--blitzy-primary);
+    }
+
+    /* KPI grid + cards: a responsive 2- to 3-column grid of metric tiles. */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.25rem;
+      margin: 1.5rem 0;
+    }
+    .kpi-grid.kpi-grid-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .kpi-grid.kpi-grid-4 {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+    .kpi-card {
+      background: var(--blitzy-surface-2);
+      border: 1px solid var(--blitzy-border-soft);
+      border-radius: 14px;
+      padding: 1.5rem 1.4rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+    .kpi-card.kpi-card-success {
+      background: rgba(148, 250, 213, 0.18);
+      border-color: rgba(91, 57, 243, 0.25);
+    }
+    .kpi-icon {
+      width: 32px;
+      height: 32px;
+      stroke-width: 1.75;
+      color: var(--blitzy-primary);
+    }
+    .kpi-card-success .kpi-icon {
+      color: var(--blitzy-primary-deep);
+    }
+    .kpi-value {
+      font-family: var(--ff-display);
+      font-size: 3.25rem;
+      font-weight: 700;
+      color: var(--blitzy-primary);
+      line-height: 1;
+      letter-spacing: -0.02em;
+    }
+    .kpi-card-success .kpi-value {
+      font-size: 1.5rem;
+      color: var(--blitzy-primary-dark);
+      font-weight: 600;
+    }
+    .kpi-label {
+      font-family: var(--ff-body);
+      font-size: 1.05rem;
+      color: var(--blitzy-text-muted);
+      line-height: 1.35;
+    }
+    .kpi-card-success .kpi-label {
+      color: var(--blitzy-text);
+      font-weight: 500;
+      font-size: 1.1rem;
+    }
+
+    /* Icon rows: a vertical stack of bullets where each bullet pairs
+       a small Lucide icon with a single line of text. Used on
+       Onboarding, Risks, and Pointers slides. */
+    .icon-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 1.1rem;
+      padding: 0.85rem 0;
+      border-bottom: 1px solid var(--blitzy-surface-1);
+    }
+    .icon-row:last-child {
+      border-bottom: none;
+    }
+    .icon-row .icon-row-icon {
+      width: 32px;
+      height: 32px;
+      stroke-width: 1.75;
+      color: var(--blitzy-primary);
+      flex: 0 0 auto;
+      margin-top: 0.15rem;
+    }
+    .icon-row .icon-row-text {
+      font-family: var(--ff-body);
+      font-size: 1.35rem;
+      color: var(--blitzy-text);
+      line-height: 1.45;
+    }
+    .icon-row .icon-row-text strong {
+      color: var(--blitzy-primary-dark);
+      font-weight: 600;
+    }
+
+    /* Styled tables: used on the Coverage and Fragility-taxonomy slides. */
+    .reveal table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 1.25rem;
+      margin: 1.25rem 0;
+    }
+    .reveal table thead th {
+      font-family: var(--ff-display);
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--blitzy-primary-dark);
+      text-align: left;
+      padding: 0.85rem 1rem;
+      border-bottom: 2px solid var(--blitzy-primary);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .reveal table tbody td {
+      padding: 0.7rem 1rem;
+      border-bottom: 1px solid var(--blitzy-border);
+      vertical-align: middle;
+    }
+    .reveal table tbody tr:nth-child(odd) td {
+      background: var(--blitzy-surface-1);
+    }
+    .reveal table .marker-cell {
+      font-family: var(--ff-mono);
+      color: var(--blitzy-primary);
+      font-weight: 500;
+      white-space: nowrap;
+      width: 22%;
+    }
+
+    /* Chip/badge component: small pill-shaped Fira-Code labels
+       used to list the eight fragility marker tokens. */
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 1rem;
+    }
+    .chip {
+      font-family: var(--ff-mono);
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: var(--blitzy-primary);
+      background: var(--blitzy-surface-2);
+      border: 1px solid var(--blitzy-border-soft);
+      border-radius: 999px;
+      padding: 0.3rem 0.85rem;
+      letter-spacing: 0.04em;
+    }
+
+    /* Mermaid container: ensures diagrams render against a soft
+       lavender surface that matches the Blitzy palette. */
+    .reveal pre.mermaid {
+      background: var(--blitzy-surface-2);
+      border: 1px solid var(--blitzy-border-soft);
+      border-radius: 12px;
+      padding: 1.5rem 1rem;
+      margin: 1rem 0;
+      box-shadow: none;
+      text-align: center;
+      width: 100%;
+      max-height: 700px;
+      overflow: visible;
+      font-size: 14px;
+    }
+    .reveal pre.mermaid svg {
+      max-width: 100%;
+      max-height: 660px;
+      margin: 0 auto;
+      display: block;
+      overflow: visible;
+    }
+    /* Allow foreignObject text labels to render their natural width
+       so single-line labels are not clipped on the right edge. The
+       parent SVG already sizes itself to fit (useMaxWidth: true). */
+    .reveal pre.mermaid svg foreignObject {
+      overflow: visible;
+    }
+
+    /* Caption styles for prose paragraphs that reference diagrams or KPIs by name. */
+    .caption {
+      font-family: var(--ff-body);
+      font-size: 1.1rem;
+      color: var(--blitzy-text-muted);
+      margin-top: 0.75rem;
+      max-width: 90%;
+      font-style: italic;
+    }
+
+    /* Paragraph variant used directly under content headings. */
+    .lead {
+      font-family: var(--ff-body);
+      font-size: 1.35rem;
+      color: var(--blitzy-text);
+      margin: 0 0 1rem 0;
+      max-width: 95%;
+    }
+
+    /* Hide the bottom-right slide-tutorial chrome when controlsTutorial: false
+       is set; reveal.js still draws progress; we keep that. */
+    .reveal .controls {
+      color: var(--blitzy-primary);
+    }
+    .reveal .progress {
+      color: var(--blitzy-primary);
+    }
+  </style>
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+
+      <!-- ===========================================================
+       *  SLIDE 1 — Title
+       *  Hero gradient, eyebrow in teal Fira Code, white display
+       *  heading, sub-heading, large book-open Lucide icon, brand
+       *  lockup pinned to the bottom-right.
+       *  =========================================================== -->
+      <section class="slide-title">
+        <div class="slide-content">
+          <i data-lucide="book-open" class="hero-icon"></i>
+          <span class="eyebrow">EXECUTIVE SUMMARY</span>
+          <h1>Documenting blitzy-wordpress</h1>
+          <p style="font-size: 1.6rem; max-width: 70%; margin-top: 0.5rem;">
+            Inline source-code documentation across the WordPress 7.0 fork.
+          </p>
+          <span class="brand-lockup">blitzy-wordpress</span>
+        </div>
+      </section>
+
+      <!-- ===========================================================
+       *  SLIDE 2 — Headline KPIs
+       *  Six KPI cards summarizing the volume of work and the
+       *  comment-only-diff guarantee. Icon, value, label per card.
+       *  =========================================================== -->
+      <section>
+        <span class="eyebrow">By the numbers</span>
+        <h2>Headline metrics</h2>
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <i data-lucide="file-code" class="kpi-icon"></i>
+            <span class="kpi-value">1,755</span>
+            <span class="kpi-label">PHP files visited in <code>src/</code></span>
+          </div>
+          <div class="kpi-card">
+            <i data-lucide="file-code-2" class="kpi-icon"></i>
+            <span class="kpi-value">382</span>
+            <span class="kpi-label">JavaScript files visited in <code>src/</code></span>
+          </div>
+          <div class="kpi-card">
+            <i data-lucide="file-plus" class="kpi-icon"></i>
+            <span class="kpi-value">8</span>
+            <span class="kpi-label">File headers added to close coverage gaps</span>
+          </div>
+          <div class="kpi-card">
+            <i data-lucide="git-branch" class="kpi-icon"></i>
+            <span class="kpi-value">7</span>
+            <span class="kpi-label">Mermaid diagrams embedded in source files</span>
+          </div>
+          <div class="kpi-card">
+            <i data-lucide="library" class="kpi-icon"></i>
+            <span class="kpi-value">4</span>
+            <span class="kpi-label">New Markdown docs delivered</span>
+          </div>
+          <div class="kpi-card">
+            <i data-lucide="shield-check" class="kpi-icon"></i>
+            <span class="kpi-value">0</span>
+            <span class="kpi-label">Lines of executable code changed</span>
+          </div>
+        </div>
+        <p class="caption">Comment-only diff guarantee verified by stripped-whitespace check.</p>
+      </section>
+
+      <!-- ===========================================================
+       *  SLIDE 3 — Architecture Overview (Mermaid)
+       *  Documentation tooling pipeline diagram with title +
+       *  legend comments per the Visual Architecture Documentation
+       *  rule.
+       *  =========================================================== -->
+      <section>
+        <h2>Documentation tooling stack</h2>
+        <pre class="mermaid">
+%% Title: Documentation Tooling Pipeline (current state)
+%% Legend: solid = enforces / generates; dashed = consumes types from upstream
+flowchart LR
+    A[PHPCS + WPCS]:::standard --&gt; B[Inline-doc<br/>standards enforced]
+    A --&gt; C[PHPStan]:::analysis
+    C -.-&gt; B
+    D[JSDoc + grunt-jsdoc]:::standard --&gt; E[HTML JS reference]
+    F[mkdocs<br/>+ techdocs-core<br/>+ mermaid2]:::site --&gt; G[Markdown docs site]
+    H[reveal.js]:::deck --&gt; I[Executive deck]
+    classDef standard fill:#F2F0FE,stroke:#5B39F3,color:#333333;
+    classDef analysis fill:#F4EFF6,stroke:#7A6DEC,color:#333333;
+    classDef site fill:#F2F0FE,stroke:#4101DB,color:#333333;
+    classDef deck fill:#94FAD5,stroke:#2D1C77,color:#1A105F;
+        </pre>
+        <p class="caption">
+          The <em>Documentation Tooling Pipeline</em> diagram above shows how each tool turns inline comments into reader-facing artifacts; this deck is the final node.
+        </p>
+      </section>
+
+      <!-- ===========================================================
+       *  SLIDE 4 — Section divider — "What was done"
+       *  =========================================================== -->
+      <section class="slide-divider">
+        <div class="slide-content">
+          <i data-lucide="clipboard-check" class="hero-icon"></i>
+          <span class="eyebrow">PART 1</span>
+          <h2>What was done</h2>
+        </div>
+      </section>
+
+      <!-- ===========================================================
+       *  SLIDE 5 — File-header coverage before/after
+       *  Styled three-column table. Lucide check-circle-2 next to
+       *  the After column header signals completion.
+       *  =========================================================== -->
+      <section>
+        <h2>File-header coverage</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Surface</th>
+              <th>Before</th>
+              <th>
+                <span style="display: inline-flex; align-items: center; gap: 0.4rem;">
+                  <i data-lucide="check-circle-2" style="width: 20px; height: 20px; stroke-width: 1.75; color: var(--blitzy-primary-deep);"></i>
+                  After
+                </span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>src/wp-includes/*.php</code> (top-level)</td>
+              <td>248 / 252 &mdash; 98.4%</td>
+              <td><strong>252 / 252 &mdash; 100%</strong></td>
+            </tr>
+            <tr>
+              <td><code>src/wp-admin/*.php</code> (top-level)</td>
+              <td>93 / 96 &mdash; 96.9%</td>
+              <td><strong>96 / 96 &mdash; 100%</strong></td>
+            </tr>
+            <tr>
+              <td><code>src/js/_enqueues/**/*.js</code> (non-vendor)</td>
+              <td>96 / 97 &mdash; 99.0%</td>
+              <td><strong>97 / 97 &mdash; 100%</strong></td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="caption">
+          Eight previously undocumented files now carry headers: four vendored class files in <code>wp-includes</code>, three admin loaders, and one CodeMirror integration script.
+        </p>
+      </section>
+
+
+      <!-- ===========================================================
+       *  SLIDE 6 — Function-level docblock audit
+       *  Three KPI cards (100% coverage, 7 cross-reference webs,
+       *  8 fragility tokens) followed by a chip row that enumerates
+       *  the eight markers in Fira Code mono.
+       *  =========================================================== -->
+      <section>
+        <h2>Function-level audit</h2>
+        <div class="kpi-grid kpi-grid-3">
+          <div class="kpi-card">
+            <i data-lucide="book-marked" class="kpi-icon"></i>
+            <span class="kpi-value">100%</span>
+            <span class="kpi-label">Public functions, methods, and classes carry DocBlocks</span>
+          </div>
+          <div class="kpi-card">
+            <i data-lucide="link" class="kpi-icon"></i>
+            <span class="kpi-value">7</span>
+            <span class="kpi-label">Cross-reference webs added via <code>@see</code></span>
+          </div>
+          <div class="kpi-card">
+            <i data-lucide="alert-triangle" class="kpi-icon"></i>
+            <span class="kpi-value">8</span>
+            <span class="kpi-label">Fragility marker tokens introduced</span>
+          </div>
+        </div>
+        <p class="lead" style="margin-top: 1.5rem;">Fragility marker vocabulary now greppable across the codebase:</p>
+        <div class="chip-row">
+          <span class="chip">QUIRK</span>
+          <span class="chip">WORKAROUND</span>
+          <span class="chip">TECH-DEBT</span>
+          <span class="chip">FRAGILE</span>
+          <span class="chip">FROZEN</span>
+          <span class="chip">Inferred</span>
+          <span class="chip">SECURITY</span>
+          <span class="chip">SECTION</span>
+        </div>
+      </section>
+
+      <!-- ===========================================================
+       *  SLIDE 7 — Inline narration of hot paths (Mermaid)
+       *  Bootstrap chain diagram embedded as a flowchart TD.
+       *  Title and legend comments at the top of the diagram per
+       *  the Visual Architecture Documentation rule.
+       *  =========================================================== -->
+      <section>
+        <h2>Hot paths now narrated</h2>
+        <pre class="mermaid">
+%% Title: WordPress 7.0 Bootstrap Chain (current state)
+%% Legend: dashed = optional gated by constant; solid = unconditional
+flowchart TD
+    A[wp-load.php]:::core --&gt; B[wp-config.php]:::core
+    B --&gt; C[wp-settings.php]:::core
+    C --&gt; D[default-constants.php]:::core
+    D --&gt; E[wpdb instantiation]:::core
+    E -.-&gt; F[ms-settings.php<br/>if MULTISITE]:::optional
+    F --&gt; G[default-filters.php]:::core
+    E --&gt; G
+    G --&gt; H[plugin.php<br/>+ active plugins]:::core
+    H --&gt; I[theme.php<br/>+ active theme]:::core
+    I --&gt; J[locale + l10n]:::core
+    J --&gt; K[wp_loaded action]:::endpoint
+    classDef core fill:#F2F0FE,stroke:#5B39F3,color:#333333;
+    classDef optional fill:#F4EFF6,stroke:#7A6DEC,color:#333333,stroke-dasharray:5 5;
+    classDef endpoint fill:#94FAD5,stroke:#2D1C77,color:#1A105F;
+        </pre>
+        <p class="caption">
+          The <em>WordPress 7.0 Bootstrap Chain</em> diagram is now embedded in the header DocBlock of <code>src/wp-settings.php</code>; reproduced here for the executive view.
+        </p>
+      </section>
+
+      <!-- ===========================================================
+       *  SLIDE 8 — Section divider — "Why it matters"
+       *  =========================================================== -->
+      <section class="slide-divider">
+        <div class="slide-content">
+          <i data-lucide="lightbulb" class="hero-icon"></i>
+          <span class="eyebrow">PART 2</span>
+          <h2>Why it matters</h2>
+        </div>
+      </section>
+
+      <!-- ===========================================================
+       *  SLIDE 9 — Onboarding acceleration
+       *  Four icon-row bullets, each pairing a Lucide icon with a
+       *  single-sentence value statement (max 40 words total).
+       *  =========================================================== -->
+      <section>
+        <h2>Onboarding acceleration</h2>
+        <p class="lead">Documentation pays back in onboarding speed and change-confidence:</p>
+        <ul style="margin-top: 1.5rem;">
+          <li class="icon-row">
+            <i data-lucide="compass" class="icon-row-icon"></i>
+            <span class="icon-row-text">New contributors find each file's purpose at a glance.</span>
+          </li>
+          <li class="icon-row">
+            <i data-lucide="map" class="icon-row-icon"></i>
+            <span class="icon-row-text">The bootstrap chain is mapped end-to-end.</span>
+          </li>
+          <li class="icon-row">
+            <i data-lucide="shield" class="icon-row-icon"></i>
+            <span class="icon-row-text">Frozen public surfaces are flagged to prevent breaking changes.</span>
+          </li>
+          <li class="icon-row">
+            <i data-lucide="book" class="icon-row-icon"></i>
+            <span class="icon-row-text">A style guide codifies conventions for future contributions.</span>
+          </li>
+        </ul>
+      </section>
+
+      <!-- ===========================================================
+       *  SLIDE 10 — Fragility taxonomy (styled table)
+       *  Two columns: Marker (Fira Code), Meaning. Eight rows
+       *  (one per token).
+       *  =========================================================== -->
+      <section>
+        <h2>Fragility taxonomy</h2>
+        <p class="lead">A small, greppable vocabulary now flags every counter-intuitive block:</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Marker</th>
+              <th>Meaning</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="marker-cell">// QUIRK:</td>
+              <td>Counter-intuitive but correct behavior</td>
+            </tr>
+            <tr>
+              <td class="marker-cell">// WORKAROUND:</td>
+              <td>Compensates for an external bug</td>
+            </tr>
+            <tr>
+              <td class="marker-cell">// TECH-DEBT:</td>
+              <td>Sub-optimal pattern to revisit</td>
+            </tr>
+            <tr>
+              <td class="marker-cell">// FRAGILE:</td>
+              <td>Touching this changes runtime behavior</td>
+            </tr>
+            <tr>
+              <td class="marker-cell">// FROZEN:</td>
+              <td>Public surface; signature must not be re-signed</td>
+            </tr>
+            <tr>
+              <td class="marker-cell">// Inferred:</td>
+              <td>Intent inferred from context; assumption noted</td>
+            </tr>
+            <tr>
+              <td class="marker-cell">// SECURITY:</td>
+              <td>Security-relevant guard; preserve in place</td>
+            </tr>
+            <tr>
+              <td class="marker-cell">// SECTION:</td>
+              <td>Logical-phase banner inside long files</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+
+      <!-- ===========================================================
+       *  SLIDE 11 — Section divider — "Risks and mitigations"
+       *  =========================================================== -->
+      <section class="slide-divider">
+        <div class="slide-content">
+          <i data-lucide="shield-alert" class="hero-icon"></i>
+          <span class="eyebrow">PART 3</span>
+          <h2>Risks and mitigations</h2>
+        </div>
+      </section>
+
+      <!-- ===========================================================
+       *  SLIDE 12 — Identified risks
+       *  Four icon-row bullets pairing a Lucide icon with a
+       *  Risk → Mitigation pair. Capped at four bullets per the
+       *  Executive Presentation rule.
+       *  =========================================================== -->
+      <section>
+        <h2>Identified risks</h2>
+        <p class="lead">Each risk is paired with the mitigation already in place:</p>
+        <ul style="margin-top: 1rem;">
+          <li class="icon-row">
+            <i data-lucide="git-pull-request" class="icon-row-icon"></i>
+            <span class="icon-row-text"><strong>Risk:</strong> comment drift over time. <strong>Mitigation:</strong> the style guide enforces conventions.</span>
+          </li>
+          <li class="icon-row">
+            <i data-lucide="users" class="icon-row-icon"></i>
+            <span class="icon-row-text"><strong>Risk:</strong> contributor confusion. <strong>Mitigation:</strong> templates and examples are cited in the style guide.</span>
+          </li>
+          <li class="icon-row">
+            <i data-lucide="archive" class="icon-row-icon"></i>
+            <span class="icon-row-text"><strong>Risk:</strong> vendored library updates overwrite headers. <strong>Mitigation:</strong> provenance is recorded in the decision log.</span>
+          </li>
+          <li class="icon-row">
+            <i data-lucide="code-2" class="icon-row-icon"></i>
+            <span class="icon-row-text"><strong>Risk:</strong> hidden logic change. <strong>Mitigation:</strong> stripped-whitespace diff is empty.</span>
+          </li>
+        </ul>
+      </section>
+
+      <!-- ===========================================================
+       *  SLIDE 13 — Validation evidence
+       *  Four KPI cards in success-styling each citing one
+       *  validation tool's outcome. Sub-text references the
+       *  PHPUnit pass count.
+       *  =========================================================== -->
+      <section>
+        <h2>Validation evidence</h2>
+        <p class="lead">Comment-only diffs were verified across every tool in the pipeline:</p>
+        <div class="kpi-grid kpi-grid-4">
+          <div class="kpi-card kpi-card-success">
+            <i data-lucide="check-circle-2" class="kpi-icon"></i>
+            <span class="kpi-value">composer phpstan</span>
+            <span class="kpi-label">Output byte-identical pre and post</span>
+          </div>
+          <div class="kpi-card kpi-card-success">
+            <i data-lucide="check-circle-2" class="kpi-icon"></i>
+            <span class="kpi-value">npm run typecheck:js</span>
+            <span class="kpi-label">Output byte-identical pre and post</span>
+          </div>
+          <div class="kpi-card kpi-card-success">
+            <i data-lucide="check-circle-2" class="kpi-icon"></i>
+            <span class="kpi-value">composer lint:errors</span>
+            <span class="kpi-label">No new errors on touched files</span>
+          </div>
+          <div class="kpi-card kpi-card-success">
+            <i data-lucide="check-circle-2" class="kpi-icon"></i>
+            <span class="kpi-value">npm run lint:jsdoc</span>
+            <span class="kpi-label">Zero errors after the work</span>
+          </div>
+        </div>
+        <p class="caption">28,930 PHPUnit tests continue to pass at the pre-change rate.</p>
+      </section>
+
+      <!-- ===========================================================
+       *  SLIDE 14 — Section divider — "How to continue"
+       *  =========================================================== -->
+      <section class="slide-divider">
+        <div class="slide-content">
+          <i data-lucide="route" class="hero-icon"></i>
+          <span class="eyebrow">PART 4</span>
+          <h2>How to continue</h2>
+        </div>
+      </section>
+
+      <!-- ===========================================================
+       *  SLIDE 15 — Where to look next
+       *  Four icon-row bullets, each pointing to one of the four
+       *  new Markdown deliverables. File paths in Fira Code mono.
+       *  =========================================================== -->
+      <section>
+        <h2>Where to look next</h2>
+        <p class="lead">Four new Markdown deliverables guide the next contributor:</p>
+        <ul style="margin-top: 1rem;">
+          <li class="icon-row">
+            <i data-lucide="book-open" class="icon-row-icon"></i>
+            <span class="icon-row-text"><code>docs/documentation-style-guide.md</code> &mdash; conventions for new contributions.</span>
+          </li>
+          <li class="icon-row">
+            <i data-lucide="clipboard-list" class="icon-row-icon"></i>
+            <span class="icon-row-text"><code>docs/decision-log.md</code> &mdash; why each documentation choice was made.</span>
+          </li>
+          <li class="icon-row">
+            <i data-lucide="bar-chart-3" class="icon-row-icon"></i>
+            <span class="icon-row-text"><code>docs/documentation-coverage-report.md</code> &mdash; coverage metrics and per-file change manifest.</span>
+          </li>
+          <li class="icon-row">
+            <i data-lucide="git-branch" class="icon-row-icon"></i>
+            <span class="icon-row-text"><code>docs/architecture-diagrams.md</code> &mdash; cross-cutting Mermaid views referenced from inline comments.</span>
+          </li>
+        </ul>
+      </section>
+
+      <!-- ===========================================================
+       *  SLIDE 16 — Closing
+       *  Navy background, 5-word display heading, three short
+       *  bullets, gradient accent bar, brand lockup.
+       *  =========================================================== -->
+      <section class="slide-closing">
+        <div class="slide-content">
+          <span class="eyebrow">CLOSING</span>
+          <h2>Code is documented; behavior unchanged.</h2>
+          <ul>
+            <li>Comment-only diff verified.</li>
+            <li>Seven architecture diagrams embedded.</li>
+            <li>Style guide ready for future contributors.</li>
+          </ul>
+          <div class="accent-bar"></div>
+          <span class="brand-lockup">blitzy-wordpress</span>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- ============================================================
+   *  Scripts (loaded at the end of <body>)
+   *
+   *   - reveal.js 5.1.0 (UMD) -> exposes window.Reveal
+   *   - Lucide   0.460.0 (UMD) -> exposes window.lucide
+   *   - Mermaid  11.4.0 (ESM)  -> imported in the module block
+   *
+   *  The module block is intentionally last so window.Reveal and
+   *  window.lucide are both defined before initialization runs.
+   *  ============================================================ -->
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+
+  <script type="module">
+    /* Mermaid is loaded as an ES module (no global) and configured
+     * with the Blitzy theme variables so diagrams blend with the
+     * surrounding slide chrome. */
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.esm.min.mjs';
+
+    // mermaid.initialize() must be called BEFORE any mermaid.run(); using
+    // startOnLoad: false defers rendering to our own ready/slidechanged
+    // handlers so newly-visible slides paint correctly.
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'loose',
+      theme: 'base',
+      // The fontFamily intentionally uses a system stack (NOT Inter) so
+      // Mermaid's internal text-width measurements match the rendered
+      // text width; otherwise foreignObject elements clip the right
+      // edge of node labels.
+      fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+      themeVariables: {
+        primaryColor: '#F2F0FE',
+        primaryTextColor: '#333333',
+        primaryBorderColor: '#5B39F3',
+        lineColor: '#999999',
+        secondaryColor: '#F4EFF6',
+        tertiaryColor: '#F5F5F5',
+        background: '#F2F0FE',
+        fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+        fontSize: '15px'
+      },
+      flowchart: {
+        useMaxWidth: true,
+        htmlLabels: true,
+        curve: 'basis',
+        padding: 25,
+        nodeSpacing: 60,
+        rankSpacing: 70,
+        diagramPadding: 16
+      },
+      sequence: {
+        useMaxWidth: true
+      }
+    });
+
+    /**
+     * The original raw Mermaid syntax for every diagram. Captured
+     * before any render call so we can reset diagrams whose first
+     * render happened while their parent slide was display:none and
+     * therefore had width:0 (which breaks Mermaid's layout pass).
+     */
+    const mermaidSources = new WeakMap();
+
+    /**
+     * Pre-cache the raw Mermaid source for every diagram in the
+     * document. This must happen BEFORE the first mermaid.run()
+     * call because mermaid.run() replaces the &lt;pre&gt; node's
+     * textContent with the rendered SVG markup.
+     */
+    function captureMermaidSources() {
+      for (const n of document.querySelectorAll('pre.mermaid')) {
+        if (!mermaidSources.has(n)) {
+          mermaidSources.set(n, n.textContent);
+        }
+      }
+    }
+
+    /**
+     * Locate the nearest reveal.js section ancestor for a given
+     * DOM node. Used to scope width-overrides during rendering.
+     *
+     * @param {Element} node Any element inside .reveal .slides.
+     * @return {Element|null} The wrapping section, if any.
+     */
+    function ancestorSection(node) {
+      return node.closest && node.closest('.reveal .slides section');
+    }
+
+    /**
+     * Forces a slide that is currently display:none to be visible
+     * (but off-screen and non-interactive) so Mermaid can measure
+     * its true rendered width. Returns a function that restores
+     * the original inline styles on the section.
+     *
+     * @param {Element} section The reveal.js section to unhide.
+     * @return {Function} restorer to call after measurement.
+     */
+    function temporarilyShow(section) {
+      if (!section) {
+        return () => {};
+      }
+      const prev = {
+        display: section.style.display,
+        visibility: section.style.visibility,
+        position: section.style.position,
+        left: section.style.left,
+        top: section.style.top,
+        width: section.style.width,
+        height: section.style.height,
+        opacity: section.style.opacity,
+        pointerEvents: section.style.pointerEvents
+      };
+      // Reveal.js sets display:none on hidden slides via inline style;
+      // override it without disturbing the layout the user sees.
+      section.style.display = 'block';
+      section.style.visibility = 'hidden';
+      section.style.position = 'absolute';
+      section.style.left = '0';
+      section.style.top = '0';
+      section.style.width = '1920px';
+      section.style.height = '1080px';
+      section.style.opacity = '0';
+      section.style.pointerEvents = 'none';
+      return () => {
+        section.style.display = prev.display;
+        section.style.visibility = prev.visibility;
+        section.style.position = prev.position;
+        section.style.left = prev.left;
+        section.style.top = prev.top;
+        section.style.width = prev.width;
+        section.style.height = prev.height;
+        section.style.opacity = prev.opacity;
+        section.style.pointerEvents = prev.pointerEvents;
+      };
+    }
+
+    /**
+     * Wait one animation frame so the browser applies the inline
+     * style changes to the section that wraps the diagram before
+     * Mermaid measures its width.
+     */
+    function nextFrame() {
+      return new Promise(resolve => requestAnimationFrame(() => resolve()));
+    }
+
+    /**
+     * Renders any &lt;pre class="mermaid"&gt; blocks that have not
+     * yet been processed. Each diagram's parent slide is briefly
+     * unhidden during its render so Mermaid measures the true
+     * rendered width (Reveal.js otherwise hides off-screen slides
+     * with display:none, which collapses width to zero). The render
+     * is sequential per diagram so each one gets its own measurement
+     * pass and unique element ids.
+     *
+     * Wrapped in try/catch so a single malformed diagram does not
+     * break slide navigation.
+     */
+    async function renderMermaid() {
+      const nodes = Array.from(
+        document.querySelectorAll('pre.mermaid:not([data-processed="true"])')
+      );
+      for (const node of nodes) {
+        const section = ancestorSection(node);
+        const restore = temporarilyShow(section);
+        try {
+          // Wait for the unhide to apply layout-side, otherwise
+          // Mermaid's offsetWidth read still returns 0.
+          await nextFrame();
+          await nextFrame();
+          await mermaid.run({ nodes: [node] });
+        } catch (err) {
+          // Surface the error without halting navigation.
+          console.error('Mermaid render error:', err);
+        } finally {
+          restore();
+        }
+      }
+    }
+
+    /**
+     * Re-runs Lucide icon replacement so any <i data-lucide="..."> tags
+     * present on the current slide become inline SVG. Calling this on
+     * every slidechanged event guarantees icons appear immediately on
+     * the slide that reveal.js just made visible (some browsers do not
+     * upgrade off-screen elements until they enter the viewport).
+     */
+    function renderIcons() {
+      try {
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          window.lucide.createIcons({ attrs: { 'stroke-width': 1.75 } });
+        }
+      } catch (err) {
+        console.error('Lucide render error:', err);
+      }
+    }
+
+    // reveal.js initialization. The five required options below MUST
+    // remain in this exact configuration per the Executive Presentation
+    // rule (AAP §0.10.2.3).
+    Reveal.initialize({
+      hash: true,
+      transition: 'slide',
+      controlsTutorial: false,
+      width: 1920,
+      height: 1080,
+      slideNumber: 'c/t',
+      progress: true,
+      controls: true,
+      center: false,
+      margin: 0.04,
+      minScale: 0.2,
+      maxScale: 1.5
+    });
+
+    // ready: fired once when the deck is fully parsed. Capture the
+    // raw Mermaid source for every diagram before the first render
+    // call (mermaid.run() destroys the original textContent), then
+    // render every diagram by temporarily unhiding its parent slide
+    // so Mermaid sees the correct width.
+    Reveal.on('ready', () => {
+      captureMermaidSources();
+      renderIcons();
+      renderMermaid();
+    });
+
+    // slidechanged: fires whenever the user advances/retreats. New
+    // slides may bring previously-unrendered Lucide icons into view;
+    // re-running createIcons is cheap and idempotent. Mermaid was
+    // pre-rendered for every slide on `ready` so no further mermaid
+    // rendering is required here.
+    Reveal.on('slidechanged', () => {
+      renderIcons();
+    });
+  </script>
+</body>
+</html>
+
