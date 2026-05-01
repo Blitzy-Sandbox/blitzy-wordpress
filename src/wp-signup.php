@@ -4,18 +4,47 @@
  *
  * Handles the user registration and site creation process for multisite installations.
  *
+ * Multi-step state machine: visitor -> user form -> user validation
+ * -> blog form (if blog signup is enabled) -> blog validation -> confirmation
+ * email and "check your inbox" notice. The actual user/site creation is
+ * deferred to wp-activate.php once the visitor clicks the activation link
+ * delivered to the address they registered.
+ *
+ * Active only on the main site of a multisite network. Single-site installs
+ * redirect to wp-login.php?action=register; subsite visits redirect to the
+ * network's main /wp-signup.php endpoint. MU is the historical name
+ * (Multi-User) for the multisite codebase prior to its merge into core.
+ *
+ * The action and filter names dispatched by this file (signup_header,
+ * before_signup_header, before_signup_form, signup_blogform, signup_user_init,
+ * signup_blog_init, signup_extra_fields, signup_hidden_fields, add_signup_meta,
+ * preprocess_signup_form, signup_finished, after_signup_form, wpmu_active_signup)
+ * are part of WordPress' frozen public hook API and must not be renamed or
+ * removed.
+ *
  * @package WordPress
  */
 
 /** Sets up the WordPress Environment. */
 require __DIR__ . '/wp-load.php';
 
+// SECTION: Bootstrap, robots filter, cache headers, and reserved-name guard.
+//
+// SECURITY: signup pages are noindex/nofollow to prevent search engines
+// from cataloging junk signups created by bots and automated probes.
 add_filter( 'wp_robots', 'wp_robots_no_robots' );
 
 require __DIR__ . '/wp-blog-header.php';
 
+// SECURITY: refuse intermediary caches; signup forms vary per visitor and
+// embed CSRF (Cross-Site Request Forgery) nonces that must not be shared
+// across users.
 nocache_headers();
 
+// Network admins can blacklist usernames via the illegal_names option (the
+// default list includes "www", "web", "root", "admin", "main", "invite",
+// "administrator"). Bounce to the network home if the requested name
+// matches a reserved entry, before any DOM is rendered.
 if ( is_array( get_site_option( 'illegal_names' ) ) && isset( $_GET['new'] ) && in_array( $_GET['new'], get_site_option( 'illegal_names' ), true ) ) {
 	wp_redirect( network_home_url() );
 	die();
@@ -36,17 +65,28 @@ function do_signup_header() {
 }
 add_action( 'wp_head', 'do_signup_header' );
 
+// SECTION: Multisite + main-site gates.
+//
+// Single-site installs use wp-login.php?action=register for new accounts;
+// redirect there so a misconfigured link or stale plugin reference still
+// reaches the working registration screen.
 if ( ! is_multisite() ) {
 	wp_redirect( wp_registration_url() );
 	die();
 }
 
+// QUIRK: only the network's main site renders the signup form; subsite
+// visits redirect to the network's main /wp-signup.php endpoint to keep
+// signup state scoped to a single canonical URL per network.
 if ( ! is_main_site() ) {
 	wp_redirect( network_site_url( 'wp-signup.php' ) );
 	die();
 }
 
 // Fix for page title.
+// Resets the 404 flag set by wp() -- this is a real signup screen, not a
+// 404, so the title-tag handler emits the signup title rather than the
+// "Page not found" title.
 $wp_query->is_404 = false;
 
 /**
@@ -688,6 +728,11 @@ function validate_user_signup() {
 		return false;
 	}
 
+	// QUIRK: signup state (username, email, and meta) is persisted into the
+	// wp_signups table with the meta column stored as a serialized PHP array.
+	// The row is purged by wpmu_activate_signup() once the user clicks the
+	// activation link emailed to them. If activation never happens, the row
+	// expires after two days per the message rendered by confirm_user_signup().
 	/** This filter is documented in wp-signup.php */
 	wpmu_signup_user( $user_name, $user_email, apply_filters( 'add_signup_meta', array() ) );
 
@@ -929,6 +974,15 @@ function signup_get_available_languages() {
 	return array_intersect_assoc( $languages, get_available_languages() );
 }
 
+// SECTION: Signup state machine ($_POST['stage'] dispatch).
+//
+// Reads the network's 'registration' option to determine which signup modes
+// are offered ('all', 'none', 'blog', 'user'), then dispatches based on the
+// form's hidden 'stage' field. Each branch defers actual user/site creation
+// to wp-activate.php via the activation email; this script never inserts a
+// real user or site row. The default branch fires when no stage is posted
+// (initial visit) and renders the appropriate first-step form based on the
+// visitor's login state.
 // Main.
 $active_signup = get_site_option( 'registration', 'none' );
 
@@ -981,6 +1035,9 @@ if ( 'none' === $active_signup ) {
 } else {
 	$stage = $_POST['stage'] ?? 'default';
 	switch ( $stage ) {
+		// Branch: visitor submitted the user form. Validate the username and
+		// email; on success either proceed to the blog form (when signup_for
+		// is 'blog') or finalize a username-only signup row.
 		case 'validate-user-signup':
 			if ( 'all' === $active_signup
 				|| ( 'blog' === $_POST['signup_for'] && 'blog' === $active_signup )
@@ -991,6 +1048,9 @@ if ( 'none' === $active_signup ) {
 				_e( 'User registration has been disabled.' );
 			}
 			break;
+		// Branch: visitor submitted the blog form. Re-validate the user info,
+		// validate the requested site name/title, and persist a combined
+		// user+blog signup row awaiting activation.
 		case 'validate-blog-signup':
 			if ( 'all' === $active_signup || 'blog' === $active_signup ) {
 				validate_blog_signup();
@@ -998,9 +1058,15 @@ if ( 'none' === $active_signup ) {
 				_e( 'Site registration has been disabled.' );
 			}
 			break;
+		// Branch: an existing logged-in user is creating an additional site
+		// on this network (no email confirmation step in this path; the site
+		// is created immediately by validate_another_blog_signup()).
 		case 'gimmeanotherblog':
 			validate_another_blog_signup();
 			break;
+		// Branch: initial GET request or refresh -- present the appropriate
+		// first-step form (user form for visitors, "another blog" form for
+		// logged-in members) based on registration mode and login state.
 		case 'default':
 		default:
 			$user_email = $_POST['user_email'] ?? '';
