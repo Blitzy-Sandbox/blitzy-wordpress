@@ -49,10 +49,6 @@
     /* Eyebrow */
     .eyebrow { font-family: var(--ff-mono); font-size: 0.5em; font-weight: 500; text-transform: uppercase; letter-spacing: 0.18em; color: var(--blitzy-accent-teal); margin-bottom: 1.5rem; display: inline-block; }
     .slide-title .eyebrow { color: var(--blitzy-accent-teal); }
-    /* Title, divider and closing slides all use teal accent on dark backgrounds;
-       only standard content slides use the primary purple eyebrow on light
-       surfaces. The :not() chain ensures divider/closing eyebrows are not
-       overridden by the "non-title" rule. */
     section:not(.slide-title):not(.slide-divider):not(.slide-closing) .eyebrow { color: var(--blitzy-primary); }
 
     /* Title Slide */
@@ -74,17 +70,10 @@
     /* Closing slide */
     .slide-closing { background: var(--blitzy-primary-navy) !important; color: var(--blitzy-text-invert); display: flex; flex-direction: column; justify-content: center; padding: 80px 100px !important; }
     .slide-closing h2 { color: var(--blitzy-text-invert); font-size: 2.8em; font-weight: 700; }
-    /* Reveal's base ".reveal p, .reveal li" rule pins text colour to var(--blitzy-text)
-       (dark grey), which is invisible on the navy closing background. Explicitly
-       override colour on every textual descendant so the closing slide reads as
-       intended on the dark surface. */
     .slide-closing ul,
     .slide-closing ul li,
     .slide-closing p { color: var(--blitzy-text-invert); }
     .slide-closing ul li::marker { color: var(--blitzy-accent-teal); }
-    /* Increased specificity (.reveal .slide-closing) to beat the later
-       .reveal code rule that would otherwise restore the light surface-2
-       background and dark text colour, both unreadable on the navy slide. */
     .reveal .slide-closing code { background: rgba(255, 255, 255, 0.12); color: var(--blitzy-accent-teal); border: 1px solid var(--blitzy-border-soft); }
     .slide-closing .accent-bar { width: 200px; height: 6px; background: var(--gradient-accent-bar); border-radius: 3px; margin: 2rem 0 1.5rem 0; }
     .slide-closing .brand-lockup { margin-top: 2.5rem; font-family: var(--ff-mono); font-size: 0.55em; letter-spacing: 0.2em; text-transform: uppercase; opacity: 0.7; }
@@ -116,23 +105,15 @@
     .reveal table td { padding: 0.65em 1em; border-bottom: 1px solid var(--blitzy-border); color: var(--blitzy-text); }
     .reveal table tr:last-child td { border-bottom: none; }
     .reveal table tbody tr:nth-child(even) { background: var(--blitzy-surface-1); }
-    .reveal table td.sev-critical { color: #C0392B; font-weight: 600; }
-    .reveal table td.sev-high { color: #E67E22; font-weight: 600; }
-    .reveal table td.sev-medium { color: #2D1C77; font-weight: 600; }
-    .reveal table td.sev-low { color: #999999; }
+    .reveal table td.sev-critical { color: var(--blitzy-primary-deep); font-weight: 600; }
+    .reveal table td.sev-high { color: var(--blitzy-primary); font-weight: 600; }
+    .reveal table td.sev-medium { color: var(--blitzy-primary-dark); font-weight: 600; }
+    .reveal table td.sev-low { color: var(--blitzy-text-muted); }
     .reveal table code { font-family: var(--ff-mono); font-size: 0.92em; background: var(--blitzy-surface-2); padding: 0.1em 0.4em; border-radius: 4px; }
 
     /* Mermaid container */
     .reveal .mermaid { display: flex; justify-content: center; align-items: center; background: var(--blitzy-surface-0); border: 1px solid var(--blitzy-border-soft); border-radius: 14px; padding: 1rem; margin-top: 1.5em; max-height: 700px; overflow: auto; }
     .reveal .mermaid svg { max-width: 100%; height: auto !important; }
-    /* Mermaid v11 sizes foreignObject labels using a pre-render text
-       measurement that is consistently a few pixels narrower than the final
-       Inter glyph rendering, which causes the last 1-2 characters of every
-       node label to be clipped. Allowing overflow lets the text spill into
-       the surrounding rect padding (30px each side) where it always has
-       room, restoring the full label legibly. The !important is required
-       because Chrome's UA stylesheet applies overflow:hidden to SVG
-       foreignObject by default. */
     .reveal .mermaid svg foreignObject { overflow: visible !important; }
     .reveal .mermaid svg .nodeLabel, .reveal .mermaid svg .label,
     .reveal .mermaid svg foreignObject > div, .reveal .mermaid svg foreignObject p,
@@ -261,7 +242,7 @@ flowchart LR
             <tr><td><code>CWE-319</code></td><td>Cleartext transmission</td><td>2</td><td>class-pop3.php · wp-mail.php</td></tr>
             <tr><td><code>CWE-327</code></td><td>Broken / risky crypto algorithm</td><td>2</td><td>pluggable.php wp_salt · wp_check_password</td></tr>
             <tr><td><code>CWE-295</code></td><td>Improper certificate validation</td><td>2</td><td>cron.php loopback · https-detection.php</td></tr>
-            <tr><td><code>CWE-328</code> · <code>CWE-1275</code> · <code>CWE-204</code> · <code>CWE-502</code> · others</td><td>Single-instance classes</td><td>11</td><td>One finding per class</td></tr>
+            <tr><td><code>CWE-328</code> · <code>CWE-1275</code> · <code>CWE-204</code> · <code>CWE-502</code> · others</td><td>Single-instance classes</td><td>12</td><td>One finding per class</td></tr>
           </tbody>
         </table>
       </section>
@@ -370,12 +351,6 @@ flowchart TB
   <script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.min.js"></script>
   <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
   <script>
-    // Initialize Mermaid with startOnLoad disabled so reveal.js controls rendering.
-    // - htmlLabels: true keeps <br/> line breaks working inside node labels.
-    // - padding: 16 widens each node's rect beyond the measured label width so
-    //   sub-pixel rounding between the foreignObject measurement and the on-
-    //   screen Inter glyph rendering cannot truncate the trailing character.
-    // - nodeSpacing / rankSpacing keep the graph readable without crowding.
     mermaid.initialize({
       startOnLoad: false,
       theme: 'base',
@@ -409,13 +384,6 @@ flowchart TB
       maxScale: 2.0
     });
 
-    // Mermaid's foreignObject labels are sized using a pre-render text
-    // measurement that is a few pixels narrower than the final on-screen
-    // Inter rendering. Chrome's SVG UA stylesheet enforces overflow:hidden on
-    // foreignObject and ignores CSS overrides, so we set the SVG overflow
-    // attribute (which Chrome honours) directly on each label. The parent
-    // rect has ~30px of padding on each side, so the spillover stays well
-    // within the visible node bounds.
     function patchMermaidOverflow(root) {
       (root || document).querySelectorAll('pre.mermaid svg foreignObject').forEach(function (fo) {
         fo.setAttribute('overflow', 'visible');
@@ -423,11 +391,6 @@ flowchart TB
       });
     }
 
-    // Observe added SVG <foreignObject> nodes (Mermaid renders them
-    // asynchronously after mermaid.run resolves) and patch their overflow
-    // attribute as soon as they enter the DOM. This is timing-independent so
-    // it works regardless of whether mermaid.run's Promise has resolved or
-    // not by the time the SVG is inserted.
     var fixedFOs = new WeakSet();
     var mermaidObserver = new MutationObserver(function (mutations) {
       for (var i = 0; i < mutations.length; i++) {
@@ -455,12 +418,6 @@ flowchart TB
     });
     mermaidObserver.observe(document.body, { childList: true, subtree: true });
 
-    // Render mermaid blocks only inside a specified slide root. Scoping the
-    // call to a single slide ensures htmlLabels measurement happens while the
-    // slide is visible — hidden slides have zero-width DOM measurements and
-    // produce truncated or empty diagrams. The selector still respects the
-    // standard ":not([data-processed='true'])" gate so the same block is not
-    // re-processed across navigations.
     function runMermaidIn(slide) {
       if (!slide) { return Promise.resolve(); }
       var blocks = slide.querySelectorAll('pre.mermaid:not([data-processed="true"])');
@@ -468,20 +425,12 @@ flowchart TB
         ? Promise.resolve()
         : mermaid.run({ nodes: Array.prototype.slice.call(blocks) });
       return renderPromise.then(function () {
-        // Belt-and-suspenders: also patch immediately after the render
-        // promise resolves, in case the MutationObserver missed any nodes
-        // that were inserted synchronously before it began observing.
         patchMermaidOverflow(slide);
       }).catch(function (err) {
-        // Surface mermaid errors but never break the deck.
         console.error('mermaid render error', err);
       });
     }
 
-    // Wait until the brand fonts (Inter / Space Grotesk / Fira Code) have
-    // finished loading before sizing mermaid boxes. Without this, the first
-    // mermaid.run measures with system-ui as the fallback and the subsequent
-    // Inter render overflows the pre-sized boxes by a few pixels per glyph.
     function fontsReady() {
       if (document.fonts && typeof document.fonts.ready !== 'undefined') {
         return document.fonts.ready;
@@ -500,12 +449,6 @@ flowchart TB
       if (window.lucide && typeof window.lucide.createIcons === 'function') {
         window.lucide.createIcons();
       }
-      // Important: do NOT issue a blanket mermaid.run for all unprocessed
-      // blocks. That would process pre.mermaid nodes inside hidden slides
-      // (display:none) where htmlLabels DOM measurement returns zero/min
-      // width and produces truncated boxes. Scoping to the active slide via
-      // runMermaidIn guarantees the labels measure with the correct visible
-      // dimensions and brand fonts.
       fontsReady().then(() => {
         runMermaidIn((event && event.currentSlide) || deck.getCurrentSlide());
       });
