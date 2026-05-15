@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Security Audit — Config A: Bare Blitzy Baseline</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/white.css">
+  <style>
+    :root {
+      --blitzy-primary: #5B39F3;
+      --blitzy-primary-dark: #2D1C77;
+      --blitzy-primary-navy: #1A105F;
+      --blitzy-primary-light: #7A6DEC;
+      --blitzy-primary-deep: #4101DB;
+      --blitzy-accent-teal: #94FAD5;
+      --blitzy-surface-0: #FFFFFF;
+      --blitzy-surface-1: #F4EFF6;
+      --blitzy-surface-2: #F2F0FE;
+      --blitzy-surface-3: #F5F5F5;
+      --blitzy-border: #D9D9D9;
+      --blitzy-border-soft: rgba(91, 57, 243, 0.18);
+      --blitzy-text: #333333;
+      --blitzy-text-muted: #999999;
+      --blitzy-text-invert: #FFFFFF;
+      --ff-body: 'Inter', system-ui, sans-serif;
+      --ff-display: 'Space Grotesk', 'Inter', sans-serif;
+      --ff-mono: 'Fira Code', 'Courier New', monospace;
+      --gradient-hero: linear-gradient(68deg, #7A6DEC 15.56%, #5B39F3 62.74%, #4101DB 84.44%);
+      --gradient-divider: linear-gradient(135deg, #2D1C77 0%, #5B39F3 100%);
+      --gradient-accent-bar: linear-gradient(90deg, #5B39F3 0%, #94FAD5 100%);
+    }
+
+    /* Base reveal.js overrides */
+    .reveal { font-family: var(--ff-body); color: var(--blitzy-text); }
+    .reveal h1, .reveal h2, .reveal h3, .reveal h4 { font-family: var(--ff-display); color: var(--blitzy-primary-dark); text-transform: none; letter-spacing: -0.01em; line-height: 1.2; margin-bottom: 0.4em; }
+    .reveal h1 { font-size: 2.6em; font-weight: 700; }
+    .reveal h2 { font-size: 1.9em; font-weight: 600; }
+    .reveal h3 { font-size: 1.3em; font-weight: 600; }
+    .reveal p, .reveal li { font-size: 0.85em; line-height: 1.5; color: var(--blitzy-text); }
+    .reveal a { color: var(--blitzy-primary); text-decoration: none; }
+    .reveal .slides section { text-align: left; padding: 60px 80px; box-sizing: border-box; height: 100%; background: var(--blitzy-surface-0); }
+    .reveal ul, .reveal ol { margin-left: 1.2em; }
+    .reveal strong { font-weight: 600; color: var(--blitzy-primary-dark); }
+
+    /* Eyebrow */
+    .eyebrow { font-family: var(--ff-mono); font-size: 0.5em; font-weight: 500; text-transform: uppercase; letter-spacing: 0.18em; color: var(--blitzy-accent-teal); margin-bottom: 1.5rem; display: inline-block; }
+    .slide-title .eyebrow { color: var(--blitzy-accent-teal); }
+    section:not(.slide-title):not(.slide-divider):not(.slide-closing) .eyebrow { color: var(--blitzy-primary); }
+
+    /* Title Slide */
+    .slide-title { background: var(--gradient-hero) !important; color: var(--blitzy-text-invert); display: flex; flex-direction: column; justify-content: center; padding: 60px 100px !important; }
+    .slide-title h1 { color: var(--blitzy-text-invert); font-size: 3.2em; font-weight: 700; margin-bottom: 0.3em; }
+    .slide-title p { color: var(--blitzy-text-invert); font-size: 1em; opacity: 0.9; }
+    .slide-title .hero-meta { margin-top: 2.5rem; display: flex; gap: 3rem; flex-wrap: wrap; }
+    .slide-title .hero-meta div { display: flex; flex-direction: column; gap: 0.3em; }
+    .slide-title .hero-meta span.label { font-family: var(--ff-mono); font-size: 0.55em; letter-spacing: 0.15em; text-transform: uppercase; opacity: 0.7; }
+    .slide-title .hero-meta span.value { font-family: var(--ff-display); font-size: 1.1em; font-weight: 600; }
+
+    /* Divider slides */
+    .slide-divider { background: var(--gradient-divider) !important; color: var(--blitzy-text-invert); display: flex; flex-direction: column; justify-content: center; align-items: flex-start; padding: 80px 100px !important; }
+    .slide-divider h2 { color: var(--blitzy-text-invert); font-size: 3.4em; font-weight: 700; }
+    .slide-divider .eyebrow { color: var(--blitzy-accent-teal); }
+    .slide-divider .hero-icon { display: inline-flex; align-items: center; justify-content: center; width: 96px; height: 96px; border-radius: 24px; background: rgba(255,255,255,0.15); color: var(--blitzy-accent-teal); margin-bottom: 1.2rem; }
+    .slide-divider .hero-icon svg { width: 56px; height: 56px; stroke-width: 1.6; }
+
+    /* Closing slide */
+    .slide-closing { background: var(--blitzy-primary-navy) !important; color: var(--blitzy-text-invert); display: flex; flex-direction: column; justify-content: center; padding: 80px 100px !important; }
+    .slide-closing h2 { color: var(--blitzy-text-invert); font-size: 2.8em; font-weight: 700; }
+    .slide-closing ul,
+    .slide-closing ul li,
+    .slide-closing p { color: var(--blitzy-text-invert); }
+    .slide-closing ul li::marker { color: var(--blitzy-accent-teal); }
+    .reveal .slide-closing code { background: rgba(255, 255, 255, 0.12); color: var(--blitzy-accent-teal); border: 1px solid var(--blitzy-border-soft); }
+    .slide-closing .accent-bar { width: 200px; height: 6px; background: var(--gradient-accent-bar); border-radius: 3px; margin: 2rem 0 1.5rem 0; }
+    .slide-closing .hero-icon { display: inline-flex; align-items: center; justify-content: center; width: 72px; height: 72px; border-radius: 18px; background: rgba(148, 250, 213, 0.14); color: var(--blitzy-accent-teal); margin-bottom: 1.2rem; }
+    .slide-closing .hero-icon svg { width: 40px; height: 40px; stroke-width: 1.6; }
+    .slide-closing .brand-lockup { margin-top: 2.5rem; font-family: var(--ff-mono); font-size: 0.55em; letter-spacing: 0.2em; text-transform: uppercase; opacity: 0.7; }
+
+    /* KPI cards */
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px; margin-top: 1.6em; }
+    .kpi-grid.three { grid-template-columns: repeat(3, 1fr); }
+    .kpi-card { background: var(--blitzy-surface-2); border: 1px solid var(--blitzy-border-soft); border-radius: 16px; padding: 1.6rem 1.4rem; display: flex; flex-direction: column; gap: 0.6rem; position: relative; overflow: hidden; }
+    .kpi-card.dark { background: var(--blitzy-primary-dark); color: var(--blitzy-text-invert); border-color: transparent; }
+    .kpi-card .kpi-icon { position: absolute; top: 1rem; right: 1rem; color: var(--blitzy-primary); }
+    .kpi-card.dark .kpi-icon { color: var(--blitzy-accent-teal); }
+    .kpi-card .kpi-icon svg { width: 28px; height: 28px; stroke-width: 1.8; }
+    .kpi-card .kpi-value { font-family: var(--ff-display); font-size: 2.5em; font-weight: 700; color: var(--blitzy-primary-dark); line-height: 1; }
+    .kpi-card.dark .kpi-value { color: var(--blitzy-text-invert); }
+    .kpi-card .kpi-label { font-family: var(--ff-mono); font-size: 0.6em; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--blitzy-text-muted); }
+    .kpi-card.dark .kpi-label { color: rgba(255,255,255,0.7); }
+    .kpi-card .kpi-sub { font-size: 0.7em; color: var(--blitzy-text); margin-top: 0.3rem; }
+    .kpi-card.dark .kpi-sub { color: rgba(255,255,255,0.85); }
+
+    /* Icon row */
+    .icon-row { display: flex; gap: 1rem; margin-top: 1rem; flex-wrap: wrap; }
+    .icon-row > div { display: flex; align-items: flex-start; gap: 0.7rem; flex: 1; min-width: 260px; padding: 0.85rem 1rem; background: var(--blitzy-surface-1); border-left: 3px solid var(--blitzy-primary); border-radius: 8px; font-size: 0.7em; line-height: 1.4; }
+    .icon-row svg { color: var(--blitzy-primary); flex-shrink: 0; width: 24px; height: 24px; stroke-width: 1.8; margin-top: 2px; }
+    .icon-row strong { display: block; margin-bottom: 0.25rem; font-size: 1.05em; }
+
+    /* Tables */
+    .reveal table { font-size: 0.7em; border-collapse: collapse; width: 100%; margin-top: 1em; background: var(--blitzy-surface-0); }
+    .reveal table th { background: var(--blitzy-primary-dark); color: var(--blitzy-text-invert); padding: 0.7em 1em; text-align: left; font-family: var(--ff-display); font-weight: 600; font-size: 0.95em; letter-spacing: 0.02em; }
+    .reveal table td { padding: 0.65em 1em; border-bottom: 1px solid var(--blitzy-border); color: var(--blitzy-text); }
+    .reveal table tr:last-child td { border-bottom: none; }
+    .reveal table tbody tr:nth-child(even) { background: var(--blitzy-surface-1); }
+    .reveal table td.sev-critical { color: var(--blitzy-primary-deep); font-weight: 600; }
+    .reveal table td.sev-high { color: var(--blitzy-primary); font-weight: 600; }
+    .reveal table td.sev-medium { color: var(--blitzy-primary-dark); font-weight: 600; }
+    .reveal table td.sev-low { color: var(--blitzy-text-muted); }
+    .reveal table code { font-family: var(--ff-mono); font-size: 0.92em; background: var(--blitzy-surface-2); padding: 0.1em 0.4em; border-radius: 4px; }
+
+    /* Mermaid container */
+    .reveal .mermaid { display: flex; justify-content: center; align-items: center; background: var(--blitzy-surface-0); border: 1px solid var(--blitzy-border-soft); border-radius: 14px; padding: 1rem; margin-top: 1.5em; max-height: 700px; overflow: auto; }
+    .reveal .mermaid svg { max-width: 100%; height: auto !important; }
+    .reveal .mermaid svg foreignObject { overflow: visible !important; }
+    .reveal .mermaid svg .nodeLabel, .reveal .mermaid svg .label,
+    .reveal .mermaid svg foreignObject > div, .reveal .mermaid svg foreignObject p,
+    .reveal .mermaid svg foreignObject span { overflow: visible !important; }
+
+    /* Accent bar */
+    .accent-bar { width: 200px; height: 6px; background: var(--gradient-accent-bar); border-radius: 3px; margin: 1.2rem 0; }
+
+    /* Brand lockup */
+    .brand-lockup { font-family: var(--ff-mono); font-size: 0.6em; letter-spacing: 0.18em; text-transform: uppercase; color: var(--blitzy-text-muted); }
+
+    /* Inline code */
+    .reveal code { font-family: var(--ff-mono); font-size: 0.85em; background: var(--blitzy-surface-2); padding: 0.1em 0.4em; border-radius: 4px; color: var(--blitzy-primary-dark); }
+
+    /* Hero icon block on title */
+    .slide-title .hero-icon { display: inline-flex; align-items: center; justify-content: center; width: 80px; height: 80px; border-radius: 20px; background: rgba(255,255,255,0.12); color: var(--blitzy-accent-teal); margin-bottom: 1.4rem; }
+    .slide-title .hero-icon svg { width: 44px; height: 44px; stroke-width: 1.6; }
+  </style>
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+
+      <!-- Slide 1 — Title -->
+      <section class="slide-title">
+        <div class="hero-icon"><i data-lucide="shield-check"></i></div>
+        <span class="eyebrow">Blitzy Platform · Baseline Measurement</span>
+        <h1>Security Audit — Config A</h1>
+        <p>Bare Blitzy Baseline · Static security audit of the blitzy-wordpress codebase using only the platform's native analytical capabilities.</p>
+        <div class="hero-meta">
+          <div><span class="label">Codebase</span><span class="value">blitzy-wordpress 7.0.0-dev</span></div>
+          <div><span class="label">Scope</span><span class="value">3,001 PHP · 341 JS files</span></div>
+          <div><span class="label">Method</span><span class="value">Native agent, no scanners</span></div>
+          <div><span class="label">Run</span><span class="value">Config A · Control</span></div>
+        </div>
+      </section>
+
+      <!-- Slide 2 — Content: Headline findings KPI summary -->
+      <section>
+        <span class="eyebrow">Findings at a glance</span>
+        <h2>Twenty-eight findings, seventeen CWE classes</h2>
+        <p>The native baseline identifies a balanced mix of cleartext-transport, weak-crypto, output-escaping and PRNG issues. Severity tilts low on a hardened codebase with deep defense-in-depth.</p>
+        <div class="kpi-grid">
+          <div class="kpi-card"><div class="kpi-icon"><i data-lucide="file-search-2"></i></div><div class="kpi-value">28</div><div class="kpi-label">Findings total</div><div class="kpi-sub">Across eight audit passes</div></div>
+          <div class="kpi-card dark"><div class="kpi-icon"><i data-lucide="alert-octagon"></i></div><div class="kpi-value">2</div><div class="kpi-label">High severity</div><div class="kpi-sub">Cleartext POP3 mail flow</div></div>
+          <div class="kpi-card"><div class="kpi-icon"><i data-lucide="alert-triangle"></i></div><div class="kpi-value">6</div><div class="kpi-label">Medium severity</div><div class="kpi-sub">Crypto, cookies, enumeration</div></div>
+          <div class="kpi-card"><div class="kpi-icon"><i data-lucide="info"></i></div><div class="kpi-value">20</div><div class="kpi-label">Low severity</div><div class="kpi-sub">Defense-in-depth gaps</div></div>
+        </div>
+      </section>
+
+      <!-- Slide 3 — Content: Audit-surface map (Mermaid) -->
+      <section>
+        <span class="eyebrow">Architecture overview</span>
+        <h2>Audit surface map</h2>
+        <p>Every layer of the WordPress runtime was traced from untrusted source to security-sensitive sink. No file in the audit surface was modified.</p>
+        <pre class="mermaid">
+flowchart LR
+  Req[HTTP Request] --> FC[Front Controllers<br/>src/*.php]
+  FC --> Core[Core Runtime<br/>src/wp-includes]
+  FC --> Admin[Admin Layer<br/>src/wp-admin]
+  Core --> Rest[REST API<br/>rest-api/endpoints]
+  Core --> Vend[Vendored Libraries<br/>PHPMailer · SimplePie · IXR]
+  Admin --> Inst[Installer · Upgrader]
+  Core --> Bund[Bundled Themes<br/>twenty*]
+  Conf[Config &amp; Secrets<br/>wp-config-sample<br/>.env.example] --> Core
+  Dep[Dependencies<br/>composer · package.json] --> Core
+  classDef edge fill:#F2F0FE,stroke:#5B39F3,color:#333333;
+  classDef core fill:#94FAD5,stroke:#2D1C77,color:#1A105F;
+  classDef vend fill:#F4EFF6,stroke:#7A6DEC,color:#333333;
+  class FC,Admin edge
+  class Core,Rest core
+  class Vend,Bund,Inst,Conf,Dep vend
+        </pre>
+      </section>
+
+      <!-- Slide 4 — Divider: Methodology -->
+      <section class="slide-divider">
+        <div class="hero-icon"><i data-lucide="compass"></i></div>
+        <span class="eyebrow">Section · 01</span>
+        <h2>Methodology</h2>
+      </section>
+
+      <!-- Slide 5 — Content: Four mandated techniques -->
+      <section>
+        <span class="eyebrow">Four techniques · one baseline</span>
+        <h2>How the bare baseline reads the code</h2>
+        <div class="kpi-grid">
+          <div class="kpi-card"><div class="kpi-icon"><i data-lucide="git-branch"></i></div><div class="kpi-value">A</div><div class="kpi-label">Data-flow tracing</div><div class="kpi-sub">Untrusted source to security-sensitive sink, no shortcut.</div></div>
+          <div class="kpi-card"><div class="kpi-icon"><i data-lucide="route"></i></div><div class="kpi-value">B</div><div class="kpi-label">Call-chain following</div><div class="kpi-sub">Confirms sanitisation, escaping and authorisation on every path.</div></div>
+          <div class="kpi-card"><div class="kpi-icon"><i data-lucide="sliders-horizontal"></i></div><div class="kpi-value">C</div><div class="kpi-label">Configuration inspection</div><div class="kpi-sub">Insecure defaults, exposed secrets and weak settings.</div></div>
+          <div class="kpi-card"><div class="kpi-icon"><i data-lucide="package-search"></i></div><div class="kpi-value">D</div><div class="kpi-label">Dependency inspection</div><div class="kpi-sub">Vendored libs and manifests, no advisory database calls.</div></div>
+        </div>
+      </section>
+
+      <!-- Slide 6 — Divider: Findings Profile -->
+      <section class="slide-divider">
+        <div class="hero-icon"><i data-lucide="bar-chart-3"></i></div>
+        <span class="eyebrow">Section · 02</span>
+        <h2>Findings Profile</h2>
+      </section>
+
+      <!-- Slide 7 — Content: Severity distribution table -->
+      <section>
+        <span class="eyebrow">Severity distribution</span>
+        <h2>Most issues live in defense-in-depth, not exploitable paths</h2>
+        <table>
+          <thead><tr><th>Severity</th><th>Count</th><th>Representative finding</th><th>Mitigation context</th></tr></thead>
+          <tbody>
+            <tr><td class="sev-high">High</td><td>2</td><td>POP3 mailbox poll without TLS</td><td>Legacy opt-in feature, off by default</td></tr>
+            <tr><td class="sev-medium">Medium</td><td>6</td><td>Auth cookies lack SameSite attribute</td><td>HttpOnly and Secure already enforced</td></tr>
+            <tr><td class="sev-low">Low</td><td>20</td><td>WP version disclosed via generator tag</td><td>Output sinks mostly guarded by upstream sanitisation</td></tr>
+            <tr><td class="sev-critical">Critical</td><td>0</td><td>None observed</td><td>Native baseline finds no pre-auth RCE or SQLi</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Slide 8 — Content: CWE class distribution -->
+      <section>
+        <span class="eyebrow">Top CWE clusters</span>
+        <h2>Where the baseline sees the most weight</h2>
+        <table>
+          <thead><tr><th>CWE</th><th>Class</th><th>Count</th><th>Notable location</th></tr></thead>
+          <tbody>
+            <tr><td><code>CWE-79</code></td><td>Cross-site scripting at output sinks</td><td>6</td><td>wp-signup.php error rendering · wp-trackback.php</td></tr>
+            <tr><td><code>CWE-338</code></td><td>Cryptographically weak PRNG</td><td>4</td><td>file.php · pluggable.php · phpass.php fallbacks</td></tr>
+            <tr><td><code>CWE-319</code></td><td>Cleartext transmission</td><td>2</td><td>class-pop3.php · wp-mail.php</td></tr>
+            <tr><td><code>CWE-327</code></td><td>Broken / risky crypto algorithm</td><td>2</td><td>pluggable.php wp_salt · wp_check_password</td></tr>
+            <tr><td><code>CWE-295</code></td><td>Improper certificate validation</td><td>2</td><td>cron.php loopback · https-detection.php</td></tr>
+            <tr><td><code>CWE-328</code> · <code>CWE-1275</code> · <code>CWE-204</code> · <code>CWE-502</code> · others</td><td>Single-instance classes</td><td>12</td><td>One finding per class</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Slide 9 — Divider: Architectural Context -->
+      <section class="slide-divider">
+        <div class="hero-icon"><i data-lucide="layout-grid"></i></div>
+        <span class="eyebrow">Section · 03</span>
+        <h2>Architectural Context</h2>
+      </section>
+
+      <!-- Slide 10 — Content: Existing security primitives diagram (Mermaid) -->
+      <section>
+        <span class="eyebrow">What the baseline calibrates against</span>
+        <h2>Security primitives already in the runtime</h2>
+        <p>Findings are deviations from these existing controls, not absences of them.</p>
+        <pre class="mermaid">
+flowchart TB
+  In[Untrusted input] --> San[KSES &amp; sanitize_* family]
+  In --> Prep[wpdb::prepare placeholders]
+  San --> Esc[esc_html · esc_attr<br/>esc_url · esc_js]
+  Prep --> Db[(Database)]
+  In --> Auth[wp_authenticate chain]
+  Auth --> Cap[current_user_can<br/>map_meta_cap]
+  Auth --> Nonce[wp_create_nonce<br/>check_admin_referer]
+  In --> Url[wp_http_validate_url]
+  Url --> Out[wp_safe_remote_*]
+  Url --> Red[wp_safe_redirect]
+  Esc --> User((User))
+  Cap --> Admin((Admin Action))
+  Nonce --> Admin
+  Out --> Ext((External Service))
+  Red --> User
+  classDef ok fill:#94FAD5,stroke:#1A105F,color:#1A105F;
+  classDef risk fill:#F4EFF6,stroke:#5B39F3,color:#2D1C77;
+  class San,Prep,Esc,Cap,Nonce,Url ok
+  class In,Auth risk
+        </pre>
+      </section>
+
+      <!-- Slide 11 — Divider: Risks & Mitigations -->
+      <section class="slide-divider">
+        <div class="hero-icon"><i data-lucide="shield-alert"></i></div>
+        <span class="eyebrow">Section · 04</span>
+        <h2>Risks &amp; Mitigations</h2>
+      </section>
+
+      <!-- Slide 12 — Content: Top risk areas -->
+      <section>
+        <span class="eyebrow">Where to focus first</span>
+        <h2>Top risk areas with mitigation pattern</h2>
+        <div class="icon-row">
+          <div><i data-lucide="mail-warning"></i><div><strong>Cleartext POP3 (high)</strong>Disable Post-by-Email or front the integration with a TLS-terminating proxy.</div></div>
+          <div><i data-lucide="cookie"></i><div><strong>Cookie SameSite (medium)</strong>Migrate setcookie() calls to the array-options form to set SameSite=Lax.</div></div>
+          <div><i data-lucide="key-round"></i><div><strong>MD5 derivations (medium)</strong>Track wp_hash and wp_salt usage; plan a hash-algorithm transition without breaking legacy nonces.</div></div>
+        </div>
+        <div class="icon-row">
+          <div><i data-lucide="user-x"></i><div><strong>Login enumeration (medium)</strong>Return uniform errors at the login surface to mask username existence.</div></div>
+          <div><i data-lucide="file-warning"></i><div><strong>maybe_unserialize (medium)</strong>Treat option-table writes as trust-bearing; never persist attacker-controlled serialized payloads.</div></div>
+          <div><i data-lucide="bug"></i><div><strong>Defense-in-depth gaps (low)</strong>Most low findings are best fixed by output-time esc_html() and explicit LIBXML_NONET flags.</div></div>
+        </div>
+      </section>
+
+      <!-- Slide 13 — Divider: Baseline Position -->
+      <section class="slide-divider">
+        <div class="hero-icon"><i data-lucide="ruler"></i></div>
+        <span class="eyebrow">Section · 05</span>
+        <h2>Baseline Position</h2>
+      </section>
+
+      <!-- Slide 14 — Content: How this baseline anchors the comparison -->
+      <section>
+        <span class="eyebrow">Why a bare baseline matters</span>
+        <h2>Config A is the control measurement</h2>
+        <p>Downstream configurations (B, C and beyond) layer external scanners onto the same codebase. The baseline lets leadership see incremental value from each tool, not just absolute counts.</p>
+        <div class="kpi-grid three">
+          <div class="kpi-card"><div class="kpi-icon"><i data-lucide="locate"></i></div><div class="kpi-value">A</div><div class="kpi-label">Config A · This run</div><div class="kpi-sub">Native agent only · no external scanners</div></div>
+          <div class="kpi-card"><div class="kpi-icon"><i data-lucide="search-code"></i></div><div class="kpi-value">B</div><div class="kpi-label">Config B · Future</div><div class="kpi-sub">Layered SAST adds tool-specific findings</div></div>
+          <div class="kpi-card dark"><div class="kpi-icon"><i data-lucide="git-compare"></i></div><div class="kpi-value">Δ</div><div class="kpi-label">Comparison delta</div><div class="kpi-sub">Quantifies marginal value of each tool</div></div>
+        </div>
+      </section>
+
+      <!-- Slide 15 — Divider: Onboarding -->
+      <section class="slide-divider">
+        <div class="hero-icon"><i data-lucide="map"></i></div>
+        <span class="eyebrow">Section · 06</span>
+        <h2>Onboarding</h2>
+      </section>
+
+      <!-- Slide 16 — Closing -->
+      <section class="slide-closing">
+        <div class="hero-icon"><i data-lucide="circle-check"></i></div>
+        <div class="accent-bar"></div>
+        <span class="eyebrow">In summary</span>
+        <h2>Bare baseline established</h2>
+        <ul>
+          <li>Twenty-eight findings catalogued in <code>findings-config-a.json</code> with full CWE classification.</li>
+          <li>Methodology, severity rubric and CWE-specificity policy captured in <code>decisions.md</code>.</li>
+          <li>Downstream configurations now have a faithful control measurement to compare against.</li>
+        </ul>
+        <div class="brand-lockup">Blitzy Platform · Security Audit · Config A · Bare Baseline</div>
+      </section>
+
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.min.js"></script>
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'base',
+      themeVariables: {
+        primaryColor: '#F2F0FE',
+        primaryTextColor: '#333333',
+        primaryBorderColor: '#5B39F3',
+        lineColor: '#999999',
+        secondaryColor: '#F4EFF6',
+        tertiaryColor: '#FFFFFF',
+        fontFamily: 'Inter, system-ui, sans-serif'
+      },
+      flowchart: {
+        curve: 'basis',
+        htmlLabels: true,
+        padding: 16,
+        nodeSpacing: 36,
+        rankSpacing: 56,
+        useMaxWidth: true
+      }
+    });
+
+    const deck = new Reveal({
+      hash: true,
+      transition: 'slide',
+      controlsTutorial: false,
+      width: 1920,
+      height: 1080,
+      margin: 0.04,
+      minScale: 0.2,
+      maxScale: 2.0
+    });
+
+    function patchMermaidOverflow(root) {
+      (root || document).querySelectorAll('pre.mermaid svg foreignObject').forEach(function (fo) {
+        fo.setAttribute('overflow', 'visible');
+        fo.style.overflow = 'visible';
+      });
+    }
+
+    var fixedFOs = new WeakSet();
+    var mermaidObserver = new MutationObserver(function (mutations) {
+      for (var i = 0; i < mutations.length; i++) {
+        var added = mutations[i].addedNodes;
+        for (var j = 0; j < added.length; j++) {
+          var n = added[j];
+          if (!n || n.nodeType !== 1) { continue; }
+          // Patch direct foreignObject additions
+          if (n.tagName && n.tagName.toLowerCase() === 'foreignobject' && !fixedFOs.has(n)) {
+            n.setAttribute('overflow', 'visible');
+            n.style.overflow = 'visible';
+            fixedFOs.add(n);
+          }
+          // Patch foreignObject descendants
+          if (typeof n.querySelectorAll === 'function') {
+            n.querySelectorAll('foreignObject').forEach(function (fo) {
+              if (fixedFOs.has(fo)) { return; }
+              fo.setAttribute('overflow', 'visible');
+              fo.style.overflow = 'visible';
+              fixedFOs.add(fo);
+            });
+          }
+        }
+      }
+    });
+    mermaidObserver.observe(document.body, { childList: true, subtree: true });
+
+    function runMermaidIn(slide) {
+      if (!slide) { return Promise.resolve(); }
+      var blocks = slide.querySelectorAll('pre.mermaid:not([data-processed="true"])');
+      var renderPromise = (blocks.length === 0)
+        ? Promise.resolve()
+        : mermaid.run({ nodes: Array.prototype.slice.call(blocks) });
+      return renderPromise.then(function () {
+        patchMermaidOverflow(slide);
+      }).catch(function (err) {
+        console.error('mermaid render error', err);
+      });
+    }
+
+    function fontsReady() {
+      if (document.fonts && typeof document.fonts.ready !== 'undefined') {
+        return document.fonts.ready;
+      }
+      return Promise.resolve();
+    }
+
+    deck.initialize().then(() => {
+      if (window.lucide && typeof window.lucide.createIcons === 'function') {
+        window.lucide.createIcons();
+      }
+      return fontsReady().then(() => runMermaidIn(deck.getCurrentSlide()));
+    });
+
+    deck.on('slidechanged', (event) => {
+      if (window.lucide && typeof window.lucide.createIcons === 'function') {
+        window.lucide.createIcons();
+      }
+      fontsReady().then(() => {
+        runMermaidIn((event && event.currentSlide) || deck.getCurrentSlide());
+      });
+    });
+  </script>
+</body>
+</html>
