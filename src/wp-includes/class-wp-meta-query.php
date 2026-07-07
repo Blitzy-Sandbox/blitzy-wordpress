@@ -587,14 +587,38 @@ class WP_Meta_Query {
 		// First build the JOIN clause, if one is required.
 		$join = '';
 
+		/*
+		 * Whether this clause is expressed as a correlated EXISTS subquery in the
+		 * WHERE clause instead of adding a table JOIN. This is set to true below
+		 * only for clauses that receive their own dedicated alias (the
+		 * `false === $alias` branch); clauses that share an existing alias keep
+		 * their JOIN. Initialized here so it is always defined for the WHERE
+		 * clause building further down.
+		 */
+		$exists_subquery = false;
+
 		// We prefer to avoid joins if possible. Look for an existing join compatible with this clause.
 		$alias = $this->find_compatible_table_alias( $clause, $parent_query );
 		if ( false === $alias ) {
 			$i     = count( $this->table_aliases );
 			$alias = $i ? 'mt' . $i : $this->meta_table;
 
+			/*
+			 * "Negative" value comparisons ('!=', 'NOT IN', 'NOT LIKE',
+			 * 'NOT BETWEEN') only test whether a matching meta row exists; they
+			 * never need to expose the meta value to the SELECT or ORDER BY of the
+			 * outer query. Such a clause can therefore be rewritten as a correlated
+			 * EXISTS ( SELECT 1 FROM ... ) subquery in the WHERE clause below
+			 * instead of an INNER JOIN, returning exactly the same set of primary
+			 * rows while avoiding the JOIN cost. See
+			 * WP_Meta_Query::is_meta_value_exists_clause() for the full set of
+			 * safety conditions, which preserve the shared-JOIN semantics that
+			 * same-key negative clauses joined by AND rely on.
+			 */
+			$exists_subquery = $this->is_meta_value_exists_clause( $clause, $parent_query, $meta_compare, $meta_compare_key );
+
 			// JOIN clauses for NOT EXISTS have their own syntax.
-			if ( 'NOT EXISTS' === $meta_compare ) {
+			if ( ! $exists_subquery && 'NOT EXISTS' === $meta_compare ) {
 				$join .= " LEFT JOIN $this->meta_table";
 				$join .= $i ? " AS $alias" : '';
 
@@ -605,14 +629,21 @@ class WP_Meta_Query {
 				}
 
 				// All other JOIN clauses.
-			} else {
+			} elseif ( ! $exists_subquery ) {
 				$join .= " INNER JOIN $this->meta_table";
 				$join .= $i ? " AS $alias" : '';
 				$join .= " ON ( $this->primary_table.$this->primary_id_column = $alias.$this->meta_id_column )";
 			}
 
 			$this->table_aliases[] = $alias;
-			$sql_chunks['join'][]  = $join;
+
+			/*
+			 * Convertible clauses ($exists_subquery) build no JOIN, only a WHERE
+			 * fragment; append the JOIN only when one was actually generated.
+			 */
+			if ( '' !== $join ) {
+				$sql_chunks['join'][] = $join;
+			}
 		}
 
 		// Save the alias to this clause, for future siblings to find.
@@ -640,6 +671,14 @@ class WP_Meta_Query {
 		$this->clauses[ $clause_key ] =& $clause;
 
 		// Next, build the WHERE clause.
+
+		/*
+		 * For clauses rewritten as an EXISTS subquery ($exists_subquery), the
+		 * "meta_key = ..." condition is captured here instead of being emitted as
+		 * a separate WHERE fragment, so it can be folded into the subquery next to
+		 * the meta_value condition below.
+		 */
+		$exists_key_condition = '';
 
 		// meta_key.
 		if ( array_key_exists( 'key', $clause ) ) {
@@ -722,7 +761,15 @@ class WP_Meta_Query {
 						break;
 				}
 
-				$sql_chunks['where'][] = $where;
+				/*
+				 * Fold the meta_key condition into the pending EXISTS subquery for
+				 * convertible clauses; otherwise emit it as its own WHERE fragment.
+				 */
+				if ( $exists_subquery ) {
+					$exists_key_condition = $where;
+				} else {
+					$sql_chunks['where'][] = $where;
+				}
 			}
 		}
 
@@ -775,9 +822,30 @@ class WP_Meta_Query {
 
 			if ( $where ) {
 				if ( 'CHAR' === $meta_type ) {
-					$sql_chunks['where'][] = "$alias.meta_value {$meta_compare} {$where}";
+					$meta_value_condition = "$alias.meta_value {$meta_compare} {$where}";
 				} else {
-					$sql_chunks['where'][] = "CAST($alias.meta_value AS {$meta_type}) {$meta_compare} {$where}";
+					$meta_value_condition = "CAST($alias.meta_value AS {$meta_type}) {$meta_compare} {$where}";
+				}
+
+				if ( $exists_subquery ) {
+					/*
+					 * Rewrite this clause as a correlated EXISTS subquery. The
+					 * reserved $alias is reused as the subquery's own table alias
+					 * (no outer JOIN uses it), and the meta_key and "negative"
+					 * meta_value conditions are folded into the subquery so that a
+					 * single matching meta row is required - exactly as the
+					 * equivalent INNER JOIN would demand, yielding an identical set
+					 * of primary rows.
+					 */
+					if ( $alias === $this->meta_table ) {
+						$exists_from = $this->meta_table;
+					} else {
+						$exists_from = "$this->meta_table AS $alias";
+					}
+
+					$sql_chunks['where'][] = "EXISTS ( SELECT 1 FROM $exists_from WHERE $this->primary_table.$this->primary_id_column = $alias.$this->meta_id_column AND $exists_key_condition AND $meta_value_condition )";
+				} else {
+					$sql_chunks['where'][] = $meta_value_condition;
 				}
 			}
 		}
@@ -805,6 +873,119 @@ class WP_Meta_Query {
 	 */
 	public function get_clauses() {
 		return $this->clauses;
+	}
+
+	/**
+	 * Determines whether a first-order clause can be safely expressed as a
+	 * correlated EXISTS subquery in the WHERE clause instead of a table JOIN.
+	 *
+	 * "Negative" value comparisons ('!=', 'NOT IN', 'NOT LIKE', 'NOT BETWEEN')
+	 * only need to test whether a matching meta row exists for a given primary
+	 * row; they never expose the meta value to the outer query's SELECT or
+	 * ORDER BY. Such a clause therefore produces exactly the same set of primary
+	 * rows whether it is expressed as an INNER JOIN or as an
+	 * `EXISTS ( SELECT 1 FROM ... )` subquery, so the JOIN can be avoided.
+	 *
+	 * To guarantee byte-identical result sets, a clause is eligible only when
+	 * all of the following hold:
+	 *
+	 *  - The value comparison operator is one of '!=', 'NOT IN', 'NOT LIKE' or
+	 *    'NOT BETWEEN'.
+	 *  - The key comparison is a simple equality ('='), so the folded meta_key
+	 *    condition is a straightforward match and the clause does not rely on the
+	 *    separate negative-key `NOT EXISTS` handling.
+	 *  - The clause supplies both a string 'key' and a 'value'.
+	 *  - The query contains no 'OR' relation anywhere. When an 'OR' relation is
+	 *    present, the implicit "row must exist" requirement of the INNER JOINs
+	 *    (which are merged into a single FROM clause across the whole tree) is
+	 *    part of the result contract; converting a JOIN to EXISTS would change
+	 *    which rows match, so the JOIN is preserved.
+	 *  - The clause does not share a key with another "negative" sibling under an
+	 *    'AND' relation. Such same-key clauses are deliberately merged onto a
+	 *    single shared JOIN (see find_compatible_table_alias()) so that one meta
+	 *    row must satisfy every condition; independent EXISTS subqueries would
+	 *    relax that semantics.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @param array  $clause           Query clause.
+	 * @param array  $parent_query     Parent query of $clause.
+	 * @param string $meta_compare     Normalized meta value comparison operator.
+	 * @param string $meta_compare_key Normalized meta key comparison operator.
+	 * @return bool Whether the clause can be expressed as an EXISTS subquery.
+	 */
+	private function is_meta_value_exists_clause( $clause, $parent_query, $meta_compare, $meta_compare_key ) {
+		/*
+		 * Only "negative" value comparisons can be expressed as EXISTS without
+		 * needing to expose the meta value to the outer SELECT/ORDER BY.
+		 */
+		$negative_value_operators = array( '!=', 'NOT IN', 'NOT LIKE', 'NOT BETWEEN' );
+		if ( ! in_array( $meta_compare, $negative_value_operators, true ) ) {
+			return false;
+		}
+
+		// The clause must test a specific key/value pair with a simple key match.
+		if ( '=' !== $meta_compare_key ) {
+			return false;
+		}
+
+		if ( ! array_key_exists( 'key', $clause ) || ! is_string( $clause['key'] ) ) {
+			return false;
+		}
+
+		if ( ! array_key_exists( 'value', $clause ) ) {
+			return false;
+		}
+
+		/*
+		 * When an OR relation exists anywhere in the query, the INNER JOINs
+		 * (merged into a single FROM clause for the whole tree) impose an implicit
+		 * existence requirement that is part of the result contract. Preserve the
+		 * JOIN in that case to keep result sets byte-identical.
+		 */
+		if ( $this->has_or_relation() ) {
+			return false;
+		}
+
+		/*
+		 * Clauses joined by AND that share a key with another "negative" sibling
+		 * are deliberately merged onto a single shared JOIN (see
+		 * find_compatible_table_alias()) so that a single meta row must satisfy
+		 * every condition. Converting them to independent EXISTS subqueries would
+		 * change that semantics, so such clauses keep their JOIN. 'NOT BETWEEN' is
+		 * never shared, so it is always eligible.
+		 */
+		$shareable_operators = array( '!=', 'NOT IN', 'NOT LIKE' );
+		if ( in_array( $meta_compare, $shareable_operators, true ) ) {
+			$shareable_same_key = 0;
+
+			foreach ( $parent_query as $sibling ) {
+				if ( ! is_array( $sibling ) || ! $this->is_first_order_clause( $sibling ) ) {
+					continue;
+				}
+
+				if ( ! isset( $sibling['key'] ) || ! is_string( $sibling['key'] ) || $sibling['key'] !== $clause['key'] ) {
+					continue;
+				}
+
+				if ( isset( $sibling['compare'] ) ) {
+					$sibling_compare = strtoupper( $sibling['compare'] );
+				} else {
+					$sibling_compare = isset( $sibling['value'] ) && is_array( $sibling['value'] ) ? 'IN' : '=';
+				}
+
+				if ( in_array( $sibling_compare, $shareable_operators, true ) ) {
+					++$shareable_same_key;
+				}
+			}
+
+			// More than one shareable same-key clause means they share a JOIN.
+			if ( $shareable_same_key > 1 ) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	/**

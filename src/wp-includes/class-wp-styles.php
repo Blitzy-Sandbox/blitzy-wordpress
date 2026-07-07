@@ -106,6 +106,40 @@ class WP_Styles extends WP_Dependencies {
 	public $default_dirs;
 
 	/**
+	 * Memoized results of {@see WP_Styles::in_default_dir()} keyed by source.
+	 *
+	 * The default-directory test performed while concatenating styles is a pure
+	 * function of the source string and the current {@see WP_Styles::$default_dirs}
+	 * list, so its boolean result is cached per source to avoid re-scanning the
+	 * default directories each time the same source is examined during a print
+	 * pass. The cache is emptied automatically whenever `$default_dirs` changes,
+	 * tracked via {@see WP_Styles::$in_default_dir_dirs}, so a cached result can
+	 * never become stale or alter the rendered output.
+	 *
+	 * @since 7.0.0
+	 * @var array<string, bool>
+	 */
+	private $in_default_dir_cache = array();
+
+	/**
+	 * The `$default_dirs` value the {@see WP_Styles::$in_default_dir_cache} is aligned to.
+	 *
+	 * Snapshots {@see WP_Styles::$default_dirs} at the time the cache was last
+	 * populated. Because `$default_dirs` is a public property that callers may
+	 * reassign at any time, the memoized results are only valid while it remains
+	 * unchanged; {@see WP_Styles::in_default_dir()} compares the live property
+	 * against this snapshot and clears the cache when they differ.
+	 *
+	 * The initial value `false` is a sentinel that cannot equal a real
+	 * `$default_dirs` value (which is always `string[]` or `null`), forcing the
+	 * cache to initialize on first use.
+	 *
+	 * @since 7.0.0
+	 * @var string[]|false|null
+	 */
+	private $in_default_dir_dirs = false;
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 2.6.0
@@ -450,21 +484,44 @@ class WP_Styles extends WP_Dependencies {
 	 * Whether a handle's source is in a default directory.
 	 *
 	 * @since 2.8.0
+	 * @since 7.0.0 The result is memoized per source and reused until `$default_dirs` changes.
 	 *
 	 * @param string $src The source of the enqueued style.
 	 * @return bool True if found, false if not.
 	 */
 	public function in_default_dir( $src ) {
-		if ( ! $this->default_dirs ) {
-			return true;
+		/*
+		 * Invalidate the memoized results when the set of default directories
+		 * changes. `$default_dirs` is a public property that callers may reassign
+		 * at any time, so the cache is only valid while it matches the snapshot it
+		 * was built against. Comparing against the snapshot (rather than never
+		 * invalidating) guarantees each result stays byte-identical to a fresh
+		 * computation.
+		 */
+		if ( $this->default_dirs !== $this->in_default_dir_dirs ) {
+			$this->in_default_dir_cache = array();
+			$this->in_default_dir_dirs  = $this->default_dirs;
 		}
 
-		foreach ( (array) $this->default_dirs as $test ) {
-			if ( str_starts_with( $src, $test ) ) {
-				return true;
+		if ( array_key_exists( $src, $this->in_default_dir_cache ) ) {
+			return $this->in_default_dir_cache[ $src ];
+		}
+
+		$result = false;
+		if ( ! $this->default_dirs ) {
+			$result = true;
+		} else {
+			foreach ( (array) $this->default_dirs as $test ) {
+				if ( str_starts_with( $src, $test ) ) {
+					$result = true;
+					break;
+				}
 			}
 		}
-		return false;
+
+		$this->in_default_dir_cache[ $src ] = $result;
+
+		return $result;
 	}
 
 	/**

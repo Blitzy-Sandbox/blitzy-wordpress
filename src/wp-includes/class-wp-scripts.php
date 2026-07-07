@@ -130,7 +130,19 @@ class WP_Scripts extends WP_Dependencies {
 	 * Holds a mapping of dependents (as handles) for a given script handle.
 	 * Used to optimize recursive dependency tree checks.
 	 *
+	 * This reverse-dependency map is memoized lazily by {@see WP_Scripts::get_dependents()}
+	 * and is derived solely from the set of registered handles and their declared
+	 * dependencies. It is therefore invalidated (reset to an empty array) whenever the
+	 * dependency graph changes: when a script is registered ({@see WP_Scripts::add()}),
+	 * removed ({@see WP_Scripts::remove()}), has its dependencies cleared by a conditional
+	 * declaration ({@see WP_Scripts::add_data()}), or gains the `wp-i18n` dependency via a
+	 * translation registration ({@see WP_Scripts::set_translations()}). This keeps the
+	 * cache correct under mutation while avoiding a full re-scan of the registration table
+	 * on every lookup during printing.
+	 *
 	 * @since 6.3.0
+	 * @since 7.0.0 Invalidated on registration, removal, and dependency changes so the
+	 *              memoized map stays consistent with the current dependency graph.
 	 * @var array<string, string[]>
 	 */
 	private $dependents_map = array();
@@ -725,6 +737,12 @@ class WP_Scripts extends WP_Dependencies {
 
 		if ( ! in_array( 'wp-i18n', $obj->deps, true ) ) {
 			$obj->deps[] = 'wp-i18n';
+
+			/*
+			 * Adding the wp-i18n dependency changes the reverse-dependency graph, so the
+			 * memoized dependents map must be rebuilt lazily on its next access.
+			 */
+			$this->dependents_map = array();
 		}
 
 		return $obj->set_translations( $domain, $path );
@@ -876,6 +894,12 @@ JS;
 		if ( 'conditional' === $key ) {
 			// If a dependency is declared by a conditional script, remove it.
 			$this->registered[ $handle ]->deps = array();
+
+			/*
+			 * Clearing the dependencies changes the reverse-dependency graph, so the
+			 * memoized dependents map must be rebuilt lazily on its next access.
+			 */
+			$this->dependents_map = array();
 		}
 
 		if ( 'strategy' === $key ) {
@@ -977,6 +1001,66 @@ JS;
 			$value = $sanitized_value;
 		}
 		return parent::add_data( $handle, $key, $value );
+	}
+
+	/**
+	 * Registers a script.
+	 *
+	 * Overrides {@see WP_Dependencies::add()} to invalidate the memoized dependents
+	 * map. Registering a new script can make it a dependent of already registered
+	 * handles, which changes the reverse-dependency graph consulted during printing
+	 * by {@see WP_Scripts::get_dependents()}. The parent registration behavior and
+	 * return value are preserved byte-for-byte.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @see WP_Dependencies::add()
+	 *
+	 * @param string           $handle Name of the item. Should be unique.
+	 * @param string|false     $src    Full URL of the item, or path of the item relative
+	 *                                 to the WordPress root directory. If source is set to false,
+	 *                                 the item is an alias of other items it depends on.
+	 * @param string[]         $deps   Optional. An array of registered item handles this item depends on.
+	 *                                 Default empty array.
+	 * @param string|bool|null $ver    Optional. String specifying item version number, if it has one,
+	 *                                 which is added to the URL as a query string for cache busting purposes.
+	 *                                 If version is set to false, a version number is automatically added
+	 *                                 equal to current installed WordPress version.
+	 *                                 If set to null, no version is added.
+	 * @param mixed            $args   Optional. Custom property of the item. NOT the class property $args.
+	 *                                 Examples: $media, $in_footer.
+	 * @return bool Whether the item has been registered. True on success, false on failure.
+	 */
+	public function add( $handle, $src, $deps = array(), $ver = false, $args = null ) {
+		$added = parent::add( $handle, $src, $deps, $ver, $args );
+
+		if ( $added ) {
+			// A newly registered script may be a dependent of existing handles; rebuild lazily.
+			$this->dependents_map = array();
+		}
+
+		return $added;
+	}
+
+	/**
+	 * Un-registers a script or scripts.
+	 *
+	 * Overrides {@see WP_Dependencies::remove()} to invalidate the memoized dependents
+	 * map. Removing a handle changes the reverse-dependency graph consulted during
+	 * printing by {@see WP_Scripts::get_dependents()}. The parent removal behavior is
+	 * preserved byte-for-byte.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @see WP_Dependencies::remove()
+	 *
+	 * @param string|string[] $handles Item handle (string) or item handles (array of strings).
+	 */
+	public function remove( $handles ) {
+		parent::remove( $handles );
+
+		// The reverse-dependency graph may have changed; rebuild the dependents map lazily.
+		$this->dependents_map = array();
 	}
 
 	/**

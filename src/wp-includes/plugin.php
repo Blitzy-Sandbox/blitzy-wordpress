@@ -202,6 +202,13 @@ function apply_filters( $hook_name, $value, ...$args ) {
 	// Pass the value to WP_Hook.
 	array_unshift( $args, $value );
 
+	/*
+	 * Delegate to WP_Hook::apply_filters(), which carries the hot-path optimization
+	 * for this dispatch (an empty-callback fast path and an arity-aware invocation
+	 * tree that avoids call_user_func_array() for low-arity callbacks). This wrapper
+	 * is intentionally kept thin: the $wp_filters counter and the $wp_current_filter
+	 * push/pop above are established contract and are deliberately left unchanged.
+	 */
 	$filtered = $wp_filter[ $hook_name ]->apply_filters( $value, $args );
 
 	array_pop( $wp_current_filter );
@@ -519,6 +526,13 @@ function do_action( $hook_name, ...$arg ) {
 		$arg[0] = $arg[0][0];
 	}
 
+	/*
+	 * Delegate to WP_Hook::do_action(), which routes through the arity-optimized
+	 * WP_Hook::apply_filters() (empty-callback fast path and direct low-arity
+	 * invocation). This wrapper is intentionally kept thin: the $wp_actions counter
+	 * and the $wp_current_filter push/pop are established contract and are left
+	 * unchanged.
+	 */
 	$wp_filter[ $hook_name ]->do_action( $arg );
 
 	array_pop( $wp_current_filter );

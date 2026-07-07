@@ -113,6 +113,9 @@ for ( const { title, results } of afterStats ) {
 			? accumulateValues( prevStat.results )
 			: {};
 
+	// The comparison below is metric-generic: every metric key is rendered via formatValue(), so the
+	// seven canonical Server-Timing metrics ( wpBootstrap, wpPlugins, wpFilesLoaded, wpCacheHits,
+	// wpCacheMisses, wpDbQueries, wpMemoryUsage ) and browser-captured admin KPIs ( domContentLoaded, adminJsTransferSize ) flow through unchanged.
 	for ( const [ metric, values ] of Object.entries( newResults ) ) {
 		const prevValues = prevResults[ metric ] ? prevResults[ metric ] : null;
 
