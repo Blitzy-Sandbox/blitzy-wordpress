@@ -366,9 +366,9 @@ function wp_ajax_autocomplete_user() {
  * @since 4.8.0
  */
 function wp_ajax_get_community_events() {
-	check_ajax_referer( 'community_events' );
-
 	require_once ABSPATH . 'wp-admin/includes/class-wp-community-events.php';
+
+	check_ajax_referer( 'community_events' );
 
 	$search         = isset( $_POST['location'] ) ? wp_unslash( $_POST['location'] ) : '';
 	$timezone       = isset( $_POST['timezone'] ) ? wp_unslash( $_POST['timezone'] ) : '';
@@ -418,6 +418,8 @@ function wp_ajax_get_community_events() {
  * @since 3.4.0
  */
 function wp_ajax_dashboard_widgets() {
+	require_once ABSPATH . 'wp-admin/includes/dashboard.php';
+
 	$pagenow = $_GET['pagenow'];
 	if ( 'dashboard-user' === $pagenow || 'dashboard-network' === $pagenow || 'dashboard' === $pagenow ) {
 		set_current_screen( $pagenow );
@@ -425,7 +427,6 @@ function wp_ajax_dashboard_widgets() {
 
 	switch ( $_GET['widget'] ) {
 		case 'dashboard_primary':
-			require_once ABSPATH . 'wp-admin/includes/dashboard.php';
 			wp_dashboard_primary();
 			break;
 	}
@@ -3546,6 +3547,8 @@ function wp_ajax_heartbeat() {
  * @since 3.6.0
  */
 function wp_ajax_get_revision_diffs() {
+	require ABSPATH . 'wp-admin/includes/revision.php';
+
 	$post = get_post( (int) $_REQUEST['post_id'] );
 	if ( ! $post ) {
 		wp_send_json_error();
@@ -3554,8 +3557,6 @@ function wp_ajax_get_revision_diffs() {
 	if ( ! current_user_can( 'edit_post', $post->ID ) ) {
 		wp_send_json_error();
 	}
-
-	require ABSPATH . 'wp-admin/includes/revision.php';
 
 	// Really just pre-loading the cache here.
 	$revisions = wp_get_post_revisions( $post->ID, array( 'check_enabled' => false ) );

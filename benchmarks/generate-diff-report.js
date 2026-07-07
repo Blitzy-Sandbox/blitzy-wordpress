@@ -16,6 +16,21 @@
  * formatting helpers exported by `tests/performance/utils.js`, so its medians,
  * deltas, and value formatting are identical to the CI comparison.
  *
+ * Statistical significance: every per-suite metric and every KPI carries a
+ * two-tailed significance verdict from Welch's unequal-variances two-sample
+ * t-test over the raw baseline vs. optimized samples. The p-value is derived
+ * from the Student's t distribution via a self-contained Lanczos log-gamma and
+ * Lentz-evaluated regularized incomplete beta (Node built-ins only), reported
+ * as `{ test, tStatistic, degreesOfFreedom, pValue, significant, alpha }` with
+ * `alpha = 0.05`; it is `null` when a group has fewer than two samples (for
+ * example when no baseline is present).
+ *
+ * Deterministic output: given identical input files the report is byte-for-byte
+ * reproducible -- all statistics are rounded to a fixed precision and the
+ * timestamp falls back to a fixed sentinel (see `resolveGeneratedAt`) rather
+ * than the wall clock -- so committed representative artifacts preserve
+ * `git diff --exit-code` semantics.
+ *
  * Inputs (read from `WP_ARTIFACTS_PATH`, default `<cwd>/benchmarks/results`):
  *   - `before-performance-results.json` : baseline raw results.
  *   - `performance-results.json`        : optimized raw results.
@@ -177,13 +192,333 @@ const DIFF_EXCLUDED_METRICS = new Set( [ 'wpExtObjCache' ] );
 const TARGETS_TOTAL = KPI_DEFINITIONS.length;
 
 /**
+ * Significance level (alpha) for the two-sample significance test. A metric's
+ * before/after difference is flagged significant when its two-tailed p-value is
+ * strictly below this value. 0.05 is the conventional 95%-confidence threshold.
+ *
+ * @type {number}
+ */
+const SIGNIFICANCE_ALPHA = 0.05;
+
+/**
+ * Deterministic fallback report timestamp (the Unix epoch) used only when
+ * neither `BENCHMARK_GENERATED_AT` nor `SOURCE_DATE_EPOCH` is set. Using a fixed
+ * sentinel instead of the wall-clock time keeps the emitted artifacts
+ * byte-for-byte identical for identical inputs, so committed representative
+ * reports preserve `git diff --exit-code` semantics. Real runs are expected to
+ * export one of the two overrides to record an accurate time.
+ *
+ * @type {string}
+ */
+const DEFAULT_GENERATED_AT = '1970-01-01T00:00:00.000Z';
+
+/**
+ * Lanczos series coefficients (g = 7, n = 9) for the log-gamma approximation.
+ * These fixed rational constants make `logGamma` fully deterministic.
+ *
+ * @type {number[]}
+ */
+const LANCZOS_G = 7;
+const LANCZOS_COEFFICIENTS = [
+	0.99999999999980993, 676.5203681218851, -1259.1392167224028,
+	771.32342877765313, -176.61502916214059, 12.507343278686905,
+	-0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7,
+];
+
+/**
+ * Rounds a number to a fixed number of decimal places, passing non-finite
+ * values (Infinity/-Infinity/NaN) through unchanged so degenerate t-statistics
+ * are not corrupted. Rounding keeps the emitted statistics stable and
+ * deterministic across runs.
+ *
+ * @param {number} value    Value to round.
+ * @param {number} decimals Number of decimal places.
+ * @return {number} Rounded value, or the original value when non-finite.
+ */
+function roundTo( value, decimals ) {
+	if ( ! Number.isFinite( value ) ) {
+		return value;
+	}
+
+	const factor = Math.pow( 10, decimals );
+	return Math.round( value * factor ) / factor;
+}
+
+/**
+ * Arithmetic mean of a numeric sample.
+ *
+ * @param {number[]} samples Samples.
+ * @return {number} Mean (NaN for an empty array).
+ */
+function mean( samples ) {
+	if ( samples.length === 0 ) {
+		return NaN;
+	}
+
+	let total = 0;
+	for ( const value of samples ) {
+		total += value;
+	}
+
+	return total / samples.length;
+}
+
+/**
+ * Unbiased (Bessel-corrected, `n - 1` denominator) sample variance.
+ *
+ * The shared `standardDeviation` helper in utils.js uses the population
+ * (`n`) denominator, which is why this test computes its own variance: the
+ * Welch t-test requires the unbiased estimator.
+ *
+ * @param {number[]} samples   Samples (length >= 2).
+ * @param {number}   meanValue Precomputed mean of `samples`.
+ * @return {number} Sample variance.
+ */
+function sampleVariance( samples, meanValue ) {
+	let sumSquares = 0;
+	for ( const value of samples ) {
+		const diff = value - meanValue;
+		sumSquares += diff * diff;
+	}
+
+	return sumSquares / ( samples.length - 1 );
+}
+
+/**
+ * Natural logarithm of the gamma function via the Lanczos approximation.
+ *
+ * Uses the reflection formula for arguments below 0.5 so the approximation is
+ * valid across the whole real line. Deterministic for a given input.
+ *
+ * @param {number} x Argument.
+ * @return {number} ln( gamma( x ) ).
+ */
+function logGamma( x ) {
+	if ( x < 0.5 ) {
+		// Reflection: ln G(x) = ln( pi / sin( pi x ) ) - ln G( 1 - x ).
+		return (
+			Math.log( Math.PI / Math.sin( Math.PI * x ) ) - logGamma( 1 - x )
+		);
+	}
+
+	x -= 1;
+	let a = LANCZOS_COEFFICIENTS[ 0 ];
+	const t = x + LANCZOS_G + 0.5;
+	for ( let i = 1; i < LANCZOS_COEFFICIENTS.length; i++ ) {
+		a += LANCZOS_COEFFICIENTS[ i ] / ( x + i );
+	}
+
+	return (
+		0.5 * Math.log( 2 * Math.PI ) +
+		( x + 0.5 ) * Math.log( t ) -
+		t +
+		Math.log( a )
+	);
+}
+
+/**
+ * Continued-fraction expansion for the incomplete beta function, evaluated
+ * with the modified Lentz algorithm. Adapted from the standard Numerical
+ * Recipes `betacf` routine.
+ *
+ * @param {number} a Alpha parameter.
+ * @param {number} b Beta parameter.
+ * @param {number} x Point in [0, 1].
+ * @return {number} Continued-fraction value.
+ */
+function betaContinuedFraction( a, b, x ) {
+	const FPMIN = 1e-300;
+	const EPS = 1e-12;
+	const MAX_ITERATIONS = 200;
+
+	const qab = a + b;
+	const qap = a + 1;
+	const qam = a - 1;
+
+	let c = 1;
+	let d = 1 - ( qab * x ) / qap;
+	if ( Math.abs( d ) < FPMIN ) {
+		d = FPMIN;
+	}
+	d = 1 / d;
+	let h = d;
+
+	for ( let m = 1; m <= MAX_ITERATIONS; m++ ) {
+		const m2 = 2 * m;
+
+		let aa = ( m * ( b - m ) * x ) / ( ( qam + m2 ) * ( a + m2 ) );
+		d = 1 + aa * d;
+		if ( Math.abs( d ) < FPMIN ) {
+			d = FPMIN;
+		}
+		c = 1 + aa / c;
+		if ( Math.abs( c ) < FPMIN ) {
+			c = FPMIN;
+		}
+		d = 1 / d;
+		h *= d * c;
+
+		aa = ( -( a + m ) * ( qab + m ) * x ) / ( ( a + m2 ) * ( qap + m2 ) );
+		d = 1 + aa * d;
+		if ( Math.abs( d ) < FPMIN ) {
+			d = FPMIN;
+		}
+		c = 1 + aa / c;
+		if ( Math.abs( c ) < FPMIN ) {
+			c = FPMIN;
+		}
+		d = 1 / d;
+		const del = d * c;
+		h *= del;
+
+		if ( Math.abs( del - 1 ) < EPS ) {
+			break;
+		}
+	}
+
+	return h;
+}
+
+/**
+ * Regularized incomplete beta function I_x(a, b), computed from `logGamma` and
+ * the continued fraction above. Returns a value in [0, 1].
+ *
+ * @param {number} x Point in [0, 1].
+ * @param {number} a Alpha parameter.
+ * @param {number} b Beta parameter.
+ * @return {number} I_x( a, b ).
+ */
+function incompleteBeta( x, a, b ) {
+	if ( x <= 0 ) {
+		return 0;
+	}
+
+	if ( x >= 1 ) {
+		return 1;
+	}
+
+	const logBeta =
+		logGamma( a + b ) -
+		logGamma( a ) -
+		logGamma( b ) +
+		a * Math.log( x ) +
+		b * Math.log( 1 - x );
+	const front = Math.exp( logBeta );
+
+	// Use the fraction that converges fastest for the given x.
+	if ( x < ( a + 1 ) / ( a + b + 2 ) ) {
+		return ( front * betaContinuedFraction( a, b, x ) ) / a;
+	}
+
+	return 1 - ( front * betaContinuedFraction( b, a, 1 - x ) ) / b;
+}
+
+/**
+ * Two-tailed p-value of a Student's t statistic with the given degrees of
+ * freedom, using p = I_{df/(df + t^2)}( df / 2, 1 / 2 ).
+ *
+ * @param {number} t  t statistic.
+ * @param {number} df Degrees of freedom (> 0).
+ * @return {number} Two-tailed p-value in [0, 1].
+ */
+function studentTTwoTailedPValue( t, df ) {
+	// An infinite t (zero standard error with differing means) is a certain
+	// difference, so its two-tailed p-value is 0.
+	if ( ! Number.isFinite( t ) ) {
+		return 0;
+	}
+
+	if ( ! Number.isFinite( df ) || df <= 0 ) {
+		return NaN;
+	}
+
+	const x = df / ( df + t * t );
+	return incompleteBeta( x, df / 2, 0.5 );
+}
+
+/**
+ * Welch's unequal-variances two-sample t-test between the baseline and
+ * optimized samples.
+ *
+ * Returns `null` when either group has fewer than two samples (variance cannot
+ * be estimated), so callers render the significance as blank. When both groups
+ * are constant (zero pooled standard error) the test degenerates to a direct
+ * mean comparison. The result is fully deterministic for identical inputs and
+ * uses only Node built-ins.
+ *
+ * @param {number[]} beforeSamples Baseline samples.
+ * @param {number[]} afterSamples  Optimized samples.
+ * @param {number}   alpha         Significance level.
+ * @return {?{test: string, tStatistic: number, degreesOfFreedom: number, pValue: number, significant: boolean, alpha: number}}
+ *         Significance result, or `null` when it cannot be computed.
+ */
+function computeSignificance( beforeSamples, afterSamples, alpha ) {
+	const n1 = beforeSamples.length;
+	const n2 = afterSamples.length;
+
+	// At least two samples per group are required to estimate variance.
+	if ( n1 < 2 || n2 < 2 ) {
+		return null;
+	}
+
+	const mean1 = mean( beforeSamples );
+	const mean2 = mean( afterSamples );
+	const variance1 = sampleVariance( beforeSamples, mean1 );
+	const variance2 = sampleVariance( afterSamples, mean2 );
+
+	const se1 = variance1 / n1;
+	const se2 = variance2 / n2;
+	const standardErrorSquared = se1 + se2;
+	const standardError = Math.sqrt( standardErrorSquared );
+
+	let tStatistic;
+	let degreesOfFreedom;
+	let pValue;
+
+	if ( standardError === 0 ) {
+		// Both groups are constant. Identical means => no difference;
+		// differing means => a certain difference.
+		if ( mean1 === mean2 ) {
+			tStatistic = 0;
+			pValue = 1;
+		} else {
+			tStatistic = mean1 > mean2 ? Infinity : -Infinity;
+			pValue = 0;
+		}
+		degreesOfFreedom = n1 + n2 - 2;
+	} else {
+		tStatistic = ( mean1 - mean2 ) / standardError;
+		// Welch-Satterthwaite effective degrees of freedom.
+		degreesOfFreedom =
+			( standardErrorSquared * standardErrorSquared ) /
+			( ( se1 * se1 ) / ( n1 - 1 ) + ( se2 * se2 ) / ( n2 - 1 ) );
+		pValue = studentTTwoTailedPValue( tStatistic, degreesOfFreedom );
+	}
+
+	// Clamp against tiny numerical overshoot before deriving the verdict.
+	pValue = Math.min( 1, Math.max( 0, pValue ) );
+
+	return {
+		test: 'welch-two-sample-t',
+		tStatistic: roundTo( tStatistic, 6 ),
+		degreesOfFreedom: roundTo( degreesOfFreedom, 4 ),
+		pValue: roundTo( pValue, 6 ),
+		significant: pValue < alpha,
+		alpha,
+	};
+}
+
+/**
  * Resolves the report timestamp.
  *
  * Honours `BENCHMARK_GENERATED_AT` (an explicit ISO-8601 string) first, then
  * `SOURCE_DATE_EPOCH` (Unix seconds, the reproducible-builds convention), and
- * finally the current time. The overrides make the emitted artifacts
- * byte-for-byte reproducible for committed representative snapshots and for
- * deterministic test runs, while normal invocations record the real time.
+ * finally a fixed deterministic sentinel (`DEFAULT_GENERATED_AT`). The
+ * fallback intentionally does NOT read the wall-clock time: with no override,
+ * identical inputs must produce a byte-identical report so committed
+ * representative artifacts keep `git diff --exit-code` semantics. Real runs are
+ * expected to export one of the two overrides (for example the source commit
+ * time) to record an accurate, still-deterministic timestamp.
  *
  * @return {string} ISO-8601 timestamp.
  */
@@ -199,7 +534,7 @@ function resolveGeneratedAt() {
 		}
 	}
 
-	return new Date().toISOString();
+	return DEFAULT_GENERATED_AT;
 }
 
 /**
@@ -272,13 +607,15 @@ function medianOrNull( samples ) {
  * The KPI verdict deliberately uses the conventional reduction-over-baseline
  * formula `( before - after ) / before * 100`, which differs from the
  * per-suite `deltaPct` (a signed change over the after value, kept for parity
- * with `compare-results.js`). Both formulas are intentional and coexist.
+ * with `compare-results.js`). Both formulas are intentional and coexist. The
+ * entry also carries a `significance` object (Welch's two-sample t-test over
+ * the raw baseline/optimized samples), or `null` when it cannot be computed.
  *
  * @param {Object}                                                           definition  KPI definition.
  * @param {Array<{title: string, results: Array<Record<string, number[]>>}>} afterStats  Optimized raw results.
  * @param {Array<{title: string, results: Array<Record<string, number[]>>}>} beforeStats Baseline raw results.
  * @param {boolean}                                                          hasBaseline Whether a baseline is available.
- * @return {Object} KPI report entry.
+ * @return {Object} KPI report entry, including a `significance` field.
  */
 function evaluateKpi( definition, afterStats, beforeStats, hasBaseline ) {
 	const { id, label, metric, scope, unit, threshold } = definition;
@@ -300,6 +637,14 @@ function evaluateKpi( definition, afterStats, beforeStats, hasBaseline ) {
 
 	const passed = reductionPct !== null && reductionPct >= threshold;
 
+	// Two-sample significance of the before/after difference. Null when there
+	// are too few samples (for example when no baseline is available).
+	const significance = computeSignificance(
+		beforeSamples,
+		afterSamples,
+		SIGNIFICANCE_ALPHA
+	);
+
 	return {
 		id,
 		label,
@@ -314,6 +659,7 @@ function evaluateKpi( definition, afterStats, beforeStats, hasBaseline ) {
 		threshold,
 		direction: 'reduction',
 		passed,
+		significance,
 	};
 }
 
@@ -324,7 +670,9 @@ function evaluateKpi( definition, afterStats, beforeStats, hasBaseline ) {
  * accumulated samples, `deltaAbs = after - before`, and
  * `deltaPct = ( after - before ) / after * 100` (a signed change over the
  * after value). `wpExtObjCache` is excluded from delta math. Baseline values
- * are only compared when the repetition counts match.
+ * are only compared when the repetition counts match. Each metric also carries
+ * a `significance` object (Welch's two-sample t-test over the raw
+ * baseline/optimized samples), or `null` when it cannot be computed.
  *
  * @param {Array<{title: string, results: Array<Record<string, number[]>>}>} afterStats  Optimized raw results.
  * @param {Array<{title: string, results: Array<Record<string, number[]>>}>} beforeStats Baseline raw results.
@@ -362,6 +710,18 @@ function buildSuites( afterStats, beforeStats ) {
 					? ( ( after - before ) / after ) * 100
 					: null;
 
+			// Two-sample significance of this metric's before/after difference.
+			// Null for excluded metrics and when no comparable baseline samples
+			// are available.
+			const significance =
+				! excluded && prevValues
+					? computeSignificance(
+							prevValues,
+							values,
+							SIGNIFICANCE_ALPHA
+					  )
+					: null;
+
 			metrics.push( {
 				metric,
 				before,
@@ -370,6 +730,7 @@ function buildSuites( afterStats, beforeStats ) {
 				deltaPct,
 				std: standardDeviation( values ),
 				mad: medianAbsoluteDeviation( values ),
+				significance,
 			} );
 		}
 
@@ -401,15 +762,26 @@ function buildKpiRows( kpis ) {
 				: 'N/A',
 		Threshold: `>= ${ kpi.threshold }%`,
 		Status: kpi.passed ? 'PASS' : 'FAIL',
+		'p-value':
+			kpi.significance !== null
+				? kpi.significance.pValue.toFixed( 4 )
+				: 'N/A',
+		Significant:
+			kpi.significance !== null
+				? kpi.significance.significant
+					? 'yes'
+					: 'no'
+				: 'N/A',
 	} ) );
 }
 
 /**
  * Builds the per-suite Markdown table rows for a single suite.
  *
- * Uses the `Metric / Before / After / Diff abs. / Diff % / STD / MAD` shape
- * from `compare-results.js`; diff columns are blank for excluded metrics and
- * when no baseline value is available.
+ * Extends the `Metric / Before / After / Diff abs. / Diff % / STD / MAD` shape
+ * from `compare-results.js` with `p-value` / `Significant` columns from the
+ * per-metric Welch t-test; diff and significance columns are blank for excluded
+ * metrics and when no comparable baseline value is available.
  *
  * @param {Array<Object>} metrics Per-metric statistics.
  * @return {Array<Record<string, string>>} Table rows.
@@ -435,6 +807,16 @@ function buildSuiteRows( metrics ) {
 					: '',
 			STD: excluded ? '' : formatValue( entry.metric, entry.std ),
 			MAD: excluded ? '' : formatValue( entry.metric, entry.mad ),
+			'p-value':
+				entry.significance !== null
+					? entry.significance.pValue.toFixed( 4 )
+					: '',
+			Significant:
+				entry.significance !== null
+					? entry.significance.significant
+						? 'yes'
+						: 'no'
+					: '',
 		};
 	} );
 }

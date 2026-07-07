@@ -96,6 +96,37 @@ class WP_Meta_Query {
 	protected $has_or_relation = false;
 
 	/**
+	 * Orderby references derived from the primary query's context.
+	 *
+	 * Computed once per get_sql() call from the primary query object's
+	 * `orderby` query variable. It records which meta clauses supply a column
+	 * to the outer query's `ORDER BY`, so the EXISTS-subquery optimization in
+	 * WP_Meta_Query::is_meta_value_exists_clause() can preserve the table JOIN
+	 * for any clause whose meta value is needed for sorting (an EXISTS subquery
+	 * exposes no column to the outer query and therefore cannot be sorted on).
+	 *
+	 * Structure:
+	 *
+	 *  - 'known'  bool     Whether a usable orderby context was available. When
+	 *                      false, the value-referencing checks are skipped and
+	 *                      the JOIN is preserved (conservative default).
+	 *  - 'value'  bool     Whether the outer orderby references 'meta_value' or
+	 *                      'meta_value_num', which resolve to the primary
+	 *                      (first) meta clause's alias.
+	 *  - 'keys'   array    Set of orderby tokens (token => true), used to detect
+	 *                      references to a clause by its meta key or by a named
+	 *                      clause key.
+	 *
+	 * @since 7.0.0
+	 * @var array
+	 */
+	protected $meta_value_orderby_refs = array(
+		'known' => false,
+		'value' => false,
+		'keys'  => array(),
+	);
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 3.2.0
@@ -368,6 +399,15 @@ class WP_Meta_Query {
 		$this->primary_table     = $primary_table;
 		$this->primary_id_column = $primary_id_column;
 
+		/*
+		 * Determine which meta clauses feed the outer query's ORDER BY before
+		 * building the clauses, so the EXISTS-subquery optimization can keep the
+		 * JOIN for any clause whose meta value is needed for sorting. An EXISTS
+		 * subquery exposes no column to the outer query and therefore cannot be
+		 * sorted on.
+		 */
+		$this->meta_value_orderby_refs = $this->get_orderby_clause_references( $context );
+
 		$sql = $this->get_sql_clauses();
 
 		/*
@@ -615,7 +655,7 @@ class WP_Meta_Query {
 			 * safety conditions, which preserve the shared-JOIN semantics that
 			 * same-key negative clauses joined by AND rely on.
 			 */
-			$exists_subquery = $this->is_meta_value_exists_clause( $clause, $parent_query, $meta_compare, $meta_compare_key );
+			$exists_subquery = $this->is_meta_value_exists_clause( $clause, $parent_query, $meta_compare, $meta_compare_key, 0 === $i, $clause_key );
 
 			// JOIN clauses for NOT EXISTS have their own syntax.
 			if ( ! $exists_subquery && 'NOT EXISTS' === $meta_compare ) {
@@ -876,6 +916,95 @@ class WP_Meta_Query {
 	}
 
 	/**
+	 * Collects the outer query's orderby references so the EXISTS-subquery
+	 * optimization can preserve the JOIN for any meta clause whose value is
+	 * needed for sorting.
+	 *
+	 * WP_Query::parse_orderby() (and the analogous logic in other primary query
+	 * classes) resolves an 'orderby' of 'meta_value' or 'meta_value_num' to the
+	 * primary (first) meta clause's alias, resolves an 'orderby' equal to the
+	 * primary clause's meta key to that same alias, and resolves an 'orderby'
+	 * equal to a named clause key to that named clause's alias. In every one of
+	 * those cases a meta column is emitted in the ORDER BY, which requires the
+	 * clause to keep a real table JOIN, because a correlated EXISTS subquery
+	 * exposes no column to sort on. This method inspects the primary query
+	 * object's 'orderby' query variable and records those references for
+	 * WP_Meta_Query::is_meta_value_exists_clause().
+	 *
+	 * When no usable context is available (for example the context is null or a
+	 * caller that is not a primary query object, as in isolated unit tests), the
+	 * 'known' flag is left false so callers keep the JOIN unconditionally, which
+	 * preserves the pre-optimization SQL byte-for-byte for those callers.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @param object|null $context The primary query object that corresponds to the
+	 *                             meta type, for example a WP_Query, WP_User_Query,
+	 *                             or WP_Comment_Query. May be null.
+	 * @return array {
+	 *     References derived from the context's 'orderby'.
+	 *
+	 *     @type bool  $known Whether a usable orderby context was available.
+	 *     @type bool  $value Whether 'meta_value' or 'meta_value_num' is referenced.
+	 *     @type array $keys  Set of orderby tokens, keyed by token with value true.
+	 * }
+	 */
+	protected function get_orderby_clause_references( $context ) {
+		$references = array(
+			'known' => false,
+			'value' => false,
+			'keys'  => array(),
+		);
+
+		// A usable context must expose an array of query variables.
+		if ( ! is_object( $context ) || ! isset( $context->query_vars ) || ! is_array( $context->query_vars ) ) {
+			return $references;
+		}
+
+		$references['known'] = true;
+
+		if ( ! isset( $context->query_vars['orderby'] ) ) {
+			return $references;
+		}
+
+		$orderby = $context->query_vars['orderby'];
+		$tokens  = array();
+
+		if ( is_array( $orderby ) ) {
+			/*
+			 * 'orderby' may be an associative array of field => order (the common
+			 * WP_Query form) or a plain list of fields. Collect both the string
+			 * keys and the string values so either form is covered.
+			 */
+			foreach ( $orderby as $key => $value ) {
+				if ( is_string( $key ) ) {
+					$tokens[] = $key;
+				}
+
+				if ( is_string( $value ) ) {
+					$tokens[] = $value;
+				}
+			}
+		} elseif ( is_string( $orderby ) ) {
+			// A string 'orderby' is a whitespace- and/or comma-separated list.
+			$tokens = preg_split( '/[\s,]+/', $orderby, -1, PREG_SPLIT_NO_EMPTY );
+			if ( false === $tokens ) {
+				$tokens = array();
+			}
+		}
+
+		foreach ( $tokens as $token ) {
+			if ( 'meta_value' === $token || 'meta_value_num' === $token ) {
+				$references['value'] = true;
+			}
+
+			$references['keys'][ $token ] = true;
+		}
+
+		return $references;
+	}
+
+	/**
 	 * Determines whether a first-order clause can be safely expressed as a
 	 * correlated EXISTS subquery in the WHERE clause instead of a table JOIN.
 	 *
@@ -905,16 +1034,32 @@ class WP_Meta_Query {
 	 *    single shared JOIN (see find_compatible_table_alias()) so that one meta
 	 *    row must satisfy every condition; independent EXISTS subqueries would
 	 *    relax that semantics.
+	 *  - The clause's meta value is not referenced by the outer query's
+	 *    'orderby'. WP_Query::parse_orderby() (and the equivalent logic in the
+	 *    other primary query classes) emits "{$alias}.meta_value" in the ORDER
+	 *    BY when 'orderby' names 'meta_value', 'meta_value_num', the primary
+	 *    clause's meta key, or a named clause key; an EXISTS subquery exposes no
+	 *    such column to sort on, so the JOIN must be preserved. When the orderby
+	 *    context is unknown (for example a null or non-primary caller), the JOIN
+	 *    is likewise preserved so the generated SQL stays byte-identical to the
+	 *    pre-optimization behavior. The references are collected in
+	 *    WP_Meta_Query::get_orderby_clause_references().
 	 *
 	 * @since 7.0.0
 	 *
-	 * @param array  $clause           Query clause.
-	 * @param array  $parent_query     Parent query of $clause.
-	 * @param string $meta_compare     Normalized meta value comparison operator.
-	 * @param string $meta_compare_key Normalized meta key comparison operator.
+	 * @param array      $clause            Query clause.
+	 * @param array      $parent_query      Parent query of $clause.
+	 * @param string     $meta_compare      Normalized meta value comparison operator.
+	 * @param string     $meta_compare_key  Normalized meta key comparison operator.
+	 * @param bool       $is_primary_clause Whether this clause is the primary (first) meta
+	 *                                      clause, whose alias 'meta_value'/'meta_value_num'
+	 *                                      orderby resolves to.
+	 * @param int|string $clause_key        The clause's key within the meta query. A string
+	 *                                      for named clauses (which may be referenced by the
+	 *                                      outer 'orderby'), an integer for positional clauses.
 	 * @return bool Whether the clause can be expressed as an EXISTS subquery.
 	 */
-	private function is_meta_value_exists_clause( $clause, $parent_query, $meta_compare, $meta_compare_key ) {
+	private function is_meta_value_exists_clause( $clause, $parent_query, $meta_compare, $meta_compare_key, $is_primary_clause, $clause_key ) {
 		/*
 		 * Only "negative" value comparisons can be expressed as EXISTS without
 		 * needing to expose the meta value to the outer SELECT/ORDER BY.
@@ -934,6 +1079,45 @@ class WP_Meta_Query {
 		}
 
 		if ( ! array_key_exists( 'value', $clause ) ) {
+			return false;
+		}
+
+		/*
+		 * A clause whose meta value feeds the outer query's ORDER BY must keep
+		 * its table JOIN: parse_orderby() emits "{$alias}.meta_value" in the
+		 * ORDER BY, and a correlated EXISTS subquery exposes no such column to
+		 * sort on. When the orderby context is unknown (a null or non-primary
+		 * caller, as in isolated unit tests), keep the JOIN unconditionally so
+		 * the generated SQL stays byte-identical to the pre-optimization
+		 * behavior for those callers.
+		 */
+		if ( ! $this->meta_value_orderby_refs['known'] ) {
+			return false;
+		}
+
+		/*
+		 * 'meta_value' and 'meta_value_num' - and an 'orderby' equal to the
+		 * primary clause's own meta key - all resolve to the primary (first)
+		 * meta clause's alias, so the primary clause must keep its JOIN whenever
+		 * any of them is referenced.
+		 */
+		if ( $is_primary_clause ) {
+			if ( $this->meta_value_orderby_refs['value'] ) {
+				return false;
+			}
+
+			if ( isset( $this->meta_value_orderby_refs['keys'][ $clause['key'] ] ) ) {
+				return false;
+			}
+		}
+
+		/*
+		 * A named clause referenced by its key in the outer 'orderby' resolves
+		 * to that clause's alias and must likewise keep its JOIN. Positional
+		 * (integer-keyed) clauses cannot be referenced by name, so only string
+		 * clause keys are considered here.
+		 */
+		if ( is_string( $clause_key ) && '' !== $clause_key && isset( $this->meta_value_orderby_refs['keys'][ $clause_key ] ) ) {
 			return false;
 		}
 
