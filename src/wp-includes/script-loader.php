@@ -2453,6 +2453,9 @@ function _print_styles() {
  * Determines the concatenation and compression settings for scripts and styles.
  *
  * @since 2.8.0
+ * @since 7.0.0 The script/style compression capability checks are resolved only
+ *              when a compression setting is still unset, avoiding redundant
+ *              per-request work. The resulting global values are unchanged.
  *
  * @global bool $concatenate_scripts
  * @global bool $compress_scripts
@@ -2461,10 +2464,6 @@ function _print_styles() {
 function script_concat_settings() {
 	global $concatenate_scripts, $compress_scripts, $compress_css;
 
-	$compressed_output = ( ini_get( 'zlib.output_compression' ) || 'ob_gzhandler' === ini_get( 'output_handler' ) );
-
-	$can_compress_scripts = ! wp_installing() && get_site_option( 'can_compress_scripts' );
-
 	if ( ! isset( $concatenate_scripts ) ) {
 		$concatenate_scripts = defined( 'CONCATENATE_SCRIPTS' ) ? CONCATENATE_SCRIPTS : true;
 		if ( ( ! is_admin() && ! did_action( 'login_init' ) ) || ( defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ) ) {
@@ -2472,17 +2471,33 @@ function script_concat_settings() {
 		}
 	}
 
-	if ( ! isset( $compress_scripts ) ) {
-		$compress_scripts = defined( 'COMPRESS_SCRIPTS' ) ? COMPRESS_SCRIPTS : true;
-		if ( $compress_scripts && ( ! $can_compress_scripts || $compressed_output ) ) {
-			$compress_scripts = false;
-		}
-	}
+	/*
+	 * The compression capability signals are consulted only while resolving
+	 * $compress_scripts and $compress_css. Because script_concat_settings() runs
+	 * several times per request (head, footer, admin, and late-style printing),
+	 * computing them unconditionally repeats two ini_get() reads plus a
+	 * get_site_option() lookup whose results are discarded once both globals are
+	 * set. Resolving them only when a compression setting is still unset removes
+	 * that redundant per-request work while leaving every resulting global value
+	 * byte-for-byte identical to the previous eager computation.
+	 */
+	if ( ! isset( $compress_scripts ) || ! isset( $compress_css ) ) {
+		$compressed_output = ( ini_get( 'zlib.output_compression' ) || 'ob_gzhandler' === ini_get( 'output_handler' ) );
 
-	if ( ! isset( $compress_css ) ) {
-		$compress_css = defined( 'COMPRESS_CSS' ) ? COMPRESS_CSS : true;
-		if ( $compress_css && ( ! $can_compress_scripts || $compressed_output ) ) {
-			$compress_css = false;
+		$can_compress_scripts = ! wp_installing() && get_site_option( 'can_compress_scripts' );
+
+		if ( ! isset( $compress_scripts ) ) {
+			$compress_scripts = defined( 'COMPRESS_SCRIPTS' ) ? COMPRESS_SCRIPTS : true;
+			if ( $compress_scripts && ( ! $can_compress_scripts || $compressed_output ) ) {
+				$compress_scripts = false;
+			}
+		}
+
+		if ( ! isset( $compress_css ) ) {
+			$compress_css = defined( 'COMPRESS_CSS' ) ? COMPRESS_CSS : true;
+			if ( $compress_css && ( ! $can_compress_scripts || $compressed_output ) ) {
+				$compress_css = false;
+			}
 		}
 	}
 }

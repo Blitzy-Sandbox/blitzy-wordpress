@@ -35,6 +35,19 @@ class WP_REST_Block_Types_Controller extends WP_REST_Controller {
 	protected $style_registry;
 
 	/**
+	 * Request-level cache of prepared block type payloads.
+	 *
+	 * Keyed by a value-based signature of the block type combined with the request
+	 * context and requested fields, this stores the schema-shaped data array before
+	 * additional fields, context filtering, links, and the `rest_prepare_block_type`
+	 * filter are applied, so those steps always run on both cache hits and misses.
+	 *
+	 * @since 7.0.0
+	 * @var array<string, array<string, mixed>>
+	 */
+	private static $prepared_item_memo = array();
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 5.5.0
@@ -262,7 +275,60 @@ class WP_REST_Block_Types_Controller extends WP_REST_Controller {
 		}
 
 		$fields = $this->get_fields_for_response( $request );
-		$data   = array();
+
+		$memo_key = $this->get_prepared_item_memo_key( $block_type, $request, $fields );
+
+		if ( null !== $memo_key && array_key_exists( $memo_key, self::$prepared_item_memo ) ) {
+			$data = self::$prepared_item_memo[ $memo_key ];
+		} else {
+			$data = $this->prepare_item_data( $block_type, $fields );
+
+			if ( null !== $memo_key ) {
+				self::$prepared_item_memo[ $memo_key ] = $data;
+			}
+		}
+
+		$context = ! empty( $request['context'] ) ? $request['context'] : 'view';
+		$data    = $this->add_additional_fields_to_object( $data, $request );
+		$data    = $this->filter_response_by_context( $data, $context );
+
+		$response = rest_ensure_response( $data );
+
+		if ( rest_is_field_included( '_links', $fields ) || rest_is_field_included( '_embedded', $fields ) ) {
+			$response->add_links( $this->prepare_links( $block_type ) );
+		}
+
+		/**
+		 * Filters a block type returned from the REST API.
+		 *
+		 * Allows modification of the block type data right before it is returned.
+		 *
+		 * @since 5.5.0
+		 *
+		 * @param WP_REST_Response $response   The response object.
+		 * @param WP_Block_Type    $block_type The original block type object.
+		 * @param WP_REST_Request  $request    Request used to generate the response.
+		 */
+		return apply_filters( 'rest_prepare_block_type', $response, $block_type, $request );
+	}
+
+	/**
+	 * Builds the schema-shaped response data for a block type.
+	 *
+	 * Contains the deterministic, field-gated assembly of the block type
+	 * representation from the in-memory registry. The returned value is the payload
+	 * before additional fields, context filtering, links, and the
+	 * `rest_prepare_block_type` filter, all of which are applied by
+	 * prepare_item_for_response() so that they run for every request.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @param WP_Block_Type $block_type Block type data.
+	 * @param string[]      $fields     Fields resolved for the response via get_fields_for_response().
+	 * @return array The schema-shaped block type data before additional fields and context filtering.
+	 */
+	private function prepare_item_data( $block_type, $fields ) {
+		$data = array();
 
 		if ( rest_is_field_included( 'attributes', $fields ) ) {
 			$data['attributes'] = $block_type->get_attributes();
@@ -336,28 +402,54 @@ class WP_REST_Block_Types_Controller extends WP_REST_Controller {
 			$data['styles'] = array_filter( $data['styles'] );
 		}
 
-		$context = ! empty( $request['context'] ) ? $request['context'] : 'view';
-		$data    = $this->add_additional_fields_to_object( $data, $request );
-		$data    = $this->filter_response_by_context( $data, $context );
+		return $data;
+	}
 
-		$response = rest_ensure_response( $data );
-
-		if ( rest_is_field_included( '_links', $fields ) || rest_is_field_included( '_embedded', $fields ) ) {
-			$response->add_links( $this->prepare_links( $block_type ) );
+	/**
+	 * Builds the request-level cache key for a prepared block type payload.
+	 *
+	 * The key combines a value signature of the block type with the request context
+	 * and the requested fields. The signature is derived from the block type's
+	 * serializable public properties (excluding the render and variation callbacks,
+	 * which may be closures), the dynamic flag, the resolved variations and uses
+	 * context, and the styles registered for the block. The shared
+	 * rest_get_prepared_response_cache_key() helper builds the final key.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @param WP_Block_Type   $block_type The block type being prepared.
+	 * @param WP_REST_Request $request    Full details about the request.
+	 * @param string[]        $fields     Fields resolved for the response via get_fields_for_response().
+	 * @return string|null The cache key, or null when a stable key cannot be built.
+	 */
+	private function get_prepared_item_memo_key( $block_type, $request, $fields ) {
+		if ( ! function_exists( 'rest_get_prepared_response_cache_key' ) ) {
+			return null;
 		}
 
-		/**
-		 * Filters a block type returned from the REST API.
-		 *
-		 * Allows modification of the block type data right before it is returned.
-		 *
-		 * @since 5.5.0
-		 *
-		 * @param WP_REST_Response $response   The response object.
-		 * @param WP_Block_Type    $block_type The original block type object.
-		 * @param WP_REST_Request  $request    Request used to generate the response.
-		 */
-		return apply_filters( 'rest_prepare_block_type', $response, $block_type, $request );
+		/** This filter is documented in wp-includes/rest-api.php */
+		if ( ! apply_filters( 'rest_prepared_response_cache_enabled', true, 'block_type' ) ) {
+			return null;
+		}
+
+		$context = ! empty( $request['context'] ) ? $request['context'] : 'view';
+
+		try {
+			$signature = array(
+				'vars'         => get_object_vars( $block_type ),
+				'is_dynamic'   => $block_type->is_dynamic(),
+				'variations'   => $block_type->get_variations(),
+				'uses_context' => $block_type->get_uses_context(),
+				'styles'       => $this->style_registry->get_registered_styles_for_block( $block_type->name ),
+			);
+			unset( $signature['vars']['render_callback'], $signature['vars']['variation_callback'] );
+
+			$object_id = $block_type->name . ':' . md5( serialize( $signature ) );
+		} catch ( Throwable $e ) {
+			return null;
+		}
+
+		return rest_get_prepared_response_cache_key( 'block_type', $object_id, $request );
 	}
 
 	/**

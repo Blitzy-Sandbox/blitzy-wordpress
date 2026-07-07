@@ -99,14 +99,14 @@ class WP_REST_Settings_Controller extends WP_REST_Controller {
 
 			if ( is_null( $response[ $name ] ) ) {
 				// Default to a null value as "null" in the response means "not set".
-				$response[ $name ] = get_option( $args['option_name'], $args['schema']['default'] );
+				$response[ $name ] = $this->get_prepared_setting_value( $name, $args, $request );
+			} else {
+				/*
+				 * Because get_option() is lossy, we have to
+				 * cast values to the type they are registered with.
+				 */
+				$response[ $name ] = $this->prepare_value( $response[ $name ], $args['schema'] );
 			}
-
-			/*
-			 * Because get_option() is lossy, we have to
-			 * cast values to the type they are registered with.
-			 */
-			$response[ $name ] = $this->prepare_value( $response[ $name ], $args['schema'] );
 		}
 
 		return $response;
@@ -132,6 +132,49 @@ class WP_REST_Settings_Controller extends WP_REST_Controller {
 		}
 
 		return rest_sanitize_value_from_schema( $value, $schema );
+	}
+
+	/**
+	 * Retrieves and prepares the stored value for a registered setting.
+	 *
+	 * Reads the setting's stored option value, falling back to the schema default,
+	 * and casts it to the registered type via {@see WP_REST_Settings_Controller::prepare_value()}.
+	 * The prepared result is memoized through the shared cache-first serialization seam
+	 * ({@see rest_get_cached_prepared_response()} and {@see rest_set_cached_prepared_response()})
+	 * in the 'rest' object-cache group. The cache key is derived from the stored value, the
+	 * setting schema, and the request context, so a cached entry is abandoned automatically
+	 * whenever any of those change. When no persistent object cache is configured the value is
+	 * served from the per-request runtime cache instead.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @param string $name    Setting name (as shown in REST API responses), used as the cache object identifier.
+	 * @param array  $args    Arguments for the setting, including the 'option_name' and 'schema' keys.
+	 * @param WP_REST_Request $request Full details about the request.
+	 * @return mixed The prepared setting value, or null when the stored value is invalid for the schema.
+	 */
+	protected function get_prepared_setting_value( $name, $args, $request ) {
+		// Default to a null value as "null" in the response means "not set".
+		$value = get_option( $args['option_name'], $args['schema']['default'] );
+
+		// Derive a per-setting invalidation token from the stored value and its schema.
+		$last_changed = md5( maybe_serialize( $value ) . '|' . maybe_serialize( $args['schema'] ) );
+
+		$cached = rest_get_cached_prepared_response( 'setting', $name, $request, $last_changed );
+
+		if ( is_array( $cached ) && array_key_exists( 'value', $cached ) ) {
+			return $cached['value'];
+		}
+
+		/*
+		 * Because get_option() is lossy, we have to
+		 * cast values to the type they are registered with.
+		 */
+		$prepared = $this->prepare_value( $value, $args['schema'] );
+
+		rest_set_cached_prepared_response( 'setting', $name, array( 'value' => $prepared ), $request, $last_changed );
+
+		return $prepared;
 	}
 
 	/**

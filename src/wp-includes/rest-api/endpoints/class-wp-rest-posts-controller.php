@@ -1896,8 +1896,117 @@ class WP_REST_Posts_Controller extends WP_REST_Controller {
 			return apply_filters( "rest_prepare_{$this->post_type}", new WP_REST_Response( array() ), $post, $request );
 		}
 
-		$fields = $this->get_fields_for_response( $request );
+		$fields  = $this->get_fields_for_response( $request );
+		$context = ! empty( $request['context'] ) ? $request['context'] : 'view';
 
+		/*
+		 * Cache-first serialization: the schema-shaped data assembled by
+		 * prepare_item_data() depends only on the post's stored state, the request
+		 * context, and the resolved field set, so it is reused across requests via
+		 * the prepared-response cache. The 'posts' last-changed token is part of the
+		 * cache key, so any post mutation (which bumps that token through
+		 * clean_post_cache()) transparently abandons the now-stale entry. The dynamic
+		 * tail below (additional registered fields, context filtering, links, Block
+		 * Hooks, and the rest_prepare_{$this->post_type} filter) always runs, on both
+		 * cache hits and misses.
+		 */
+		$last_changed = wp_cache_get_last_changed( 'posts' );
+		$data         = rest_get_cached_prepared_response( $this->post_type, $post->ID, $request, $last_changed );
+
+		if ( ! is_array( $data ) ) {
+			$data = $this->prepare_item_data( $post, $request, $fields );
+			rest_set_cached_prepared_response( $this->post_type, $post->ID, $data, $request, $last_changed );
+		}
+
+		$data = $this->add_additional_fields_to_object( $data, $request );
+		$data = $this->filter_response_by_context( $data, $context );
+
+		// Wrap the data in a response object.
+		$response = rest_ensure_response( $data );
+
+		if ( rest_is_field_included( '_links', $fields ) || rest_is_field_included( '_embedded', $fields ) ) {
+			$links = $this->prepare_links( $post );
+			$response->add_links( $links );
+
+			if ( ! empty( $links['self']['href'] ) ) {
+				$actions = $this->get_available_actions( $post, $request );
+
+				$self = $links['self']['href'];
+
+				foreach ( $actions as $rel ) {
+					$response->add_link( $rel, $self );
+				}
+			}
+		}
+
+		/**
+		 * Applies Block Hooks to content-like post types for REST response.
+		 *
+		 * This replaces the individual post type filters that were previously hardcoded
+		 * in default-filters.php.
+		 *
+		 * @since 7.0.0
+		 */
+		$content_like_post_types = array( 'post', 'page', 'wp_block', 'wp_navigation' );
+
+		/**
+		 * Filters which post types should have Block Hooks applied.
+		 *
+		 * Allows themes and plugins to add or remove post types that should
+		 * have Block Hooks functionality enabled in the REST API.
+		 *
+		 * @since 7.0.0
+		 *
+		 * @param array   $content_like_post_types Array of post type names that support Block Hooks.
+		 * @param string  $post_type               The current post type being processed.
+		 * @param WP_Post $post                    The post object.
+		 */
+		$content_like_post_types = apply_filters( 'rest_block_hooks_post_types', $content_like_post_types, $this->post_type, $post );
+
+		if ( in_array( $this->post_type, $content_like_post_types, true ) ) {
+			$response = insert_hooked_blocks_into_rest_response( $response, $post );
+		}
+
+		/**
+		 * Filters the post data for a REST API response.
+		 *
+		 * The dynamic portion of the hook name, `$this->post_type`, refers to the post type slug.
+		 *
+		 * Possible hook names include:
+		 *
+		 *  - `rest_prepare_post`
+		 *  - `rest_prepare_page`
+		 *  - `rest_prepare_attachment`
+		 *
+		 * @since 4.7.0
+		 *
+		 * @param WP_REST_Response $response The response object.
+		 * @param WP_Post          $post     Post object.
+		 * @param WP_REST_Request  $request  Request object.
+		 */
+		return apply_filters( "rest_prepare_{$this->post_type}", $response, $post, $request );
+	}
+
+	/**
+	 * Assembles the deterministic, schema-shaped data array for a single post.
+	 *
+	 * Performs the field-by-field assembly that prepare_item_for_response() previously
+	 * inlined. It is separated so its result can be reused through the cache-first
+	 * serialization seam ( see rest_get_cached_prepared_response() and
+	 * rest_set_cached_prepared_response() ): the array returned here is fully determined
+	 * by the post's stored state, the request context, and the resolved field set, and
+	 * it never contains per-request dynamic data. Additional registered fields, context
+	 * filtering, links, Block Hooks, and the `rest_prepare_{$this->post_type}` filter are
+	 * applied by the caller and are never part of this cached data.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @param WP_Post         $post    Post object.
+	 * @param WP_REST_Request $request Request object.
+	 * @param string[]        $fields  Fields to include in the response, as resolved by get_fields_for_response().
+	 * @return array Prepared, schema-shaped data array, before the `rest_prepare_{$this->post_type}` filter is applied.
+	 */
+	private function prepare_item_data( $post, $request, $fields ) {
 		// Base fields for every post.
 		$data = array();
 
@@ -2140,74 +2249,7 @@ class WP_REST_Posts_Controller extends WP_REST_Controller {
 			}
 		}
 
-		$context = ! empty( $request['context'] ) ? $request['context'] : 'view';
-		$data    = $this->add_additional_fields_to_object( $data, $request );
-		$data    = $this->filter_response_by_context( $data, $context );
-
-		// Wrap the data in a response object.
-		$response = rest_ensure_response( $data );
-
-		if ( rest_is_field_included( '_links', $fields ) || rest_is_field_included( '_embedded', $fields ) ) {
-			$links = $this->prepare_links( $post );
-			$response->add_links( $links );
-
-			if ( ! empty( $links['self']['href'] ) ) {
-				$actions = $this->get_available_actions( $post, $request );
-
-				$self = $links['self']['href'];
-
-				foreach ( $actions as $rel ) {
-					$response->add_link( $rel, $self );
-				}
-			}
-		}
-
-		/**
-		 * Applies Block Hooks to content-like post types for REST response.
-		 *
-		 * This replaces the individual post type filters that were previously hardcoded
-		 * in default-filters.php.
-		 *
-		 * @since 7.0.0
-		 */
-		$content_like_post_types = array( 'post', 'page', 'wp_block', 'wp_navigation' );
-
-		/**
-		 * Filters which post types should have Block Hooks applied.
-		 *
-		 * Allows themes and plugins to add or remove post types that should
-		 * have Block Hooks functionality enabled in the REST API.
-		 *
-		 * @since 7.0.0
-		 *
-		 * @param array   $content_like_post_types Array of post type names that support Block Hooks.
-		 * @param string  $post_type               The current post type being processed.
-		 * @param WP_Post $post                    The post object.
-		 */
-		$content_like_post_types = apply_filters( 'rest_block_hooks_post_types', $content_like_post_types, $this->post_type, $post );
-
-		if ( in_array( $this->post_type, $content_like_post_types, true ) ) {
-			$response = insert_hooked_blocks_into_rest_response( $response, $post );
-		}
-
-		/**
-		 * Filters the post data for a REST API response.
-		 *
-		 * The dynamic portion of the hook name, `$this->post_type`, refers to the post type slug.
-		 *
-		 * Possible hook names include:
-		 *
-		 *  - `rest_prepare_post`
-		 *  - `rest_prepare_page`
-		 *  - `rest_prepare_attachment`
-		 *
-		 * @since 4.7.0
-		 *
-		 * @param WP_REST_Response $response The response object.
-		 * @param WP_Post          $post     Post object.
-		 * @param WP_REST_Request  $request  Request object.
-		 */
-		return apply_filters( "rest_prepare_{$this->post_type}", $response, $post, $request );
+		return $data;
 	}
 
 	/**

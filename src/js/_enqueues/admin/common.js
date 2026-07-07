@@ -504,7 +504,7 @@ window.columns = {
 	}
 };
 
-$( function() { columns.init(); } );
+$( function() { if ( $( '.hide-column-tog', '#adv-settings' ).length ) { columns.init(); } } );
 
 /**
  * Validates that the required form fields are not empty.
@@ -876,37 +876,39 @@ $( function() {
 	 *
 	 * @return {void}
 	 */
-	$( '#collapse-button' ).on( 'click.collapse-menu', function() {
-		var viewportWidth = getViewportWidth() || 961;
+	if ( $( '#collapse-button' ).length ) {
+		$( '#collapse-button' ).on( 'click.collapse-menu', function() {
+			var viewportWidth = getViewportWidth() || 961;
 
-		// Reset any compensation for submenus near the bottom of the screen.
-		$('#adminmenu div.wp-submenu').css('margin-top', '');
+			// Reset any compensation for submenus near the bottom of the screen.
+			$('#adminmenu div.wp-submenu').css('margin-top', '');
 
-		if ( viewportWidth <= 960 ) {
-			if ( $body.hasClass('auto-fold') ) {
-				$body.removeClass('auto-fold').removeClass('folded');
-				setUserSetting('unfold', 1);
-				setUserSetting('mfold', 'o');
-				menuState = 'open';
+			if ( viewportWidth <= 960 ) {
+				if ( $body.hasClass('auto-fold') ) {
+					$body.removeClass('auto-fold').removeClass('folded');
+					setUserSetting('unfold', 1);
+					setUserSetting('mfold', 'o');
+					menuState = 'open';
+				} else {
+					$body.addClass('auto-fold');
+					setUserSetting('unfold', 0);
+					menuState = 'folded';
+				}
 			} else {
-				$body.addClass('auto-fold');
-				setUserSetting('unfold', 0);
-				menuState = 'folded';
+				if ( $body.hasClass('folded') ) {
+					$body.removeClass('folded');
+					setUserSetting('mfold', 'o');
+					menuState = 'open';
+				} else {
+					$body.addClass('folded');
+					setUserSetting('mfold', 'f');
+					menuState = 'folded';
+				}
 			}
-		} else {
-			if ( $body.hasClass('folded') ) {
-				$body.removeClass('folded');
-				setUserSetting('mfold', 'o');
-				menuState = 'open';
-			} else {
-				$body.addClass('folded');
-				setUserSetting('mfold', 'f');
-				menuState = 'folded';
-			}
-		}
 
-		$document.trigger( 'wp-collapse-menu', { state: menuState } );
-	});
+			$document.trigger( 'wp-collapse-menu', { state: menuState } );
+		});
+	}
 
 	/**
 	 * Ensures an admin submenu is within the visual viewport.
@@ -1316,85 +1318,91 @@ $( function() {
 		$document.trigger( 'wp-notice-added' );
 	};
 
-	$( '.bulkactions' ).parents( 'form' ).on( 'submit', function( event ) {
-		var form = this,
-			submitterName = event.originalEvent && event.originalEvent.submitter ? event.originalEvent.submitter.name : false,
-			currentPageSelector = form.querySelector( '#current-page-selector' );
+	if ( $( '.bulkactions' ).length ) {
+		$( '.bulkactions' ).parents( 'form' ).on( 'submit', function( event ) {
+			var form = this,
+				submitterName = event.originalEvent && event.originalEvent.submitter ? event.originalEvent.submitter.name : false,
+				currentPageSelector = form.querySelector( '#current-page-selector' );
 
-		if ( currentPageSelector && currentPageSelector.defaultValue !== currentPageSelector.value ) {
-			return; // Pagination form submission.
-		}
+			if ( currentPageSelector && currentPageSelector.defaultValue !== currentPageSelector.value ) {
+				return; // Pagination form submission.
+			}
 
-		// Observe submissions from posts lists for 'bulk_action' or users lists for 'new_role'.
-		var bulkFieldRelations = {
-			'bulk_action' : window.bulkActionObserverIds.bulk_action,
-			'changeit' : window.bulkActionObserverIds.changeit
-		};
-		if ( ! Object.keys( bulkFieldRelations ).includes( submitterName ) ) {
-			return;
-		}
-
-		var values = new FormData(form);
-		var value = values.get( bulkFieldRelations[ submitterName ] ) || '-1';
-
-		// Check that the action is not the default one.
-		if ( value !== '-1' ) {
-			// Check that at least one item is selected.
-			var itemsSelected = form.querySelectorAll( '.wp-list-table tbody .check-column input[type="checkbox"]:checked' );
-
-			if ( itemsSelected.length > 0 ) {
+			// Observe submissions from posts lists for 'bulk_action' or users lists for 'new_role'.
+			var bulkFieldRelations = {
+				'bulk_action' : window.bulkActionObserverIds.bulk_action,
+				'changeit' : window.bulkActionObserverIds.changeit
+			};
+			if ( ! Object.keys( bulkFieldRelations ).includes( submitterName ) ) {
 				return;
 			}
-		}
-		event.preventDefault();
-		event.stopPropagation();
-		$( 'html, body' ).animate( { scrollTop: 0 } );
 
-		var errorMessage = value !== '-1' ?
-			__( 'Please select at least one item to perform this action on.' ) :
-			__( 'Please select a bulk action to perform.' );
-		addAdminNotice( {
-			id: value !== '-1' ? 'no-items-selected' : 'no-bulk-action-selected',
-			type: 'error',
-			message: errorMessage,
-			dismissible: true,
-		} );
+			var values = new FormData(form);
+			var value = values.get( bulkFieldRelations[ submitterName ] ) || '-1';
 
-		wp.a11y.speak( errorMessage );
-	});
+			// Check that the action is not the default one.
+			if ( value !== '-1' ) {
+				// Check that at least one item is selected.
+				var itemsSelected = form.querySelectorAll( '.wp-list-table tbody .check-column input[type="checkbox"]:checked' );
+
+				if ( itemsSelected.length > 0 ) {
+					return;
+				}
+			}
+			event.preventDefault();
+			event.stopPropagation();
+			$( 'html, body' ).animate( { scrollTop: 0 } );
+
+			var errorMessage = value !== '-1' ?
+				__( 'Please select at least one item to perform this action on.' ) :
+				__( 'Please select a bulk action to perform.' );
+			addAdminNotice( {
+				id: value !== '-1' ? 'no-items-selected' : 'no-bulk-action-selected',
+				type: 'error',
+				message: errorMessage,
+				dismissible: true,
+			} );
+
+			wp.a11y.speak( errorMessage );
+		});
+	}
 
 	/**
 	 * Shows row actions on focus of its parent container element or any other elements contained within.
 	 *
 	 * @return {void}
 	 */
-	$( '#wpbody-content' ).on({
-		focusin: function() {
-			clearTimeout( transitionTimeout );
-			focusedRowActions = $( this ).find( '.row-actions' );
-			// transitionTimeout is necessary for Firefox, but Chrome won't remove the CSS class without a little help.
-			$( '.row-actions' ).not( this ).removeClass( 'visible' );
-			focusedRowActions.addClass( 'visible' );
-		},
-		focusout: function() {
-			// Tabbing between post title and .row-actions links needs a brief pause, otherwise
-			// the .row-actions div gets hidden in transit in some browsers (ahem, Firefox).
-			transitionTimeout = setTimeout( function() {
-				focusedRowActions.removeClass( 'visible' );
-			}, 30 );
-		}
-	}, '.table-view-list .has-row-actions' );
+	if ( $( '#wpbody-content' ).length ) {
+		$( '#wpbody-content' ).on({
+			focusin: function() {
+				clearTimeout( transitionTimeout );
+				focusedRowActions = $( this ).find( '.row-actions' );
+				// transitionTimeout is necessary for Firefox, but Chrome won't remove the CSS class without a little help.
+				$( '.row-actions' ).not( this ).removeClass( 'visible' );
+				focusedRowActions.addClass( 'visible' );
+			},
+			focusout: function() {
+				// Tabbing between post title and .row-actions links needs a brief pause, otherwise
+				// the .row-actions div gets hidden in transit in some browsers (ahem, Firefox).
+				transitionTimeout = setTimeout( function() {
+					focusedRowActions.removeClass( 'visible' );
+				}, 30 );
+			}
+		}, '.table-view-list .has-row-actions' );
+	}
 
 	// Toggle list table rows on small screens.
 	$( 'tbody' ).on( 'click', '.toggle-row', function() {
 		$( this ).closest( 'tr' ).toggleClass( 'is-expanded' );
 	});
 
-	$('#default-password-nag-no').on( 'click', function() {
-		setUserSetting('default_password_nag', 'hide');
-		$('div.default-password-nag').hide();
-		return false;
-	});
+	if ( $( '#default-password-nag-no' ).length ) {
+		$('#default-password-nag-no').on( 'click', function() {
+			setUserSetting('default_password_nag', 'hide');
+			$('div.default-password-nag').hide();
+			return false;
+		});
+	}
 
 	/**
 	 * Handles tab keypresses in theme and plugin file editor textareas.
@@ -1403,49 +1411,51 @@ $( function() {
 	 *
 	 * @return {void}
 	 */
-	$('#newcontent').on('keydown.wpevent_InsertTab', function(e) {
-		var el = e.target, selStart, selEnd, val, scroll, sel;
+	if ( $( '#newcontent' ).length ) {
+		$('#newcontent').on('keydown.wpevent_InsertTab', function(e) {
+			var el = e.target, selStart, selEnd, val, scroll, sel;
 
-		// After pressing escape key (keyCode: 27), the tab key should tab out of the textarea.
-		if ( e.keyCode == 27 ) {
-			// When pressing Escape: Opera 12 and 27 blur form fields, IE 8 clears them.
-			e.preventDefault();
-			$(el).data('tab-out', true);
-			return;
-		}
+			// After pressing escape key (keyCode: 27), the tab key should tab out of the textarea.
+			if ( e.keyCode == 27 ) {
+				// When pressing Escape: Opera 12 and 27 blur form fields, IE 8 clears them.
+				e.preventDefault();
+				$(el).data('tab-out', true);
+				return;
+			}
 
-		// Only listen for plain tab key (keyCode: 9) without any modifiers.
-		if ( e.keyCode != 9 || e.ctrlKey || e.altKey || e.shiftKey )
-			return;
+			// Only listen for plain tab key (keyCode: 9) without any modifiers.
+			if ( e.keyCode != 9 || e.ctrlKey || e.altKey || e.shiftKey )
+				return;
 
-		// After tabbing out, reset it so next time the tab key can be used again.
-		if ( $(el).data('tab-out') ) {
-			$(el).data('tab-out', false);
-			return;
-		}
+			// After tabbing out, reset it so next time the tab key can be used again.
+			if ( $(el).data('tab-out') ) {
+				$(el).data('tab-out', false);
+				return;
+			}
 
-		selStart = el.selectionStart;
-		selEnd = el.selectionEnd;
-		val = el.value;
+			selStart = el.selectionStart;
+			selEnd = el.selectionEnd;
+			val = el.value;
 
-		// If any text is selected, replace the selection with a tab character.
-		if ( document.selection ) {
-			el.focus();
-			sel = document.selection.createRange();
-			sel.text = '\t';
-		} else if ( selStart >= 0 ) {
-			scroll = this.scrollTop;
-			el.value = val.substring(0, selStart).concat('\t', val.substring(selEnd) );
-			el.selectionStart = el.selectionEnd = selStart + 1;
-			this.scrollTop = scroll;
-		}
+			// If any text is selected, replace the selection with a tab character.
+			if ( document.selection ) {
+				el.focus();
+				sel = document.selection.createRange();
+				sel.text = '\t';
+			} else if ( selStart >= 0 ) {
+				scroll = this.scrollTop;
+				el.value = val.substring(0, selStart).concat('\t', val.substring(selEnd) );
+				el.selectionStart = el.selectionEnd = selStart + 1;
+				this.scrollTop = scroll;
+			}
 
-		// Cancel the regular tab functionality, to prevent losing focus of the textarea.
-		if ( e.stopPropagation )
-			e.stopPropagation();
-		if ( e.preventDefault )
-			e.preventDefault();
-	});
+			// Cancel the regular tab functionality, to prevent losing focus of the textarea.
+			if ( e.stopPropagation )
+				e.stopPropagation();
+			if ( e.preventDefault )
+				e.preventDefault();
+		});
+	}
 
 	// Reset page number variable for new filters/searches but not for bulk actions. See #17685.
 	if ( pageInput.length ) {
@@ -1476,9 +1486,11 @@ $( function() {
 	 *
 	 * @return {void}
 	 */
-	$('.search-box input[type="search"], .search-box input[type="submit"]').on( 'mousedown', function () {
-		$('select[name^="action"]').val('-1');
-	});
+	if ( $( '.search-box input[type="search"], .search-box input[type="submit"]' ).length ) {
+		$('.search-box input[type="search"], .search-box input[type="submit"]').on( 'mousedown', function () {
+			$('select[name^="action"]').val('-1');
+		});
+	}
 
 	/**
 	 * Scrolls into view when focus.scroll-into-view is triggered.
@@ -1487,10 +1499,12 @@ $( function() {
 	 *
 	 * @return {void}
  	 */
-	$('#contextual-help-link, #show-settings-link').on( 'focus.scroll-into-view', function(e){
-		if ( e.target.scrollIntoViewIfNeeded )
-			e.target.scrollIntoViewIfNeeded(false);
-	});
+	if ( $( '#contextual-help-link, #show-settings-link' ).length ) {
+		$('#contextual-help-link, #show-settings-link').on( 'focus.scroll-into-view', function(e){
+			if ( e.target.scrollIntoViewIfNeeded )
+				e.target.scrollIntoViewIfNeeded(false);
+		});
+	}
 
 	/**
 	 * Disables the submit upload buttons when no data is entered.

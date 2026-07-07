@@ -1042,83 +1042,97 @@ class WP_REST_Users_Controller extends WP_REST_Controller {
 			return apply_filters( 'rest_prepare_user', new WP_REST_Response( array() ), $user, $request );
 		}
 
-		$fields = $this->get_fields_for_response( $request );
-		$data   = array();
-
-		if ( in_array( 'id', $fields, true ) ) {
-			$data['id'] = $user->ID;
-		}
-
-		if ( in_array( 'username', $fields, true ) ) {
-			$data['username'] = $user->user_login;
-		}
-
-		if ( in_array( 'name', $fields, true ) ) {
-			$data['name'] = $user->display_name;
-		}
-
-		if ( in_array( 'first_name', $fields, true ) ) {
-			$data['first_name'] = $user->first_name;
-		}
-
-		if ( in_array( 'last_name', $fields, true ) ) {
-			$data['last_name'] = $user->last_name;
-		}
-
-		if ( in_array( 'email', $fields, true ) ) {
-			$data['email'] = $user->user_email;
-		}
-
-		if ( in_array( 'url', $fields, true ) ) {
-			$data['url'] = $user->user_url;
-		}
-
-		if ( in_array( 'description', $fields, true ) ) {
-			$data['description'] = $user->description;
-		}
-
-		if ( in_array( 'link', $fields, true ) ) {
-			$data['link'] = get_author_posts_url( $user->ID, $user->user_nicename );
-		}
-
-		if ( in_array( 'locale', $fields, true ) ) {
-			$data['locale'] = get_user_locale( $user );
-		}
-
-		if ( in_array( 'nickname', $fields, true ) ) {
-			$data['nickname'] = $user->nickname;
-		}
-
-		if ( in_array( 'slug', $fields, true ) ) {
-			$data['slug'] = $user->user_nicename;
-		}
-
-		if ( in_array( 'roles', $fields, true ) && ( current_user_can( 'list_users' ) || current_user_can( 'edit_user', $user->ID ) ) ) {
-			// Defensively call array_values() to ensure an array is returned.
-			$data['roles'] = array_values( $user->roles );
-		}
-
-		if ( in_array( 'registered_date', $fields, true ) ) {
-			$data['registered_date'] = gmdate( 'c', strtotime( $user->user_registered ) );
-		}
-
-		if ( in_array( 'capabilities', $fields, true ) ) {
-			$data['capabilities'] = (object) $user->allcaps;
-		}
-
-		if ( in_array( 'extra_capabilities', $fields, true ) ) {
-			$data['extra_capabilities'] = (object) $user->caps;
-		}
-
-		if ( in_array( 'avatar_urls', $fields, true ) ) {
-			$data['avatar_urls'] = rest_get_avatar_urls( $user );
-		}
-
-		if ( in_array( 'meta', $fields, true ) ) {
-			$data['meta'] = $this->meta->get_value( $user->ID, $request );
-		}
-
+		$fields  = $this->get_fields_for_response( $request );
 		$context = ! empty( $request['context'] ) ? $request['context'] : 'embed';
+
+		/*
+		 * Serve the deterministic, schema-shaped payload from the object cache when
+		 * present, recomputing it only on a miss. The 'users' last-changed token is
+		 * part of the cache key, so user and user-meta changes invalidate the entry.
+		 * Additional fields, context filtering, links, and the rest_prepare_user
+		 * filter are always applied below, on both cache hits and misses.
+		 */
+		$last_changed = wp_cache_get_last_changed( 'users' );
+		$data         = rest_get_cached_prepared_response( 'user', $user->ID, $request, $last_changed );
+
+		if ( false === $data ) {
+			$data = array();
+
+			if ( in_array( 'id', $fields, true ) ) {
+				$data['id'] = $user->ID;
+			}
+
+			if ( in_array( 'username', $fields, true ) ) {
+				$data['username'] = $user->user_login;
+			}
+
+			if ( in_array( 'name', $fields, true ) ) {
+				$data['name'] = $user->display_name;
+			}
+
+			if ( in_array( 'first_name', $fields, true ) ) {
+				$data['first_name'] = $user->first_name;
+			}
+
+			if ( in_array( 'last_name', $fields, true ) ) {
+				$data['last_name'] = $user->last_name;
+			}
+
+			if ( in_array( 'email', $fields, true ) ) {
+				$data['email'] = $user->user_email;
+			}
+
+			if ( in_array( 'url', $fields, true ) ) {
+				$data['url'] = $user->user_url;
+			}
+
+			if ( in_array( 'description', $fields, true ) ) {
+				$data['description'] = $user->description;
+			}
+
+			if ( in_array( 'link', $fields, true ) ) {
+				$data['link'] = get_author_posts_url( $user->ID, $user->user_nicename );
+			}
+
+			if ( in_array( 'locale', $fields, true ) ) {
+				$data['locale'] = get_user_locale( $user );
+			}
+
+			if ( in_array( 'nickname', $fields, true ) ) {
+				$data['nickname'] = $user->nickname;
+			}
+
+			if ( in_array( 'slug', $fields, true ) ) {
+				$data['slug'] = $user->user_nicename;
+			}
+
+			if ( in_array( 'roles', $fields, true ) && ( current_user_can( 'list_users' ) || current_user_can( 'edit_user', $user->ID ) ) ) {
+				// Defensively call array_values() to ensure an array is returned.
+				$data['roles'] = array_values( $user->roles );
+			}
+
+			if ( in_array( 'registered_date', $fields, true ) ) {
+				$data['registered_date'] = gmdate( 'c', strtotime( $user->user_registered ) );
+			}
+
+			if ( in_array( 'capabilities', $fields, true ) ) {
+				$data['capabilities'] = (object) $user->allcaps;
+			}
+
+			if ( in_array( 'extra_capabilities', $fields, true ) ) {
+				$data['extra_capabilities'] = (object) $user->caps;
+			}
+
+			if ( in_array( 'avatar_urls', $fields, true ) ) {
+				$data['avatar_urls'] = rest_get_avatar_urls( $user );
+			}
+
+			if ( in_array( 'meta', $fields, true ) ) {
+				$data['meta'] = $this->meta->get_value( $user->ID, $request );
+			}
+
+			rest_set_cached_prepared_response( 'user', $user->ID, $data, $request, $last_changed );
+		}
 
 		$data = $this->add_additional_fields_to_object( $data, $request );
 		$data = $this->filter_response_by_context( $data, $context );

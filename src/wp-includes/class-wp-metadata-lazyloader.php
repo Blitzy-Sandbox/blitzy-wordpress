@@ -50,6 +50,7 @@ class WP_Metadata_Lazyloader {
 	 * Constructor.
 	 *
 	 * @since 4.5.0
+	 * @since 7.0.0 Added support for lazy-loading 'post' and 'user' metadata.
 	 */
 	public function __construct() {
 		$this->settings = array(
@@ -65,6 +66,18 @@ class WP_Metadata_Lazyloader {
 				'filter'   => 'get_blog_metadata',
 				'callback' => array( $this, 'lazyload_meta_callback' ),
 			),
+			// Post and user meta share the same generic priming path via update_meta_cache(),
+			// which primes all queued IDs in a single query using wp_cache_get_multiple().
+			// The filter is only registered once queue_objects() is called for the type,
+			// so adding these entries is inert until a caller opts in to lazy-loading them.
+			'post'    => array(
+				'filter'   => 'get_post_metadata',
+				'callback' => array( $this, 'lazyload_meta_callback' ),
+			),
+			'user'    => array(
+				'filter'   => 'get_user_metadata',
+				'callback' => array( $this, 'lazyload_meta_callback' ),
+			),
 		);
 	}
 
@@ -72,8 +85,10 @@ class WP_Metadata_Lazyloader {
 	 * Adds objects to the metadata lazy-load queue.
 	 *
 	 * @since 4.5.0
+	 * @since 7.0.0 Added support for the 'post' and 'user' object types.
 	 *
-	 * @param string $object_type Type of object whose meta is to be lazy-loaded. Accepts 'term' or 'comment'.
+	 * @param string $object_type Type of object whose meta is to be lazy-loaded. Accepts 'term',
+	 *                            'comment', 'blog', 'post', or 'user'.
 	 * @param array  $object_ids  Array of object IDs.
 	 * @return void|WP_Error WP_Error on failure.
 	 */
@@ -113,8 +128,9 @@ class WP_Metadata_Lazyloader {
 	 * Resets lazy-load queue for a given object type.
 	 *
 	 * @since 4.5.0
+	 * @since 7.0.0 Added support for the 'post' and 'user' object types.
 	 *
-	 * @param string $object_type Object type. Accepts 'comment' or 'term'.
+	 * @param string $object_type Object type. Accepts 'term', 'comment', 'blog', 'post', or 'user'.
 	 * @return void|WP_Error WP_Error on failure.
 	 */
 	public function reset_queue( $object_type ) {
