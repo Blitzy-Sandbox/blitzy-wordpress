@@ -1927,6 +1927,78 @@ function wp_is_json_request() {
 }
 
 /**
+ * Determines whether the current request targets the WordPress REST API.
+ *
+ * This is a lightweight, side-effect-free companion to {@see wp_is_rest_endpoint()}
+ * and {@see wp_is_serving_rest_request()} that is safe to call at any point in the
+ * request lifecycle, including very early during the bootstrap sequence in
+ * `wp-settings.php` before the REST server has been created and before the
+ * `REST_REQUEST` constant is defined. It exists so that context-aware loading can
+ * determine whether the REST API stack is required for the current request.
+ *
+ * Detection proceeds in two steps:
+ *
+ *  1. If the `REST_REQUEST` constant is defined and truthy, the request is
+ *     definitively a standalone REST request. That constant is only defined during
+ *     the {@see 'parse_request'} action (see {@see wp_is_serving_rest_request()}), so
+ *     it is authoritative once available but unset during earlier phases.
+ *  2. Otherwise the requested URL is inspected read-only, the same way the REST
+ *     rewrite rules route a request: a `rest_route` query argument (used when pretty
+ *     permalinks are disabled) or a path whose first segment is the REST URL prefix.
+ *
+ * Unlike {@see wp_is_rest_endpoint()}, this function does not fire any filters, does
+ * not query the database, produces no output, and does not depend on the REST server
+ * having been initialized, so it is safe to call repeatedly and during bootstrap. To
+ * remain side-effect-free it does not apply the {@see 'rest_url_prefix'} filter and
+ * therefore matches the documented default prefix (`wp-json`); requests using a
+ * custom prefix, or served from a subdirectory install, are still detected via the
+ * `REST_REQUEST` constant once WordPress has parsed the request. The prefix is matched
+ * only as a complete leading path segment so that unrelated front-end URLs are never
+ * misidentified as REST requests.
+ *
+ * @since 7.0.0
+ *
+ * @return bool True if the current request targets the REST API, false otherwise.
+ */
+function wp_is_rest_request() {
+	// Once defined (during the 'parse_request' action) the REST_REQUEST constant is authoritative.
+	if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) {
+		return true;
+	}
+
+	// The constant is not defined until 'parse_request', so fall back to inspecting the
+	// requested URL. This only reads request superglobals; it never fires filters,
+	// queries the database, or produces output.
+	if ( empty( $_SERVER['REQUEST_URI'] ) ) {
+		return false;
+	}
+
+	// Separate the path from the query string without relying on later-loaded helpers.
+	$request_parts = explode( '?', $_SERVER['REQUEST_URI'], 2 );
+	$request_path  = '/' . ltrim( $request_parts[0], '/' );
+	$query_string  = isset( $request_parts[1] ) ? $request_parts[1] : '';
+
+	// Requests made without pretty permalinks address the API via a `rest_route` argument.
+	if ( '' !== $query_string ) {
+		foreach ( explode( '&', $query_string ) as $query_arg ) {
+			if ( 'rest_route' === explode( '=', $query_arg, 2 )[0] ) {
+				return true;
+			}
+		}
+	}
+
+	// Otherwise detect the default REST URL prefix ('wp-json') as a complete leading path segment.
+	$rest_prefix = 'wp-json';
+	if ( '/' . $rest_prefix === $request_path
+		|| str_starts_with( $request_path, '/' . $rest_prefix . '/' )
+	) {
+		return true;
+	}
+
+	return false;
+}
+
+/**
  * Checks whether current request is a JSONP request, or is expecting a JSONP response.
  *
  * @since 5.2.0

@@ -82,6 +82,23 @@ class WP_Script_Modules {
 	private $modules_with_missing_dependencies = array();
 
 	/**
+	 * Memoization cache for resolved dependency graphs.
+	 *
+	 * Caches the result of {@see WP_Script_Modules::get_dependencies()}, keyed by the
+	 * requested handle set and import-type filter, so the recursive import-graph
+	 * traversal used to build the import map, module preloads, and enqueued module
+	 * lists is only computed once per unique request within a single page load. The
+	 * cache is emptied whenever the module registry or enqueue state mutates (see
+	 * {@see WP_Script_Modules::register()}, {@see WP_Script_Modules::enqueue()},
+	 * {@see WP_Script_Modules::dequeue()}, and {@see WP_Script_Modules::deregister()}),
+	 * so resolved dependencies can never become stale.
+	 *
+	 * @since 7.0.0
+	 * @var array<string, array<string, array<string, mixed>>>
+	 */
+	private $dependencies_cache = array();
+
+	/**
 	 * Registers the script module if no script module with that script module
 	 * identifier has already been registered.
 	 *
@@ -174,6 +191,9 @@ class WP_Script_Modules {
 				'in_footer'     => $in_footer,
 				'fetchpriority' => $fetchpriority,
 			);
+
+			// A newly registered module changes the dependency graph; drop the memoized resolutions.
+			$this->dependencies_cache = array();
 		}
 	}
 
@@ -299,6 +319,9 @@ class WP_Script_Modules {
 
 		if ( ! in_array( $id, $this->queue, true ) ) {
 			$this->queue[] = $id;
+
+			// Enqueuing changes the set of modules to resolve; drop the memoized resolutions.
+			$this->dependencies_cache = array();
 		}
 		if ( ! isset( $this->registered[ $id ] ) && $src ) {
 			$this->register( $id, $src, $deps, $version, $args );
@@ -314,6 +337,9 @@ class WP_Script_Modules {
 	 */
 	public function dequeue( string $id ) {
 		$this->queue = array_values( array_diff( $this->queue, array( $id ) ) );
+
+		// Dequeuing changes the set of modules to resolve; drop the memoized resolutions.
+		$this->dependencies_cache = array();
 	}
 
 	/**
@@ -326,6 +352,9 @@ class WP_Script_Modules {
 	public function deregister( string $id ) {
 		$this->dequeue( $id );
 		unset( $this->registered[ $id ] );
+
+		// Removing a module changes the dependency graph; drop the memoized resolutions.
+		$this->dependencies_cache = array();
 	}
 
 	/**
@@ -647,6 +676,8 @@ class WP_Script_Modules {
 	 * recursive and also retrieves dependencies of the dependencies.
 	 *
 	 * @since 6.5.0
+	 * @since 7.0.0 The resolved dependency graph is memoized per request. The cache is
+	 *              cleared whenever the module registry or enqueue state changes.
 	 *
 	 * @param string[] $ids          The identifiers of the script modules for which to gather dependencies.
 	 * @param string[] $import_types Optional. Import types of dependencies to retrieve: 'static', 'dynamic', or both.
@@ -654,6 +685,19 @@ class WP_Script_Modules {
 	 * @return array<string, array<string, mixed>> List of dependencies, keyed by script module identifier.
 	 */
 	private function get_dependencies( array $ids, array $import_types = array( 'static', 'dynamic' ) ): array {
+		/*
+		 * Memoize the resolved dependency graph. The traversal result depends only on the
+		 * requested identifiers, the import-type filter, and the current module registry,
+		 * all of which are captured by the cache key. The cache is emptied on any registry
+		 * or enqueue mutation (see register(), enqueue(), dequeue(), and deregister()), so a
+		 * cached entry is always consistent with the live registry and byte-identical to a
+		 * freshly computed result.
+		 */
+		$cache_key = md5( serialize( array( $ids, $import_types ) ) );
+		if ( isset( $this->dependencies_cache[ $cache_key ] ) ) {
+			return $this->dependencies_cache[ $cache_key ];
+		}
+
 		$all_dependencies = array();
 		$id_queue         = $ids;
 
@@ -676,6 +720,8 @@ class WP_Script_Modules {
 				}
 			}
 		}
+
+		$this->dependencies_cache[ $cache_key ] = $all_dependencies;
 
 		return $all_dependencies;
 	}

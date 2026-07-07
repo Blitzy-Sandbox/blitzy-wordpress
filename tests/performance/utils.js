@@ -120,8 +120,17 @@ function formatValue( metric, value ) {
 		return 1 === value ? 'yes' : 'no';
 	}
 
-	if ( 'wpDbQueries' === metric ) {
+	if (
+		'wpDbQueries' === metric ||
+		'wpFilesLoaded' === metric ||
+		'wpCacheHits' === metric ||
+		'wpCacheMisses' === metric
+	) {
 		return value;
+	}
+
+	if ( 'adminJsTransferSize' === metric ) {
+		return `${ ( value / 1024 ).toFixed( 2 ) } KB`;
 	}
 
 	return `${ value.toFixed( 2 ) } ms`;

@@ -118,6 +118,25 @@ class WP_Dependencies {
 	private $dependencies_with_missing_dependencies = array();
 
 	/**
+	 * Memoized list of registered dependency handles.
+	 *
+	 * Caches the result of `array_keys( $this->registered )`, which is consulted
+	 * for every handle that declares dependencies while the dependency graph is
+	 * traversed in {@see WP_Dependencies::all_deps()}. Because the set of
+	 * registered handles only changes when an item is registered or removed, the
+	 * list is memoized here and rebuilt lazily after such a mutation, avoiding a
+	 * repeated walk of the full registration table on every traversal.
+	 *
+	 * A value of null means the cache is cold and must be recomputed on next
+	 * access via {@see WP_Dependencies::get_registered_handles()}.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @var string[]|null
+	 */
+	private $registered_handles_cache;
+
+	/**
 	 * Processes the items and dependencies.
 	 *
 	 * Processes the items passed to it or the queue, and their dependencies.
@@ -215,7 +234,7 @@ class WP_Dependencies {
 			$keep_going           = true;
 			$missing_dependencies = array();
 			if ( isset( $this->registered[ $handle ] ) && count( $this->registered[ $handle ]->deps ) > 0 ) {
-				$missing_dependencies = array_diff( $this->registered[ $handle ]->deps, array_keys( $this->registered ) );
+				$missing_dependencies = array_diff( $this->registered[ $handle ]->deps, $this->get_registered_handles() );
 			}
 			if ( ! isset( $this->registered[ $handle ] ) ) {
 				$keep_going = false; // Item doesn't exist.
@@ -256,6 +275,31 @@ class WP_Dependencies {
 	}
 
 	/**
+	 * Retrieves the memoized list of registered dependency handles.
+	 *
+	 * Returns the cached result of `array_keys( $this->registered )`, computing
+	 * and storing it when the cache is cold. This avoids rebuilding the full list
+	 * of registered handles for every dependency examined during graph traversal
+	 * in {@see WP_Dependencies::all_deps()}.
+	 *
+	 * The cache is invalidated (reset to null) by {@see WP_Dependencies::add()}
+	 * and {@see WP_Dependencies::remove()}, the only methods that change the set
+	 * of registered handles. Mutating an individual item's dependencies does not
+	 * affect the handle list, so those operations require no invalidation.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @return string[] List of registered dependency handles.
+	 */
+	private function get_registered_handles() {
+		if ( null === $this->registered_handles_cache ) {
+			$this->registered_handles_cache = array_keys( $this->registered );
+		}
+
+		return $this->registered_handles_cache;
+	}
+
+	/**
 	 * Register an item.
 	 *
 	 * Registers the item if no item of that name already exists.
@@ -283,6 +327,9 @@ class WP_Dependencies {
 			return false;
 		}
 		$this->registered[ $handle ] = new _WP_Dependency( $handle, $src, $deps, $ver, $args );
+
+		// A new handle was registered; invalidate the memoized handle list.
+		$this->registered_handles_cache = null;
 
 		// If the item was enqueued before the details were registered, enqueue it now.
 		if ( array_key_exists( $handle, $this->queued_before_register ) ) {
@@ -360,6 +407,9 @@ class WP_Dependencies {
 		foreach ( (array) $handles as $handle ) {
 			unset( $this->registered[ $handle ] );
 		}
+
+		// The set of registered handles may have changed; invalidate the memoized handle list.
+		$this->registered_handles_cache = null;
 	}
 
 	/**

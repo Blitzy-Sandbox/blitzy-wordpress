@@ -4143,57 +4143,93 @@
 	 */
 	api.ColorControl = api.Control.extend(/** @lends wp.customize.ColorControl.prototype */{
 		ready: function() {
-			var control = this,
-				isHueSlider = this.params.mode === 'hue',
-				updating = false,
-				picker;
+			var control = this;
 
-			if ( isHueSlider ) {
-				picker = this.container.find( '.color-picker-hue' );
-				picker.val( control.setting() ).wpColorPicker({
-					change: function( event, ui ) {
-						updating = true;
-						control.setting( ui.color.h() );
-						updating = false;
+			/*
+			 * Initialize the color picker. This heavier wpColorPicker wiring is deferred
+			 * until the containing section is expanded, so it is skipped entirely for
+			 * color controls in sections the user never opens (F-007: conditional/lazy
+			 * control-type initialization). When the section is already expanded (or the
+			 * control has no section) the wiring runs immediately, producing DOM output and
+			 * event bindings byte-identical to eager initialization.
+			 */
+			function initColorPicker() {
+				var isHueSlider = control.params.mode === 'hue',
+					updating = false,
+					picker;
+
+				if ( isHueSlider ) {
+					picker = control.container.find( '.color-picker-hue' );
+					picker.val( control.setting() ).wpColorPicker({
+						change: function( event, ui ) {
+							updating = true;
+							control.setting( ui.color.h() );
+							updating = false;
+						}
+					});
+				} else {
+					picker = control.container.find( '.color-picker-hex' );
+					picker.val( control.setting() ).wpColorPicker({
+						change: function() {
+							updating = true;
+							control.setting.set( picker.wpColorPicker( 'color' ) );
+							updating = false;
+						},
+						clear: function() {
+							updating = true;
+							control.setting.set( '' );
+							updating = false;
+						}
+					});
+				}
+
+				control.setting.bind( function ( value ) {
+					// Bail if the update came from the control itself.
+					if ( updating ) {
+						return;
 					}
-				});
-			} else {
-				picker = this.container.find( '.color-picker-hex' );
-				picker.val( control.setting() ).wpColorPicker({
-					change: function() {
-						updating = true;
-						control.setting.set( picker.wpColorPicker( 'color' ) );
-						updating = false;
-					},
-					clear: function() {
-						updating = true;
-						control.setting.set( '' );
-						updating = false;
+					picker.val( value );
+					picker.wpColorPicker( 'color', value );
+				} );
+
+				// Collapse color picker when hitting Esc instead of collapsing the current section.
+				control.container.on( 'keydown', function( event ) {
+					var pickerContainer;
+					if ( 27 !== event.which ) { // Esc.
+						return;
 					}
-				});
+					pickerContainer = control.container.find( '.wp-picker-container' );
+					if ( pickerContainer.hasClass( 'wp-picker-active' ) ) {
+						picker.wpColorPicker( 'close' );
+						control.container.find( '.wp-color-result' ).focus();
+						event.stopPropagation(); // Prevent section from being collapsed.
+					}
+				} );
 			}
 
-			control.setting.bind( function ( value ) {
-				// Bail if the update came from the control itself.
-				if ( updating ) {
-					return;
-				}
-				picker.val( value );
-				picker.wpColorPicker( 'color', value );
-			} );
+			// With no associated section, initialize immediately (byte-identical to eager init).
+			if ( ! control.section() ) {
+				initColorPicker();
+				return;
+			}
 
-			// Collapse color picker when hitting Esc instead of collapsing the current section.
-			control.container.on( 'keydown', function( event ) {
-				var pickerContainer;
-				if ( 27 !== event.which ) { // Esc.
-					return;
-				}
-				pickerContainer = control.container.find( '.wp-picker-container' );
-				if ( pickerContainer.hasClass( 'wp-picker-active' ) ) {
-					picker.wpColorPicker( 'close' );
-					control.container.find( '.wp-color-result' ).focus();
-					event.stopPropagation(); // Prevent section from being collapsed.
-				}
+			// Otherwise wait until the section is embedded, then run immediately if it is
+			// already expanded, or once it becomes expanded (one-shot, self-unbinding).
+			api.section( control.section(), function( section ) {
+				section.deferred.embedded.done( function() {
+					var onceExpanded;
+					if ( section.expanded() ) {
+						initColorPicker();
+					} else {
+						onceExpanded = function( isExpanded ) {
+							if ( isExpanded ) {
+								initColorPicker();
+								section.expanded.unbind( onceExpanded );
+							}
+						};
+						section.expanded.bind( onceExpanded );
+					}
+				} );
 			} );
 		}
 	});

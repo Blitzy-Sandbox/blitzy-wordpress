@@ -49,6 +49,32 @@ class WP_Object_Cache {
 	public $cache_misses = 0;
 
 	/**
+	 * The number of cache hits, broken down by cache group.
+	 *
+	 * This is an additive, per-group breakdown of {@see WP_Object_Cache::$cache_hits}.
+	 * The scalar `$cache_hits` total continues to be incremented exactly as before, so
+	 * existing consumers of that property observe identical behavior. The keys are the
+	 * cache group names and the values are the number of hits recorded for each group.
+	 *
+	 * @since 7.0.0
+	 * @var int[] Array of cache hit counts, keyed by cache group name.
+	 */
+	public $cache_hits_by_group = array();
+
+	/**
+	 * The number of cache misses, broken down by cache group.
+	 *
+	 * This is an additive, per-group breakdown of {@see WP_Object_Cache::$cache_misses}.
+	 * The scalar `$cache_misses` total continues to be incremented exactly as before, so
+	 * existing consumers of that property observe identical behavior. The keys are the
+	 * cache group names and the values are the number of misses recorded for each group.
+	 *
+	 * @since 7.0.0
+	 * @var int[] Array of cache miss counts, keyed by cache group name.
+	 */
+	public $cache_misses_by_group = array();
+
+	/**
 	 * List of global cache groups.
 	 *
 	 * @since 3.0.0
@@ -375,6 +401,13 @@ class WP_Object_Cache {
 		if ( $this->_exists( $key, $group ) ) {
 			$found             = true;
 			$this->cache_hits += 1;
+
+			// Additively tally the hit against its group. Does not affect the scalar total above.
+			if ( ! isset( $this->cache_hits_by_group[ $group ] ) ) {
+				$this->cache_hits_by_group[ $group ] = 0;
+			}
+			$this->cache_hits_by_group[ $group ] += 1;
+
 			if ( is_object( $this->cache[ $group ][ $key ] ) ) {
 				return clone $this->cache[ $group ][ $key ];
 			} else {
@@ -384,6 +417,13 @@ class WP_Object_Cache {
 
 		$found               = false;
 		$this->cache_misses += 1;
+
+		// Additively tally the miss against its group. Does not affect the scalar total above.
+		if ( ! isset( $this->cache_misses_by_group[ $group ] ) ) {
+			$this->cache_misses_by_group[ $group ] = 0;
+		}
+		$this->cache_misses_by_group[ $group ] += 1;
+
 		return false;
 	}
 
