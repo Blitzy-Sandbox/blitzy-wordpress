@@ -126,7 +126,20 @@ services:
       - wpbenchnet
 
     environment:
-      MYSQL_ROOT_PASSWORD: password
+      # Root password for the throwaway, fully-isolated benchmark database.
+      #
+      # This is NOT a hardcoded secret: it is read from the BENCHMARK_MYSQL_ROOT_PASSWORD
+      # environment variable, falling back to a well-known throwaway default only when that
+      # variable is unset or empty. The default is acceptable here because this database is
+      # ephemeral (its state lives in the dedicated `mysql-benchmark` volume and is wiped by
+      # `down -v`) and is never exposed off-host — the MySQL port is deliberately NOT
+      # published (see the service comment above), so the database is reachable only by the
+      # other benchmark containers over the private `wpbenchnet` network.
+      #
+      # To run against a non-default password, export BENCHMARK_MYSQL_ROOT_PASSWORD before
+      # invoking Compose and set a matching DB_PASSWORD in the WordPress config used by the
+      # benchmark run.
+      MYSQL_ROOT_PASSWORD: ${BENCHMARK_MYSQL_ROOT_PASSWORD:-password}
 
     volumes:
       - ./tools/local-env/mysql-init.sql:/docker-entrypoint-initdb.d/mysql-init.sql

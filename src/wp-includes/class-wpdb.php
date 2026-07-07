@@ -1510,6 +1510,22 @@ class wpdb {
 		$cache_key = $this->get_prepared_statement_cache_key( $query, $args );
 
 		if ( '' !== $cache_key && isset( $this->prepared_statement_cache[ $cache_key ] ) ) {
+			/*
+			 * A full (uncached) preparation ends by calling add_placeholder_escape(),
+			 * which in turn calls placeholder_escape(). Besides returning the escape
+			 * token, placeholder_escape() has an observable side effect: it
+			 * (re)registers the 'query' filter (remove_placeholder_escape) at
+			 * priority 0 whenever that filter is not currently attached. If a plugin
+			 * or test removes that filter between prepare() calls, an uncached run
+			 * restores it on the next call; the cache-hit path must do the same, or
+			 * placeholder-escape tokens could leak into later SQL. The cached string
+			 * is already escaped, so placeholder_escape() is invoked here solely for
+			 * that filter-registration side effect and its return value is
+			 * intentionally discarded, keeping behavior byte-identical to an
+			 * uncached run.
+			 */
+			$this->placeholder_escape();
+
 			return $this->prepared_statement_cache[ $cache_key ];
 		}
 

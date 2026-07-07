@@ -2,6 +2,10 @@
 
 # 0. Agent Action Plan
 
+> **CP1 Milestone Status — read this first.** This document is the *full-project* technical specification / Agent Action Plan for the WordPress 7.0.0-alpha performance refactor; it describes the **planned/target** architecture across all features (F-001–F-011) and all checkpoints. As of the **CP1 Foundations Milestone**, only the 18 foundational files are delivered: the F-001 hot-path core (`class-wp-hook.php`, `load.php`, `functions.php`), the F-002 `wpdb` prepared-statement cache (`class-wpdb.php`), the F-003 object-cache per-group counters (`class-wp-object-cache.php`), the F-006 dependency base classes (`class-wp-dependencies.php`, `class-wp-script-modules.php`), the F-007 Customizer/emoji conditional init (four JavaScript files), the F-009 webpack tool splitting (`tools/webpack/media.js`, `tools/webpack/development.js`), the F-010 measurement utilities (`tests/performance/utils.js`, `tests/performance/wp-content/mu-plugins/clear-cache.php`), and the F-011 isolated benchmark environment (`docker-compose.benchmark.yml`).
+>
+> All **performance KPIs are unmeasured and pending** at this milestone: no benchmark run has been executed, and per the evidence-first mandate no improvement is claimed until it is measured in its owning checkpoint. Every later-checkpoint artifact — the `server-timing.php` metric extension, the performance-spec and `compare-results.js` extensions, the benchmark harness (`run-baseline.sh` / `run-optimized.sh` / `run-benchmark.js` / `generate-diff-report.js` / `benchmark-report.json`), and the Rule deliverables (`performance-dashboard.md`, `decision-log-and-traceability.md`, `executive-presentation.html`) — is **planned/future work** produced in its owning checkpoint. Passages below that describe those artifacts or the target metrics are therefore statements of *plan*, not of completed or measured work.
+
 ## 0.1 Intent Clarification
 
 ### 0.1.1 Core Refactoring Objective
@@ -45,7 +49,7 @@ graph TB
     end
 
     subgraph TargetState["Target State — Optimized Runtime (After)"]
-        T1["Deferred/conditional loading<br/>Context-aware requires<br/>≥30% fewer files (417 front-end)"]
+        T1["Deferred/conditional loading<br/>Context-aware requires<br/>≥30% fewer files (target)"]
         T2["Optimized dispatch<br/>Arity-aware direct invocation<br/>Empty-callback fast path"]
         T3["Optimized SQL generation<br/>Batch meta/term priming<br/>EXISTS subqueries + memoization"]
         T4["Improved cache strategy<br/>Granular invalidation<br/>Multi-get/set + hit/miss counters"]
@@ -345,12 +349,12 @@ tests/
 - `tools/webpack/media.js` — Media webpack config
 - `tools/webpack/development.js` — Development webpack config
 
-**Test & Measurement-Infrastructure Updates:**
-- `tests/performance/specs/*.test.js` — Extended the three performance specs (home, admin, single-post) with the new metrics
-- `tests/performance/wp-content/mu-plugins/server-timing.php` — Extended instrumentation emitting the 7 Server-Timing metrics
+**Test & Measurement-Infrastructure Updates** (full-project scope; only `utils.js` and `clear-cache.php` are delivered in CP1 — the remaining files are processed in their owning later checkpoints):
+- `tests/performance/specs/*.test.js` — Extend the three performance specs (home, admin, single-post) with the new metrics
+- `tests/performance/wp-content/mu-plugins/server-timing.php` — Extend instrumentation to emit the 7 Server-Timing metrics
 - `tests/performance/wp-content/mu-plugins/clear-cache.php` — Deterministic cache reset between runs
-- `tests/performance/compare-results.js` — Comparison tool extended for the new metrics
-- `tests/performance/utils.js` — New Server-Timing metric formatters
+- `tests/performance/compare-results.js` — Extend the comparison tool for the new metrics
+- `tests/performance/utils.js` — Server-Timing metric formatters
 - `tests/phpunit/tests/**/*.php` — Minimal alignment of 8 PHPUnit test files for optimization compatibility; all 28,930 PHPUnit tests pass identically to baseline (test content otherwise unchanged, zero new skips/exclusions)
 
 **Configuration & Documentation Updates:**
@@ -477,14 +481,14 @@ The following design patterns guide the optimization approach:
 
 ### 0.4.3 Observability Architecture
 
-Per the Observability implementation rule, performance instrumentation is shipped as part of the initial optimization — not as a follow-up. **Diagram 4 — "Observability: Before vs After"** contrasts the baseline observability signals with the seven Server-Timing metrics that were implemented, so the reader sees both the prior state and the delivered state.
+Per the Observability implementation rule, performance instrumentation ships together with the optimization work rather than as a follow-up. **Diagram 4 — "Observability: Before vs After"** contrasts the baseline observability signals with the seven Server-Timing metrics planned for the measurement layer, so the reader sees both the prior state and the target state.
 
 **Diagram 4 — Observability: Before vs After (Server-Timing instrumentation).**
 
 ```mermaid
 graph LR
-    %% LEGEND: left subgraph = BEFORE (baseline signals); right subgraph = AFTER (the 7 implemented Server-Timing metrics).
-    %% Arrows show which baseline signal each implemented metric derives from. Test/development-only; disabled in production by file absence.
+    %% LEGEND: left subgraph = BEFORE (baseline signals); right subgraph = AFTER (the 7 planned/target Server-Timing metrics).
+    %% Arrows show which baseline signal each planned metric derives from. Test/development-only; disabled in production by file absence.
     subgraph BeforeState["Before — Baseline Observability"]
         B1["Server-Timing header<br/>before-template<br/>template, total"]
         B2["memory_get_usage()"]
@@ -493,7 +497,7 @@ graph LR
         B5["WP_DEBUG + WP_DEBUG_LOG"]
     end
 
-    subgraph AfterState["After — 7 Implemented Server-Timing Metrics"]
+    subgraph AfterState["After — 7 Planned/Target Server-Timing Metrics"]
         A1["bootstrap"]
         A2["plugins"]
         A3["files-loaded"]
@@ -514,24 +518,24 @@ graph LR
     B5 -.preserved.-> A3
 ```
 
-*Legend:* the left **Before** subgraph lists the baseline signals; the right **After** subgraph lists the seven implemented Server-Timing metrics; solid arrows show which baseline signal each metric derives from and the dotted `preserved` edge indicates `WP_DEBUG_LOG` continues to function unchanged. Both states are shown — this is a before/after diagram.
+*Legend:* the left **Before** subgraph lists the baseline signals; the right **After** subgraph lists the seven planned/target Server-Timing metrics; solid arrows show which baseline signal each metric derives from and the dotted `preserved` edge indicates `WP_DEBUG_LOG` continues to function unchanged. Both states are shown — this is a before/after diagram.
 
-The `tests/performance/wp-content/mu-plugins/server-timing.php` must-use plugin was extended to emit these seven metrics — `bootstrap` (time from `$timestart` to end of `wp-settings.php`), `plugins` (time spent loading plugins), `files-loaded` (count from `get_included_files()`), `cache-hits`/`cache-misses` (from the new per-group `WP_Object_Cache` internal counters), `db-queries` (from `$wpdb->num_queries`/`SAVEQUERIES`), and `memory-usage` (from `memory_get_peak_usage()`). These metrics flow through the existing Playwright `metrics.getServerTiming()` infrastructure without new test framework tooling, and the plugin is test/development-only — its off state is the physical absence of the file, so it is never present in a production deployment. The `benchmarks/results/performance-dashboard.md` dashboard template and the KPI slides of `benchmarks/results/executive-presentation.html` visualize exactly these seven metrics.
+The `tests/performance/wp-content/mu-plugins/server-timing.php` must-use plugin is planned to emit these seven metrics — `bootstrap` (time from `$timestart` to end of `wp-settings.php`), `plugins` (time spent loading plugins), `files-loaded` (count from `get_included_files()`), `cache-hits`/`cache-misses` (from the new per-group `WP_Object_Cache` internal counters), `db-queries` (from `$wpdb->num_queries`/`SAVEQUERIES`), and `memory-usage` (from `memory_get_peak_usage()`). These metrics are designed to flow through the existing Playwright `metrics.getServerTiming()` infrastructure without new test framework tooling, and the plugin is test/development-only — its off state is the physical absence of the file, so it is never present in a production deployment. The `benchmarks/results/performance-dashboard.md` dashboard template and the KPI slides of `benchmarks/results/executive-presentation.html` are planned to visualize exactly these seven metrics. **Status:** `server-timing.php`, the benchmark harness, and these reporting artifacts are processed in their owning later checkpoints (outside the CP1 Foundations scope); CP1 delivers the runtime primitives they read — the per-group `WP_Object_Cache` hit/miss counters, the `wpdb` prepared-statement cache, and `wp_is_rest_request()` context detection.
 
 ### 0.4.4 Performance Target Architecture
 
-The six measured performance targets and their achieved (implemented-state) results are summarized below. Five of the six targets are demonstrably met or exceeded; the sixth (Admin JS transfer size) is partially achieved — conditional loading is implemented at the PHP level and the webpack `splitChunks`/`runtimeChunk` code-splitting configuration is wired through Grunt, but it does not yet emit separate bundles.
+The six performance targets and their measurement instruments are summarized below. These are the **target thresholds** the optimization work is designed to meet; the before/after measurements that prove them are produced by the benchmark harness in its owning checkpoint and are **pending** at the CP1 Foundations milestone. Consistent with the evidence-first mandate, no KPI value is claimed until it has actually been measured — and no benchmark run has been executed at this checkpoint. CP1 delivers the runtime primitives the targets depend on (context-aware loading scaffolding, the `wpdb` prepared-statement cache, and the per-group object-cache counters); the admin-JS bundle split (webpack `splitChunks`/`runtimeChunk`) is wired through Grunt but does not yet emit separate bundles.
 
-| Metric | Target | Achieved (measured) | Measurement Instrument |
-|--------|--------|---------------------|------------------------|
-| Front-end TTFB (uncached) | ≥20% reduction | ✅ 22% reduction (53.72ms → 41.9ms) | `tests/performance/specs/home.test.js` |
-| Admin DOMContentLoaded | ≥15% reduction | ✅ 17% reduction (50.66ms → 42.05ms) | `tests/performance/specs/admin.test.js` |
-| Admin JS transfer size (gzipped) | ≥30% reduction | ⚠️ Partial — conditional loading landed; webpack splitting wired but not yet emitting separate bundles | Grunt build output comparison |
-| PHP memory per front-end request | ≥10% reduction | ✅ ≥10% reduction (deferred loading lowers peak footprint) | Server-Timing `wp-memory-usage` (`memory_get_peak_usage()`) |
-| DB queries per front-end page load | ≥15% reduction | ✅ ≥15% reduction (batch priming + N+1 elimination; 6 queries on the validated front-end request) | Server-Timing `wp-db-queries` (`SAVEQUERIES` / `$wpdb->num_queries`) |
-| PHP files loaded per front-end request | ≥30% reduction | ✅ ≥30% reduction (417 files on the validated front-end request; ~131 block/REST/platform files deferred) | Server-Timing `wp-files-loaded` (`get_included_files()`) |
+| Metric | Target | Status | Measurement Instrument |
+|--------|--------|--------|------------------------|
+| Front-end TTFB (uncached) | ≥20% reduction | ⏳ Measurement pending (owning checkpoint) | `tests/performance/specs/home.test.js` |
+| Admin DOMContentLoaded | ≥15% reduction | ⏳ Measurement pending (owning checkpoint) | `tests/performance/specs/admin.test.js` |
+| Admin JS transfer size (gzipped) | ≥30% reduction | ⏳ Measurement pending — conditional loading landed; webpack splitting wired but not yet emitting separate bundles | Grunt build output comparison |
+| PHP memory per front-end request | ≥10% reduction | ⏳ Measurement pending (owning checkpoint) | Server-Timing `wp-memory-usage` (`memory_get_peak_usage()`) |
+| DB queries per front-end page load | ≥15% reduction | ⏳ Measurement pending (owning checkpoint) | Server-Timing `wp-db-queries` (`SAVEQUERIES` / `$wpdb->num_queries`) |
+| PHP files loaded per front-end request | ≥30% reduction | ⏳ Measurement pending (owning checkpoint) | Server-Timing `wp-files-loaded` (`get_included_files()`) |
 
-A bonus REST API TTFB reduction of 22% (47.44ms → 37.0ms) was also measured. Runtime validation recorded 417 files loaded / 30MB peak memory / 6 DB queries on a front-end request and 447 files / 32MB / 133 REST routes on an admin request.
+No benchmark run has been executed at this checkpoint, so no measured KPI values (front-end or REST) are reported here; the aggregate before/after summary — including any REST API TTFB result — is produced by the benchmark harness and recorded in `benchmarks/results/benchmark-report.json` in its owning checkpoint.
 
 ### 0.4.5 Component Interaction Architecture
 
@@ -624,6 +628,8 @@ graph TD
 ### 0.5.1 File-by-File Transformation Plan
 
 All files are mapped in a single phase. The entire refactor is executed by Blitzy in ONE phase — no multi-phase splitting.
+
+> **CP1 delivery note.** The tables in this section are the *full-project* transformation plan: the **Transformation** column states each file's planned mode (UPDATE/CREATE), not its completion status. At the CP1 Foundations Milestone only the 18 foundational files enumerated in the status banner at the top of this document are delivered; every other row — including the F-011 benchmark harness (`run-baseline.sh`, `run-optimized.sh`, `run-benchmark.js`, `generate-diff-report.js`), `benchmark-report.json`, and the Rule 1/2/4 deliverables (`performance-dashboard.md`, `decision-log-and-traceability.md`, `executive-presentation.html`) — is processed in its owning later checkpoint. Any KPI thresholds embedded in the "Key Changes" cells are **targets**, not measured results; no benchmark run has been executed at this milestone.
 
 **PHP Runtime Hot Path Transformations:**
 
@@ -998,7 +1004,7 @@ The existing observability infrastructure covers:
 | Hook dispatch timing | ❌ Not tracked | No profiling of expensive hooks |
 | Bootstrap phase timing | ❌ Not tracked | No breakdown of bootstrap vs. plugin vs. query time |
 
-**Resolution (implemented):** these gaps are now closed by the extended `tests/performance/wp-content/mu-plugins/server-timing.php` must-use plugin, which emits seven Server-Timing metrics — `bootstrap`, `plugins`, `files-loaded`, `cache-hits`, `cache-misses`, `db-queries`, and `memory-usage` — sourced from `get_included_files()`, the new per-group `WP_Object_Cache` hit/miss counters, and bootstrap-phase timing. This instrumentation is test/development-only (its off state is the physical absence of the file) and flows through the existing Playwright `metrics.getServerTiming()` infrastructure without new test tooling.
+**Resolution (planned):** these gaps are addressed by the planned extension of the `tests/performance/wp-content/mu-plugins/server-timing.php` must-use plugin, which will emit seven Server-Timing metrics — `bootstrap`, `plugins`, `files-loaded`, `cache-hits`, `cache-misses`, `db-queries`, and `memory-usage` — sourced from `get_included_files()`, the new per-group `WP_Object_Cache` hit/miss counters, and bootstrap-phase timing. This instrumentation is test/development-only (its off state is the physical absence of the file) and is designed to flow through the existing Playwright `metrics.getServerTiming()` infrastructure without new test tooling. The `server-timing.php` extension is processed in its owning later checkpoint; at the CP1 Foundations milestone the enabling primitive — the per-group `WP_Object_Cache` hit/miss counters — is delivered, while the metric emission itself is pending.
 
 ## 0.8 Refactoring Rules
 

@@ -43,70 +43,6 @@
  * @return string[] Primitive capabilities required of the user.
  */
 function map_meta_cap( $cap, $user_id, ...$args ) {
-	/*
-	 * Request-scoped memoization of the primitive-capability mapping.
-	 *
-	 * Capability checks recur heavily in template and admin loops, where the same
-	 * meta capability is frequently resolved many times for identical arguments.
-	 * The `switch` below is deterministic for a given ( $cap, $user_id, $args )
-	 * tuple as long as the state it reads has not changed (post type and taxonomy
-	 * registration, the referenced object's fields, the handful of options it
-	 * consults, and super admin / role membership). That state is tracked by a
-	 * request-scoped generation counter which is bumped by
-	 * _wp_invalidate_map_meta_cap_memo() on the relevant mutation hooks, so a
-	 * stale mapping is never served after such a change.
-	 *
-	 * Only the pre-filter mapping is memoized; the `map_meta_cap` filter is still
-	 * applied on every call (see the return statement at the end of the function).
-	 * To keep behavior byte-identical, the memo is used only when it cannot alter
-	 * observable output: it is skipped for the `*_meta` capabilities (which fire
-	 * their own `auth_{$object_type}_meta_*` filters that must run on every call)
-	 * and whenever a `map_meta_cap` filter is registered (which may return dynamic
-	 * results for identical inputs). When the memo is active no `map_meta_cap`
-	 * filter is registered, so the filter below is a pass-through and the memoized
-	 * value is identical to a full recomputation.
-	 *
-	 * @since 7.0.0
-	 */
-	static $mapped_meta_caps = array();
-	static $memo_generation  = null;
-
-	// Meta capabilities whose mapping fires in-file `auth_*` filters that must run
-	// on every call and are therefore never memoized.
-	static $unmemoized_caps = array(
-		'edit_post_meta',
-		'delete_post_meta',
-		'add_post_meta',
-		'edit_comment_meta',
-		'delete_comment_meta',
-		'add_comment_meta',
-		'edit_term_meta',
-		'delete_term_meta',
-		'add_term_meta',
-		'edit_user_meta',
-		'delete_user_meta',
-		'add_user_meta',
-	);
-
-	// Drop the memo when capability-affecting state has changed this request.
-	$current_generation = _wp_map_meta_cap_memo_generation();
-	if ( $memo_generation !== $current_generation ) {
-		$mapped_meta_caps = array();
-		$memo_generation  = $current_generation;
-	}
-
-	$can_memoize = ! in_array( $cap, $unmemoized_caps, true ) && ! has_filter( 'map_meta_cap' );
-	$memo_key    = null;
-
-	if ( $can_memoize ) {
-		$memo_key = $cap . '|' . (int) $user_id . '|' . md5( serialize( $args ) );
-
-		if ( isset( $mapped_meta_caps[ $memo_key ] ) ) {
-			/** This filter is documented in wp-includes/capabilities.php */
-			return apply_filters( 'map_meta_cap', $mapped_meta_caps[ $memo_key ], $cap, $user_id, $args );
-		}
-	}
-
 	$caps = array();
 
 	switch ( $cap ) {
@@ -928,11 +864,6 @@ function map_meta_cap( $cap, $user_id, ...$args ) {
 			$caps[] = $cap;
 	}
 
-	// Memoize the pre-filter mapping for the remainder of the request.
-	if ( null !== $memo_key ) {
-		$mapped_meta_caps[ $memo_key ] = $caps;
-	}
-
 	/**
 	 * Filters the primitive capabilities required of the given user to satisfy the
 	 * capability being checked.
@@ -947,90 +878,6 @@ function map_meta_cap( $cap, $user_id, ...$args ) {
 	 */
 	return apply_filters( 'map_meta_cap', $caps, $cap, $user_id, $args );
 }
-
-/**
- * Returns the current generation of the map_meta_cap() request-scoped memo cache,
- * optionally incrementing it to invalidate previously memoized mappings.
- *
- * map_meta_cap() memoizes the primitive capabilities it maps for a given set of
- * arguments during a request. Because that mapping depends on mutable state
- * (post type and taxonomy registration, object fields, a few options, and super
- * admin / role membership), the generation returned here is incremented whenever
- * such state changes (see _wp_invalidate_map_meta_cap_memo()). map_meta_cap()
- * compares this value against the generation its memo was built for and discards
- * the memo when they differ, guaranteeing that a cache hit always matches a full
- * recomputation.
- *
- * @since 7.0.0
- * @access private
- *
- * @param bool $bump Whether to increment the generation. Default false.
- * @return int The current memo generation.
- */
-function _wp_map_meta_cap_memo_generation( $bump = false ) {
-	static $generation = 0;
-
-	if ( $bump ) {
-		++$generation;
-	}
-
-	return $generation;
-}
-
-/**
- * Invalidates the request-scoped map_meta_cap() memo cache.
- *
- * Hooked to the mutation actions that can change capability mapping results, such
- * as post type and taxonomy (un)registration, post cache invalidation, super admin
- * and role membership changes, and site switching. Any callback arguments passed
- * by those hooks are ignored.
- *
- * @since 7.0.0
- * @access private
- */
-function _wp_invalidate_map_meta_cap_memo() {
-	_wp_map_meta_cap_memo_generation( true );
-}
-
-/**
- * Invalidates the map_meta_cap() memo cache when an option it consults changes.
- *
- * Only the options that influence capability mapping trigger invalidation, so
- * unrelated option writes (transients, counters, and the like) do not needlessly
- * clear the memo.
- *
- * @since 7.0.0
- * @access private
- *
- * @param string $option Name of the option that was added, updated, or deleted.
- */
-function _wp_invalidate_map_meta_cap_memo_on_option( $option ) {
-	if ( 'page_on_front' === $option
-		|| 'page_for_posts' === $option
-		|| 'wp_page_for_privacy_policy' === $option
-		|| 'link_manager_enabled' === $option
-		|| 0 === strpos( (string) $option, 'default_' )
-	) {
-		_wp_map_meta_cap_memo_generation( true );
-	}
-}
-
-// Invalidate the request-scoped map_meta_cap() memo whenever capability-affecting
-// state changes during a request, so a memoized mapping is never served stale.
-add_action( 'registered_post_type', '_wp_invalidate_map_meta_cap_memo' );
-add_action( 'unregistered_post_type', '_wp_invalidate_map_meta_cap_memo' );
-add_action( 'registered_taxonomy', '_wp_invalidate_map_meta_cap_memo' );
-add_action( 'unregistered_taxonomy', '_wp_invalidate_map_meta_cap_memo' );
-add_action( 'clean_post_cache', '_wp_invalidate_map_meta_cap_memo' );
-add_action( 'granted_super_admin', '_wp_invalidate_map_meta_cap_memo' );
-add_action( 'revoked_super_admin', '_wp_invalidate_map_meta_cap_memo' );
-add_action( 'set_user_role', '_wp_invalidate_map_meta_cap_memo' );
-add_action( 'add_user_role', '_wp_invalidate_map_meta_cap_memo' );
-add_action( 'remove_user_role', '_wp_invalidate_map_meta_cap_memo' );
-add_action( 'switch_blog', '_wp_invalidate_map_meta_cap_memo' );
-add_action( 'added_option', '_wp_invalidate_map_meta_cap_memo_on_option' );
-add_action( 'updated_option', '_wp_invalidate_map_meta_cap_memo_on_option' );
-add_action( 'deleted_option', '_wp_invalidate_map_meta_cap_memo_on_option' );
 
 /**
  * Returns whether the current user has the specified capability.

@@ -1942,19 +1942,29 @@ function wp_is_json_request() {
  *     definitively a standalone REST request. That constant is only defined during
  *     the {@see 'parse_request'} action (see {@see wp_is_serving_rest_request()}), so
  *     it is authoritative once available but unset during earlier phases.
- *  2. Otherwise the requested URL is inspected read-only, the same way the REST
- *     rewrite rules route a request: a `rest_route` query argument (used when pretty
- *     permalinks are disabled) or a path whose first segment is the REST URL prefix.
+ *  2. Otherwise the requested URL is inspected read-only, matching the way REST
+ *     rewrite rules route a request (see {@see get_rest_url()}). All valid REST URL
+ *     forms are recognized:
+ *      - a non-empty `rest_route` query argument (used when pretty permalinks are
+ *        disabled), mirroring {@see rest_api_loaded()} which treats an empty
+ *        `rest_route` as a non-REST request;
+ *      - a path whose first segment (relative to the site's home path) is the REST
+ *        URL prefix, e.g. `/wp-json/...`;
+ *      - the same path preceded by an `index.php` segment, e.g.
+ *        `/index.php/wp-json/...`, used when "index" permalinks are active
+ *        (see {@see WP_Rewrite::using_index_permalinks()}).
+ *     Subdirectory installs are handled by stripping the home path first, and a
+ *     custom REST prefix is honored via the {@see 'rest_url_prefix'} filter.
  *
- * Unlike {@see wp_is_rest_endpoint()}, this function does not fire any filters, does
- * not query the database, produces no output, and does not depend on the REST server
- * having been initialized, so it is safe to call repeatedly and during bootstrap. To
- * remain side-effect-free it does not apply the {@see 'rest_url_prefix'} filter and
- * therefore matches the documented default prefix (`wp-json`); requests using a
- * custom prefix, or served from a subdirectory install, are still detected via the
- * `REST_REQUEST` constant once WordPress has parsed the request. The prefix is matched
- * only as a complete leading path segment so that unrelated front-end URLs are never
- * misidentified as REST requests.
+ * This function performs no writes and produces no output, does not depend on the
+ * REST server having been initialized, and is safe to call repeatedly and during
+ * bootstrap. When the REST prefix helper ({@see rest_get_url_prefix()}) or
+ * {@see home_url()} are not yet available (i.e. the function is called very early,
+ * before those are loaded), it gracefully falls back to the documented default
+ * prefix (`wp-json`) and the site root; once those helpers are available it consults
+ * them (idempotent value-filter reads) so detection is byte-identical to WordPress
+ * REST routing for every valid REST URL form. The prefix is matched only as a
+ * complete leading path segment so unrelated front-end URLs are never misidentified.
  *
  * @since 7.0.0
  *
@@ -1967,8 +1977,8 @@ function wp_is_rest_request() {
 	}
 
 	// The constant is not defined until 'parse_request', so fall back to inspecting the
-	// requested URL. This only reads request superglobals; it never fires filters,
-	// queries the database, or produces output.
+	// requested URL. This reads request state (superglobals) and, when available, the
+	// site's home URL and REST prefix; it performs no writes and produces no output.
 	if ( empty( $_SERVER['REQUEST_URI'] ) ) {
 		return false;
 	}
@@ -1978,19 +1988,62 @@ function wp_is_rest_request() {
 	$request_path  = '/' . ltrim( $request_parts[0], '/' );
 	$query_string  = isset( $request_parts[1] ) ? $request_parts[1] : '';
 
-	// Requests made without pretty permalinks address the API via a `rest_route` argument.
+	// Requests made without pretty permalinks address the API via a non-empty `rest_route`
+	// argument. rest_api_loaded() treats an empty `rest_route` as a non-REST request, so an
+	// empty value is deliberately not matched here.
 	if ( '' !== $query_string ) {
 		foreach ( explode( '&', $query_string ) as $query_arg ) {
-			if ( 'rest_route' === explode( '=', $query_arg, 2 )[0] ) {
-				return true;
+			$query_pair = explode( '=', $query_arg, 2 );
+			if ( 'rest_route' === $query_pair[0] ) {
+				$rest_route = isset( $query_pair[1] ) ? urldecode( $query_pair[1] ) : '';
+				if ( ! empty( $rest_route ) ) {
+					return true;
+				}
+				break;
 			}
 		}
 	}
 
-	// Otherwise detect the default REST URL prefix ('wp-json') as a complete leading path segment.
-	$rest_prefix = 'wp-json';
-	if ( '/' . $rest_prefix === $request_path
-		|| str_starts_with( $request_path, '/' . $rest_prefix . '/' )
+	// Resolve the REST URL prefix the same way REST routing does, honoring the
+	// `rest_url_prefix` filter when the REST helpers are loaded; fall back to the
+	// documented default ('wp-json') when called before they are available.
+	$rest_prefix = function_exists( 'rest_get_url_prefix' ) ? rest_get_url_prefix() : 'wp-json';
+
+	/*
+	 * Determine the site's home path so REST requests served from a subdirectory install
+	 * are recognized. REST URLs are built from home_url() (see get_rest_url()), so its
+	 * path component is the base that the REST prefix follows. Fall back to the site root
+	 * when home_url() is not yet available (e.g. very early during bootstrap).
+	 */
+	$home_path = '';
+	if ( function_exists( 'home_url' ) ) {
+		$home_path = trim( (string) parse_url( home_url(), PHP_URL_PATH ), '/' );
+	}
+
+	// Strip the home base path from the request path (subdirectory install support).
+	$route_path = $request_path;
+	if ( '' !== $home_path ) {
+		$home_prefix = '/' . $home_path;
+
+		if ( $route_path === $home_prefix ) {
+			$route_path = '/';
+		} elseif ( str_starts_with( $route_path, $home_prefix . '/' ) ) {
+			$route_path = substr( $route_path, strlen( $home_prefix ) );
+		} else {
+			// The request is outside the site's home path and cannot be a REST route.
+			return false;
+		}
+	}
+
+	// Strip a leading `index.php` segment so the "index" permalink form
+	// ({home}/index.php/{prefix}/...) is recognized as a REST route.
+	if ( str_starts_with( $route_path, '/index.php/' ) ) {
+		$route_path = substr( $route_path, strlen( '/index.php' ) );
+	}
+
+	// Detect the REST URL prefix as a complete leading path segment.
+	if ( '/' . $rest_prefix === $route_path
+		|| str_starts_with( $route_path, '/' . $rest_prefix . '/' )
 	) {
 		return true;
 	}
