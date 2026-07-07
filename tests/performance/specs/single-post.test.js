@@ -58,6 +58,9 @@ test.describe( 'Single Post', () => {
 
 						const serverTiming = await metrics.getServerTiming();
 
+						// The front-end KPI metrics (memory usage, DB queries, and
+						// files loaded) are emitted by server-timing.php and flow
+						// into results automatically through the generic loop below.
 						for ( const [ key, value ] of Object.entries(
 							serverTiming
 						) ) {

@@ -53,6 +53,10 @@ module.exports = function(grunt) {
 		webpackFiles = [
 			'wp-includes/assets/*',
 			'wp-includes/css/dist',
+			// Webpack code-splitting output (F-009): the shared media chunk extracted
+			// by tools/webpack/media.js, listed so clean:webpack-assets also removes
+			// any stale copy before a rebuild. Deterministic, non-colliding names.
+			'wp-includes/js/media-common*.js',
 			'!wp-includes/assets/script-loader-packages.min.php',
 			'!wp-includes/assets/script-modules-packages.min.php',
 		],

@@ -118,7 +118,20 @@ set_screen_options();
 $date_format = __( 'F j, Y' );
 $time_format = __( 'g:i a' );
 
-wp_enqueue_script( 'common' );
+/*
+ * The shared 'common' script is only printed while rendering an admin screen
+ * through admin-header.php, so it is never output during an Ajax request. The
+ * async media uploader (wp-admin/async-upload.php) bootstraps this file with
+ * DOING_AJAX defined and returns a JSON payload without ever printing the script
+ * queue, so enqueuing here is wasted dependency-resolution work in that context.
+ * Deferring the enqueue for Ajax requests keeps the rendered output of every
+ * screen-rendering request byte-for-byte identical.
+ *
+ * @since 7.0.0
+ */
+if ( ! wp_doing_ajax() ) {
+	wp_enqueue_script( 'common' );
+}
 
 /**
  * $pagenow is set in vars.php.

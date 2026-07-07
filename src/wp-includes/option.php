@@ -89,8 +89,11 @@ function get_option( $option, $default_value = false ) {
 	/*
 	 * Until a proper _deprecated_option() function can be introduced,
 	 * redirect requests to deprecated keys to the new, correct ones.
+	 *
+	 * Declared static so this constant map is allocated only once per request
+	 * instead of on every call to this frequently called function.
 	 */
-	$deprecated_keys = array(
+	static $deprecated_keys = array(
 		'blacklist_keys'    => 'disallowed_keys',
 		'comment_whitelist' => 'comment_previously_approved',
 	);
@@ -236,7 +239,13 @@ function get_option( $option, $default_value = false ) {
 		return get_option( 'siteurl' );
 	}
 
-	if ( in_array( $option, array( 'siteurl', 'home', 'category_base', 'tag_base' ), true ) ) {
+	/*
+	 * Options whose stored values must not carry a trailing slash. Declared
+	 * static so this constant list is allocated only once per request instead
+	 * of on every value-returning call to this frequently called function.
+	 */
+	static $untrailingslashit_options = array( 'siteurl', 'home', 'category_base', 'tag_base' );
+	if ( in_array( $option, $untrailingslashit_options, true ) ) {
 		$value = untrailingslashit( $value );
 	}
 

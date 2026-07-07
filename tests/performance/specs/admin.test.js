@@ -10,6 +10,8 @@ import { camelCaseDashes, locales } from '../utils';
 
 const results = {
 	timeToFirstByte: [],
+	domContentLoaded: [],
+	adminJsTransferSize: [],
 };
 
 test.describe( 'Admin', () => {
@@ -33,6 +35,8 @@ test.describe( 'Admin', () => {
 				} );
 
 				results.timeToFirstByte = [];
+				results.domContentLoaded = [];
+				results.adminJsTransferSize = [];
 			} );
 
 			test.afterAll( async ( {}, testInfo ) => {
@@ -66,6 +70,30 @@ test.describe( 'Admin', () => {
 
 					const ttfb = await metrics.getTimeToFirstByte();
 					results.timeToFirstByte.push( ttfb );
+
+					const domContentLoaded = await page.evaluate( () => {
+						const navigation =
+							performance.getEntriesByType( 'navigation' )[ 0 ];
+						const activationStart = navigation.activationStart || 0;
+						return (
+							navigation.domContentLoadedEventEnd -
+							activationStart
+						);
+					} );
+					results.domContentLoaded.push( domContentLoaded );
+
+					const adminJsTransferSize = await page.evaluate( () => {
+						return performance
+							.getEntriesByType( 'resource' )
+							.filter( ( entry ) =>
+								/\.js(\?|$)/.test( entry.name )
+							)
+							.reduce(
+								( total, entry ) => total + entry.transferSize,
+								0
+							);
+					} );
+					results.adminJsTransferSize.push( adminJsTransferSize );
 				} );
 			}
 		} );

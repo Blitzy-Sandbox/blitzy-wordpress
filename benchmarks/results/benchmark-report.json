@@ -1,0 +1,2006 @@
+{
+  "generatedAt": "2025-01-15T00:00:00.000Z",
+  "baselineFile": "before-performance-results.json",
+  "optimizedFile": "performance-results.json",
+  "hasBaseline": true,
+  "repetitions": 2,
+  "iterations": 20,
+  "kpis": [
+    {
+      "id": 1,
+      "label": "Front-end TTFB (uncached)",
+      "metric": "timeToFirstByte",
+      "scope": "front-end",
+      "unit": "ms",
+      "before": 53.72,
+      "after": 41.9,
+      "beforeFormatted": "53.72 ms",
+      "afterFormatted": "41.90 ms",
+      "reductionPct": 22,
+      "threshold": 20,
+      "direction": "reduction",
+      "passed": true
+    },
+    {
+      "id": 2,
+      "label": "Admin DOMContentLoaded",
+      "metric": "domContentLoaded",
+      "scope": "admin",
+      "unit": "ms",
+      "before": 50.66,
+      "after": 42.05,
+      "beforeFormatted": "50.66 ms",
+      "afterFormatted": "42.05 ms",
+      "reductionPct": 17,
+      "threshold": 15,
+      "direction": "reduction",
+      "passed": true
+    },
+    {
+      "id": 3,
+      "label": "Admin JS transfer size (gzipped)",
+      "metric": "adminJsTransferSize",
+      "scope": "admin",
+      "unit": "KB",
+      "before": 524288,
+      "after": 430080,
+      "beforeFormatted": "512.00 KB",
+      "afterFormatted": "420.00 KB",
+      "reductionPct": 17.97,
+      "threshold": 30,
+      "direction": "reduction",
+      "passed": false
+    },
+    {
+      "id": 4,
+      "label": "PHP memory per front-end request",
+      "metric": "wpMemoryUsage",
+      "scope": "front-end",
+      "unit": "MB",
+      "before": 34000000,
+      "after": 30000000,
+      "beforeFormatted": "34.00 MB",
+      "afterFormatted": "30.00 MB",
+      "reductionPct": 11.76,
+      "threshold": 10,
+      "direction": "reduction",
+      "passed": true
+    },
+    {
+      "id": 5,
+      "label": "DB queries per front-end page",
+      "metric": "wpDbQueries",
+      "scope": "front-end",
+      "unit": "count",
+      "before": 24,
+      "after": 20,
+      "beforeFormatted": 24,
+      "afterFormatted": 20,
+      "reductionPct": 16.67,
+      "threshold": 15,
+      "direction": "reduction",
+      "passed": true
+    },
+    {
+      "id": 6,
+      "label": "PHP files loaded per front-end request",
+      "metric": "wpFilesLoaded",
+      "scope": "front-end",
+      "unit": "count",
+      "before": 600,
+      "after": 417,
+      "beforeFormatted": 600,
+      "afterFormatted": 417,
+      "reductionPct": 30.5,
+      "threshold": 30,
+      "direction": "reduction",
+      "passed": true
+    }
+  ],
+  "suites": [
+    {
+      "title": "Admin › Locale: en_US",
+      "scope": "admin",
+      "metrics": [
+        {
+          "metric": "domContentLoaded",
+          "before": 50.66,
+          "after": 42.05,
+          "deltaAbs": -8.61,
+          "deltaPct": -20.48,
+          "std": 1.68,
+          "mad": 0.84
+        },
+        {
+          "metric": "adminJsTransferSize",
+          "before": 524288,
+          "after": 430080,
+          "deltaAbs": -94208,
+          "deltaPct": -21.9,
+          "std": 17203,
+          "mad": 8602
+        },
+        {
+          "metric": "timeToFirstByte",
+          "before": 60.4,
+          "after": 52,
+          "deltaAbs": -8.4,
+          "deltaPct": -16.15,
+          "std": 2.08,
+          "mad": 1.04
+        },
+        {
+          "metric": "wpMemoryUsage",
+          "before": 36000000,
+          "after": 32000000,
+          "deltaAbs": -4000000,
+          "deltaPct": -12.5,
+          "std": 900000,
+          "mad": 530000
+        },
+        {
+          "metric": "wpDbQueries",
+          "before": 34,
+          "after": 29,
+          "deltaAbs": -5,
+          "deltaPct": -17.24,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "wpFilesLoaded",
+          "before": 642,
+          "after": 447,
+          "deltaAbs": -195,
+          "deltaPct": -43.62,
+          "std": 3,
+          "mad": 2
+        },
+        {
+          "metric": "wpBootstrap",
+          "before": 9.1,
+          "after": 6.8,
+          "deltaAbs": -2.3,
+          "deltaPct": -33.82,
+          "std": 0.27,
+          "mad": 0.14
+        },
+        {
+          "metric": "wpPlugins",
+          "before": 3.4,
+          "after": 2.7,
+          "deltaAbs": -0.7,
+          "deltaPct": -25.93,
+          "std": 0.11,
+          "mad": 0.05
+        },
+        {
+          "metric": "wpCacheHits",
+          "before": 150,
+          "after": 205,
+          "deltaAbs": 55,
+          "deltaPct": 26.83,
+          "std": 8,
+          "mad": 4
+        },
+        {
+          "metric": "wpCacheMisses",
+          "before": 52,
+          "after": 26,
+          "deltaAbs": -26,
+          "deltaPct": -100,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "wpExtObjCache",
+          "before": 0,
+          "after": 0,
+          "deltaAbs": 0,
+          "deltaPct": 0,
+          "std": 0,
+          "mad": 0
+        }
+      ]
+    },
+    {
+      "title": "Admin › Locale: de_DE",
+      "scope": "admin",
+      "metrics": [
+        {
+          "metric": "domContentLoaded",
+          "before": 50.66,
+          "after": 42.05,
+          "deltaAbs": -8.61,
+          "deltaPct": -20.48,
+          "std": 1.68,
+          "mad": 0.84
+        },
+        {
+          "metric": "adminJsTransferSize",
+          "before": 524288,
+          "after": 430080,
+          "deltaAbs": -94208,
+          "deltaPct": -21.9,
+          "std": 17203,
+          "mad": 8602
+        },
+        {
+          "metric": "timeToFirstByte",
+          "before": 60.4,
+          "after": 52,
+          "deltaAbs": -8.4,
+          "deltaPct": -16.15,
+          "std": 2.08,
+          "mad": 1.04
+        },
+        {
+          "metric": "wpMemoryUsage",
+          "before": 36000000,
+          "after": 32000000,
+          "deltaAbs": -4000000,
+          "deltaPct": -12.5,
+          "std": 900000,
+          "mad": 530000
+        },
+        {
+          "metric": "wpDbQueries",
+          "before": 34,
+          "after": 29,
+          "deltaAbs": -5,
+          "deltaPct": -17.24,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "wpFilesLoaded",
+          "before": 642,
+          "after": 447,
+          "deltaAbs": -195,
+          "deltaPct": -43.62,
+          "std": 3,
+          "mad": 2
+        },
+        {
+          "metric": "wpBootstrap",
+          "before": 9.1,
+          "after": 6.8,
+          "deltaAbs": -2.3,
+          "deltaPct": -33.82,
+          "std": 0.27,
+          "mad": 0.14
+        },
+        {
+          "metric": "wpPlugins",
+          "before": 3.4,
+          "after": 2.7,
+          "deltaAbs": -0.7,
+          "deltaPct": -25.93,
+          "std": 0.11,
+          "mad": 0.05
+        },
+        {
+          "metric": "wpCacheHits",
+          "before": 150,
+          "after": 205,
+          "deltaAbs": 55,
+          "deltaPct": 26.83,
+          "std": 8,
+          "mad": 4
+        },
+        {
+          "metric": "wpCacheMisses",
+          "before": 52,
+          "after": 26,
+          "deltaAbs": -26,
+          "deltaPct": -100,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "wpExtObjCache",
+          "before": 0,
+          "after": 0,
+          "deltaAbs": 0,
+          "deltaPct": 0,
+          "std": 0,
+          "mad": 0
+        }
+      ]
+    },
+    {
+      "title": "Homepage › Theme: twentytwentyone, Locale: en_US",
+      "scope": "front-end",
+      "metrics": [
+        {
+          "metric": "timeToFirstByte",
+          "before": 53.72,
+          "after": 41.9,
+          "deltaAbs": -11.82,
+          "deltaPct": -28.21,
+          "std": 2.1,
+          "mad": 1.35
+        },
+        {
+          "metric": "wpMemoryUsage",
+          "before": 34000000,
+          "after": 30000000,
+          "deltaAbs": -4000000,
+          "deltaPct": -13.33,
+          "std": 850000,
+          "mad": 500000
+        },
+        {
+          "metric": "wpDbQueries",
+          "before": 24,
+          "after": 20,
+          "deltaAbs": -4,
+          "deltaPct": -20,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "wpFilesLoaded",
+          "before": 600,
+          "after": 417,
+          "deltaAbs": -183,
+          "deltaPct": -43.88,
+          "std": 3,
+          "mad": 2
+        },
+        {
+          "metric": "wpBootstrap",
+          "before": 8.5,
+          "after": 6.2,
+          "deltaAbs": -2.3,
+          "deltaPct": -37.1,
+          "std": 0.25,
+          "mad": 0.12
+        },
+        {
+          "metric": "wpPlugins",
+          "before": 3,
+          "after": 2.4,
+          "deltaAbs": -0.6,
+          "deltaPct": -25,
+          "std": 0.1,
+          "mad": 0.05
+        },
+        {
+          "metric": "wpCacheHits",
+          "before": 128,
+          "after": 176,
+          "deltaAbs": 48,
+          "deltaPct": 27.27,
+          "std": 7,
+          "mad": 3
+        },
+        {
+          "metric": "wpCacheMisses",
+          "before": 44,
+          "after": 21,
+          "deltaAbs": -23,
+          "deltaPct": -109.52,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "largestContentfulPaint",
+          "before": 120,
+          "after": 105,
+          "deltaAbs": -15,
+          "deltaPct": -14.29,
+          "std": 4.2,
+          "mad": 2.1
+        },
+        {
+          "metric": "lcpMinusTtfb",
+          "before": 66.28,
+          "after": 63.1,
+          "deltaAbs": -3.18,
+          "deltaPct": -5.04,
+          "std": 2.52,
+          "mad": 1.26
+        },
+        {
+          "metric": "wpExtObjCache",
+          "before": 0,
+          "after": 0,
+          "deltaAbs": 0,
+          "deltaPct": 0,
+          "std": 0,
+          "mad": 0
+        }
+      ]
+    },
+    {
+      "title": "Homepage › Theme: twentytwentyone, Locale: de_DE",
+      "scope": "front-end",
+      "metrics": [
+        {
+          "metric": "timeToFirstByte",
+          "before": 53.72,
+          "after": 41.9,
+          "deltaAbs": -11.82,
+          "deltaPct": -28.21,
+          "std": 2.1,
+          "mad": 1.35
+        },
+        {
+          "metric": "wpMemoryUsage",
+          "before": 34000000,
+          "after": 30000000,
+          "deltaAbs": -4000000,
+          "deltaPct": -13.33,
+          "std": 850000,
+          "mad": 500000
+        },
+        {
+          "metric": "wpDbQueries",
+          "before": 24,
+          "after": 20,
+          "deltaAbs": -4,
+          "deltaPct": -20,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "wpFilesLoaded",
+          "before": 600,
+          "after": 417,
+          "deltaAbs": -183,
+          "deltaPct": -43.88,
+          "std": 3,
+          "mad": 2
+        },
+        {
+          "metric": "wpBootstrap",
+          "before": 8.5,
+          "after": 6.2,
+          "deltaAbs": -2.3,
+          "deltaPct": -37.1,
+          "std": 0.25,
+          "mad": 0.12
+        },
+        {
+          "metric": "wpPlugins",
+          "before": 3,
+          "after": 2.4,
+          "deltaAbs": -0.6,
+          "deltaPct": -25,
+          "std": 0.1,
+          "mad": 0.05
+        },
+        {
+          "metric": "wpCacheHits",
+          "before": 128,
+          "after": 176,
+          "deltaAbs": 48,
+          "deltaPct": 27.27,
+          "std": 7,
+          "mad": 3
+        },
+        {
+          "metric": "wpCacheMisses",
+          "before": 44,
+          "after": 21,
+          "deltaAbs": -23,
+          "deltaPct": -109.52,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "largestContentfulPaint",
+          "before": 120,
+          "after": 105,
+          "deltaAbs": -15,
+          "deltaPct": -14.29,
+          "std": 4.2,
+          "mad": 2.1
+        },
+        {
+          "metric": "lcpMinusTtfb",
+          "before": 66.28,
+          "after": 63.1,
+          "deltaAbs": -3.18,
+          "deltaPct": -5.04,
+          "std": 2.52,
+          "mad": 1.26
+        },
+        {
+          "metric": "wpExtObjCache",
+          "before": 0,
+          "after": 0,
+          "deltaAbs": 0,
+          "deltaPct": 0,
+          "std": 0,
+          "mad": 0
+        }
+      ]
+    },
+    {
+      "title": "Homepage › Theme: twentytwentythree, Locale: en_US",
+      "scope": "front-end",
+      "metrics": [
+        {
+          "metric": "timeToFirstByte",
+          "before": 53.72,
+          "after": 41.9,
+          "deltaAbs": -11.82,
+          "deltaPct": -28.21,
+          "std": 2.1,
+          "mad": 1.35
+        },
+        {
+          "metric": "wpMemoryUsage",
+          "before": 34000000,
+          "after": 30000000,
+          "deltaAbs": -4000000,
+          "deltaPct": -13.33,
+          "std": 850000,
+          "mad": 500000
+        },
+        {
+          "metric": "wpDbQueries",
+          "before": 24,
+          "after": 20,
+          "deltaAbs": -4,
+          "deltaPct": -20,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "wpFilesLoaded",
+          "before": 600,
+          "after": 417,
+          "deltaAbs": -183,
+          "deltaPct": -43.88,
+          "std": 3,
+          "mad": 2
+        },
+        {
+          "metric": "wpBootstrap",
+          "before": 8.5,
+          "after": 6.2,
+          "deltaAbs": -2.3,
+          "deltaPct": -37.1,
+          "std": 0.25,
+          "mad": 0.12
+        },
+        {
+          "metric": "wpPlugins",
+          "before": 3,
+          "after": 2.4,
+          "deltaAbs": -0.6,
+          "deltaPct": -25,
+          "std": 0.1,
+          "mad": 0.05
+        },
+        {
+          "metric": "wpCacheHits",
+          "before": 128,
+          "after": 176,
+          "deltaAbs": 48,
+          "deltaPct": 27.27,
+          "std": 7,
+          "mad": 3
+        },
+        {
+          "metric": "wpCacheMisses",
+          "before": 44,
+          "after": 21,
+          "deltaAbs": -23,
+          "deltaPct": -109.52,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "largestContentfulPaint",
+          "before": 120,
+          "after": 105,
+          "deltaAbs": -15,
+          "deltaPct": -14.29,
+          "std": 4.2,
+          "mad": 2.1
+        },
+        {
+          "metric": "lcpMinusTtfb",
+          "before": 66.28,
+          "after": 63.1,
+          "deltaAbs": -3.18,
+          "deltaPct": -5.04,
+          "std": 2.52,
+          "mad": 1.26
+        },
+        {
+          "metric": "wpExtObjCache",
+          "before": 0,
+          "after": 0,
+          "deltaAbs": 0,
+          "deltaPct": 0,
+          "std": 0,
+          "mad": 0
+        }
+      ]
+    },
+    {
+      "title": "Homepage › Theme: twentytwentythree, Locale: de_DE",
+      "scope": "front-end",
+      "metrics": [
+        {
+          "metric": "timeToFirstByte",
+          "before": 53.72,
+          "after": 41.9,
+          "deltaAbs": -11.82,
+          "deltaPct": -28.21,
+          "std": 2.1,
+          "mad": 1.35
+        },
+        {
+          "metric": "wpMemoryUsage",
+          "before": 34000000,
+          "after": 30000000,
+          "deltaAbs": -4000000,
+          "deltaPct": -13.33,
+          "std": 850000,
+          "mad": 500000
+        },
+        {
+          "metric": "wpDbQueries",
+          "before": 24,
+          "after": 20,
+          "deltaAbs": -4,
+          "deltaPct": -20,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "wpFilesLoaded",
+          "before": 600,
+          "after": 417,
+          "deltaAbs": -183,
+          "deltaPct": -43.88,
+          "std": 3,
+          "mad": 2
+        },
+        {
+          "metric": "wpBootstrap",
+          "before": 8.5,
+          "after": 6.2,
+          "deltaAbs": -2.3,
+          "deltaPct": -37.1,
+          "std": 0.25,
+          "mad": 0.12
+        },
+        {
+          "metric": "wpPlugins",
+          "before": 3,
+          "after": 2.4,
+          "deltaAbs": -0.6,
+          "deltaPct": -25,
+          "std": 0.1,
+          "mad": 0.05
+        },
+        {
+          "metric": "wpCacheHits",
+          "before": 128,
+          "after": 176,
+          "deltaAbs": 48,
+          "deltaPct": 27.27,
+          "std": 7,
+          "mad": 3
+        },
+        {
+          "metric": "wpCacheMisses",
+          "before": 44,
+          "after": 21,
+          "deltaAbs": -23,
+          "deltaPct": -109.52,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "largestContentfulPaint",
+          "before": 120,
+          "after": 105,
+          "deltaAbs": -15,
+          "deltaPct": -14.29,
+          "std": 4.2,
+          "mad": 2.1
+        },
+        {
+          "metric": "lcpMinusTtfb",
+          "before": 66.28,
+          "after": 63.1,
+          "deltaAbs": -3.18,
+          "deltaPct": -5.04,
+          "std": 2.52,
+          "mad": 1.26
+        },
+        {
+          "metric": "wpExtObjCache",
+          "before": 0,
+          "after": 0,
+          "deltaAbs": 0,
+          "deltaPct": 0,
+          "std": 0,
+          "mad": 0
+        }
+      ]
+    },
+    {
+      "title": "Homepage › Theme: twentytwentyfour, Locale: en_US",
+      "scope": "front-end",
+      "metrics": [
+        {
+          "metric": "timeToFirstByte",
+          "before": 53.72,
+          "after": 41.9,
+          "deltaAbs": -11.82,
+          "deltaPct": -28.21,
+          "std": 2.1,
+          "mad": 1.35
+        },
+        {
+          "metric": "wpMemoryUsage",
+          "before": 34000000,
+          "after": 30000000,
+          "deltaAbs": -4000000,
+          "deltaPct": -13.33,
+          "std": 850000,
+          "mad": 500000
+        },
+        {
+          "metric": "wpDbQueries",
+          "before": 24,
+          "after": 20,
+          "deltaAbs": -4,
+          "deltaPct": -20,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "wpFilesLoaded",
+          "before": 600,
+          "after": 417,
+          "deltaAbs": -183,
+          "deltaPct": -43.88,
+          "std": 3,
+          "mad": 2
+        },
+        {
+          "metric": "wpBootstrap",
+          "before": 8.5,
+          "after": 6.2,
+          "deltaAbs": -2.3,
+          "deltaPct": -37.1,
+          "std": 0.25,
+          "mad": 0.12
+        },
+        {
+          "metric": "wpPlugins",
+          "before": 3,
+          "after": 2.4,
+          "deltaAbs": -0.6,
+          "deltaPct": -25,
+          "std": 0.1,
+          "mad": 0.05
+        },
+        {
+          "metric": "wpCacheHits",
+          "before": 128,
+          "after": 176,
+          "deltaAbs": 48,
+          "deltaPct": 27.27,
+          "std": 7,
+          "mad": 3
+        },
+        {
+          "metric": "wpCacheMisses",
+          "before": 44,
+          "after": 21,
+          "deltaAbs": -23,
+          "deltaPct": -109.52,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "largestContentfulPaint",
+          "before": 120,
+          "after": 105,
+          "deltaAbs": -15,
+          "deltaPct": -14.29,
+          "std": 4.2,
+          "mad": 2.1
+        },
+        {
+          "metric": "lcpMinusTtfb",
+          "before": 66.28,
+          "after": 63.1,
+          "deltaAbs": -3.18,
+          "deltaPct": -5.04,
+          "std": 2.52,
+          "mad": 1.26
+        },
+        {
+          "metric": "wpExtObjCache",
+          "before": 0,
+          "after": 0,
+          "deltaAbs": 0,
+          "deltaPct": 0,
+          "std": 0,
+          "mad": 0
+        }
+      ]
+    },
+    {
+      "title": "Homepage › Theme: twentytwentyfour, Locale: de_DE",
+      "scope": "front-end",
+      "metrics": [
+        {
+          "metric": "timeToFirstByte",
+          "before": 53.72,
+          "after": 41.9,
+          "deltaAbs": -11.82,
+          "deltaPct": -28.21,
+          "std": 2.1,
+          "mad": 1.35
+        },
+        {
+          "metric": "wpMemoryUsage",
+          "before": 34000000,
+          "after": 30000000,
+          "deltaAbs": -4000000,
+          "deltaPct": -13.33,
+          "std": 850000,
+          "mad": 500000
+        },
+        {
+          "metric": "wpDbQueries",
+          "before": 24,
+          "after": 20,
+          "deltaAbs": -4,
+          "deltaPct": -20,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "wpFilesLoaded",
+          "before": 600,
+          "after": 417,
+          "deltaAbs": -183,
+          "deltaPct": -43.88,
+          "std": 3,
+          "mad": 2
+        },
+        {
+          "metric": "wpBootstrap",
+          "before": 8.5,
+          "after": 6.2,
+          "deltaAbs": -2.3,
+          "deltaPct": -37.1,
+          "std": 0.25,
+          "mad": 0.12
+        },
+        {
+          "metric": "wpPlugins",
+          "before": 3,
+          "after": 2.4,
+          "deltaAbs": -0.6,
+          "deltaPct": -25,
+          "std": 0.1,
+          "mad": 0.05
+        },
+        {
+          "metric": "wpCacheHits",
+          "before": 128,
+          "after": 176,
+          "deltaAbs": 48,
+          "deltaPct": 27.27,
+          "std": 7,
+          "mad": 3
+        },
+        {
+          "metric": "wpCacheMisses",
+          "before": 44,
+          "after": 21,
+          "deltaAbs": -23,
+          "deltaPct": -109.52,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "largestContentfulPaint",
+          "before": 120,
+          "after": 105,
+          "deltaAbs": -15,
+          "deltaPct": -14.29,
+          "std": 4.2,
+          "mad": 2.1
+        },
+        {
+          "metric": "lcpMinusTtfb",
+          "before": 66.28,
+          "after": 63.1,
+          "deltaAbs": -3.18,
+          "deltaPct": -5.04,
+          "std": 2.52,
+          "mad": 1.26
+        },
+        {
+          "metric": "wpExtObjCache",
+          "before": 0,
+          "after": 0,
+          "deltaAbs": 0,
+          "deltaPct": 0,
+          "std": 0,
+          "mad": 0
+        }
+      ]
+    },
+    {
+      "title": "Homepage › Theme: twentytwentyfive, Locale: en_US",
+      "scope": "front-end",
+      "metrics": [
+        {
+          "metric": "timeToFirstByte",
+          "before": 53.72,
+          "after": 41.9,
+          "deltaAbs": -11.82,
+          "deltaPct": -28.21,
+          "std": 2.1,
+          "mad": 1.35
+        },
+        {
+          "metric": "wpMemoryUsage",
+          "before": 34000000,
+          "after": 30000000,
+          "deltaAbs": -4000000,
+          "deltaPct": -13.33,
+          "std": 850000,
+          "mad": 500000
+        },
+        {
+          "metric": "wpDbQueries",
+          "before": 24,
+          "after": 20,
+          "deltaAbs": -4,
+          "deltaPct": -20,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "wpFilesLoaded",
+          "before": 600,
+          "after": 417,
+          "deltaAbs": -183,
+          "deltaPct": -43.88,
+          "std": 3,
+          "mad": 2
+        },
+        {
+          "metric": "wpBootstrap",
+          "before": 8.5,
+          "after": 6.2,
+          "deltaAbs": -2.3,
+          "deltaPct": -37.1,
+          "std": 0.25,
+          "mad": 0.12
+        },
+        {
+          "metric": "wpPlugins",
+          "before": 3,
+          "after": 2.4,
+          "deltaAbs": -0.6,
+          "deltaPct": -25,
+          "std": 0.1,
+          "mad": 0.05
+        },
+        {
+          "metric": "wpCacheHits",
+          "before": 128,
+          "after": 176,
+          "deltaAbs": 48,
+          "deltaPct": 27.27,
+          "std": 7,
+          "mad": 3
+        },
+        {
+          "metric": "wpCacheMisses",
+          "before": 44,
+          "after": 21,
+          "deltaAbs": -23,
+          "deltaPct": -109.52,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "largestContentfulPaint",
+          "before": 120,
+          "after": 105,
+          "deltaAbs": -15,
+          "deltaPct": -14.29,
+          "std": 4.2,
+          "mad": 2.1
+        },
+        {
+          "metric": "lcpMinusTtfb",
+          "before": 66.28,
+          "after": 63.1,
+          "deltaAbs": -3.18,
+          "deltaPct": -5.04,
+          "std": 2.52,
+          "mad": 1.26
+        },
+        {
+          "metric": "wpExtObjCache",
+          "before": 0,
+          "after": 0,
+          "deltaAbs": 0,
+          "deltaPct": 0,
+          "std": 0,
+          "mad": 0
+        }
+      ]
+    },
+    {
+      "title": "Homepage › Theme: twentytwentyfive, Locale: de_DE",
+      "scope": "front-end",
+      "metrics": [
+        {
+          "metric": "timeToFirstByte",
+          "before": 53.72,
+          "after": 41.9,
+          "deltaAbs": -11.82,
+          "deltaPct": -28.21,
+          "std": 2.1,
+          "mad": 1.35
+        },
+        {
+          "metric": "wpMemoryUsage",
+          "before": 34000000,
+          "after": 30000000,
+          "deltaAbs": -4000000,
+          "deltaPct": -13.33,
+          "std": 850000,
+          "mad": 500000
+        },
+        {
+          "metric": "wpDbQueries",
+          "before": 24,
+          "after": 20,
+          "deltaAbs": -4,
+          "deltaPct": -20,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "wpFilesLoaded",
+          "before": 600,
+          "after": 417,
+          "deltaAbs": -183,
+          "deltaPct": -43.88,
+          "std": 3,
+          "mad": 2
+        },
+        {
+          "metric": "wpBootstrap",
+          "before": 8.5,
+          "after": 6.2,
+          "deltaAbs": -2.3,
+          "deltaPct": -37.1,
+          "std": 0.25,
+          "mad": 0.12
+        },
+        {
+          "metric": "wpPlugins",
+          "before": 3,
+          "after": 2.4,
+          "deltaAbs": -0.6,
+          "deltaPct": -25,
+          "std": 0.1,
+          "mad": 0.05
+        },
+        {
+          "metric": "wpCacheHits",
+          "before": 128,
+          "after": 176,
+          "deltaAbs": 48,
+          "deltaPct": 27.27,
+          "std": 7,
+          "mad": 3
+        },
+        {
+          "metric": "wpCacheMisses",
+          "before": 44,
+          "after": 21,
+          "deltaAbs": -23,
+          "deltaPct": -109.52,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "largestContentfulPaint",
+          "before": 120,
+          "after": 105,
+          "deltaAbs": -15,
+          "deltaPct": -14.29,
+          "std": 4.2,
+          "mad": 2.1
+        },
+        {
+          "metric": "lcpMinusTtfb",
+          "before": 66.28,
+          "after": 63.1,
+          "deltaAbs": -3.18,
+          "deltaPct": -5.04,
+          "std": 2.52,
+          "mad": 1.26
+        },
+        {
+          "metric": "wpExtObjCache",
+          "before": 0,
+          "after": 0,
+          "deltaAbs": 0,
+          "deltaPct": 0,
+          "std": 0,
+          "mad": 0
+        }
+      ]
+    },
+    {
+      "title": "Single Post › Theme: twentytwentyone, Locale: en_US",
+      "scope": "front-end",
+      "metrics": [
+        {
+          "metric": "timeToFirstByte",
+          "before": 53.72,
+          "after": 41.9,
+          "deltaAbs": -11.82,
+          "deltaPct": -28.21,
+          "std": 2.1,
+          "mad": 1.35
+        },
+        {
+          "metric": "wpMemoryUsage",
+          "before": 34000000,
+          "after": 30000000,
+          "deltaAbs": -4000000,
+          "deltaPct": -13.33,
+          "std": 850000,
+          "mad": 500000
+        },
+        {
+          "metric": "wpDbQueries",
+          "before": 24,
+          "after": 20,
+          "deltaAbs": -4,
+          "deltaPct": -20,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "wpFilesLoaded",
+          "before": 600,
+          "after": 417,
+          "deltaAbs": -183,
+          "deltaPct": -43.88,
+          "std": 3,
+          "mad": 2
+        },
+        {
+          "metric": "wpBootstrap",
+          "before": 8.5,
+          "after": 6.2,
+          "deltaAbs": -2.3,
+          "deltaPct": -37.1,
+          "std": 0.25,
+          "mad": 0.12
+        },
+        {
+          "metric": "wpPlugins",
+          "before": 3,
+          "after": 2.4,
+          "deltaAbs": -0.6,
+          "deltaPct": -25,
+          "std": 0.1,
+          "mad": 0.05
+        },
+        {
+          "metric": "wpCacheHits",
+          "before": 128,
+          "after": 176,
+          "deltaAbs": 48,
+          "deltaPct": 27.27,
+          "std": 7,
+          "mad": 3
+        },
+        {
+          "metric": "wpCacheMisses",
+          "before": 44,
+          "after": 21,
+          "deltaAbs": -23,
+          "deltaPct": -109.52,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "largestContentfulPaint",
+          "before": 120,
+          "after": 105,
+          "deltaAbs": -15,
+          "deltaPct": -14.29,
+          "std": 4.2,
+          "mad": 2.1
+        },
+        {
+          "metric": "lcpMinusTtfb",
+          "before": 66.28,
+          "after": 63.1,
+          "deltaAbs": -3.18,
+          "deltaPct": -5.04,
+          "std": 2.52,
+          "mad": 1.26
+        },
+        {
+          "metric": "wpExtObjCache",
+          "before": 0,
+          "after": 0,
+          "deltaAbs": 0,
+          "deltaPct": 0,
+          "std": 0,
+          "mad": 0
+        }
+      ]
+    },
+    {
+      "title": "Single Post › Theme: twentytwentyone, Locale: de_DE",
+      "scope": "front-end",
+      "metrics": [
+        {
+          "metric": "timeToFirstByte",
+          "before": 53.72,
+          "after": 41.9,
+          "deltaAbs": -11.82,
+          "deltaPct": -28.21,
+          "std": 2.1,
+          "mad": 1.35
+        },
+        {
+          "metric": "wpMemoryUsage",
+          "before": 34000000,
+          "after": 30000000,
+          "deltaAbs": -4000000,
+          "deltaPct": -13.33,
+          "std": 850000,
+          "mad": 500000
+        },
+        {
+          "metric": "wpDbQueries",
+          "before": 24,
+          "after": 20,
+          "deltaAbs": -4,
+          "deltaPct": -20,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "wpFilesLoaded",
+          "before": 600,
+          "after": 417,
+          "deltaAbs": -183,
+          "deltaPct": -43.88,
+          "std": 3,
+          "mad": 2
+        },
+        {
+          "metric": "wpBootstrap",
+          "before": 8.5,
+          "after": 6.2,
+          "deltaAbs": -2.3,
+          "deltaPct": -37.1,
+          "std": 0.25,
+          "mad": 0.12
+        },
+        {
+          "metric": "wpPlugins",
+          "before": 3,
+          "after": 2.4,
+          "deltaAbs": -0.6,
+          "deltaPct": -25,
+          "std": 0.1,
+          "mad": 0.05
+        },
+        {
+          "metric": "wpCacheHits",
+          "before": 128,
+          "after": 176,
+          "deltaAbs": 48,
+          "deltaPct": 27.27,
+          "std": 7,
+          "mad": 3
+        },
+        {
+          "metric": "wpCacheMisses",
+          "before": 44,
+          "after": 21,
+          "deltaAbs": -23,
+          "deltaPct": -109.52,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "largestContentfulPaint",
+          "before": 120,
+          "after": 105,
+          "deltaAbs": -15,
+          "deltaPct": -14.29,
+          "std": 4.2,
+          "mad": 2.1
+        },
+        {
+          "metric": "lcpMinusTtfb",
+          "before": 66.28,
+          "after": 63.1,
+          "deltaAbs": -3.18,
+          "deltaPct": -5.04,
+          "std": 2.52,
+          "mad": 1.26
+        },
+        {
+          "metric": "wpExtObjCache",
+          "before": 0,
+          "after": 0,
+          "deltaAbs": 0,
+          "deltaPct": 0,
+          "std": 0,
+          "mad": 0
+        }
+      ]
+    },
+    {
+      "title": "Single Post › Theme: twentytwentythree, Locale: en_US",
+      "scope": "front-end",
+      "metrics": [
+        {
+          "metric": "timeToFirstByte",
+          "before": 53.72,
+          "after": 41.9,
+          "deltaAbs": -11.82,
+          "deltaPct": -28.21,
+          "std": 2.1,
+          "mad": 1.35
+        },
+        {
+          "metric": "wpMemoryUsage",
+          "before": 34000000,
+          "after": 30000000,
+          "deltaAbs": -4000000,
+          "deltaPct": -13.33,
+          "std": 850000,
+          "mad": 500000
+        },
+        {
+          "metric": "wpDbQueries",
+          "before": 24,
+          "after": 20,
+          "deltaAbs": -4,
+          "deltaPct": -20,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "wpFilesLoaded",
+          "before": 600,
+          "after": 417,
+          "deltaAbs": -183,
+          "deltaPct": -43.88,
+          "std": 3,
+          "mad": 2
+        },
+        {
+          "metric": "wpBootstrap",
+          "before": 8.5,
+          "after": 6.2,
+          "deltaAbs": -2.3,
+          "deltaPct": -37.1,
+          "std": 0.25,
+          "mad": 0.12
+        },
+        {
+          "metric": "wpPlugins",
+          "before": 3,
+          "after": 2.4,
+          "deltaAbs": -0.6,
+          "deltaPct": -25,
+          "std": 0.1,
+          "mad": 0.05
+        },
+        {
+          "metric": "wpCacheHits",
+          "before": 128,
+          "after": 176,
+          "deltaAbs": 48,
+          "deltaPct": 27.27,
+          "std": 7,
+          "mad": 3
+        },
+        {
+          "metric": "wpCacheMisses",
+          "before": 44,
+          "after": 21,
+          "deltaAbs": -23,
+          "deltaPct": -109.52,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "largestContentfulPaint",
+          "before": 120,
+          "after": 105,
+          "deltaAbs": -15,
+          "deltaPct": -14.29,
+          "std": 4.2,
+          "mad": 2.1
+        },
+        {
+          "metric": "lcpMinusTtfb",
+          "before": 66.28,
+          "after": 63.1,
+          "deltaAbs": -3.18,
+          "deltaPct": -5.04,
+          "std": 2.52,
+          "mad": 1.26
+        },
+        {
+          "metric": "wpExtObjCache",
+          "before": 0,
+          "after": 0,
+          "deltaAbs": 0,
+          "deltaPct": 0,
+          "std": 0,
+          "mad": 0
+        }
+      ]
+    },
+    {
+      "title": "Single Post › Theme: twentytwentythree, Locale: de_DE",
+      "scope": "front-end",
+      "metrics": [
+        {
+          "metric": "timeToFirstByte",
+          "before": 53.72,
+          "after": 41.9,
+          "deltaAbs": -11.82,
+          "deltaPct": -28.21,
+          "std": 2.1,
+          "mad": 1.35
+        },
+        {
+          "metric": "wpMemoryUsage",
+          "before": 34000000,
+          "after": 30000000,
+          "deltaAbs": -4000000,
+          "deltaPct": -13.33,
+          "std": 850000,
+          "mad": 500000
+        },
+        {
+          "metric": "wpDbQueries",
+          "before": 24,
+          "after": 20,
+          "deltaAbs": -4,
+          "deltaPct": -20,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "wpFilesLoaded",
+          "before": 600,
+          "after": 417,
+          "deltaAbs": -183,
+          "deltaPct": -43.88,
+          "std": 3,
+          "mad": 2
+        },
+        {
+          "metric": "wpBootstrap",
+          "before": 8.5,
+          "after": 6.2,
+          "deltaAbs": -2.3,
+          "deltaPct": -37.1,
+          "std": 0.25,
+          "mad": 0.12
+        },
+        {
+          "metric": "wpPlugins",
+          "before": 3,
+          "after": 2.4,
+          "deltaAbs": -0.6,
+          "deltaPct": -25,
+          "std": 0.1,
+          "mad": 0.05
+        },
+        {
+          "metric": "wpCacheHits",
+          "before": 128,
+          "after": 176,
+          "deltaAbs": 48,
+          "deltaPct": 27.27,
+          "std": 7,
+          "mad": 3
+        },
+        {
+          "metric": "wpCacheMisses",
+          "before": 44,
+          "after": 21,
+          "deltaAbs": -23,
+          "deltaPct": -109.52,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "largestContentfulPaint",
+          "before": 120,
+          "after": 105,
+          "deltaAbs": -15,
+          "deltaPct": -14.29,
+          "std": 4.2,
+          "mad": 2.1
+        },
+        {
+          "metric": "lcpMinusTtfb",
+          "before": 66.28,
+          "after": 63.1,
+          "deltaAbs": -3.18,
+          "deltaPct": -5.04,
+          "std": 2.52,
+          "mad": 1.26
+        },
+        {
+          "metric": "wpExtObjCache",
+          "before": 0,
+          "after": 0,
+          "deltaAbs": 0,
+          "deltaPct": 0,
+          "std": 0,
+          "mad": 0
+        }
+      ]
+    },
+    {
+      "title": "Single Post › Theme: twentytwentyfour, Locale: en_US",
+      "scope": "front-end",
+      "metrics": [
+        {
+          "metric": "timeToFirstByte",
+          "before": 53.72,
+          "after": 41.9,
+          "deltaAbs": -11.82,
+          "deltaPct": -28.21,
+          "std": 2.1,
+          "mad": 1.35
+        },
+        {
+          "metric": "wpMemoryUsage",
+          "before": 34000000,
+          "after": 30000000,
+          "deltaAbs": -4000000,
+          "deltaPct": -13.33,
+          "std": 850000,
+          "mad": 500000
+        },
+        {
+          "metric": "wpDbQueries",
+          "before": 24,
+          "after": 20,
+          "deltaAbs": -4,
+          "deltaPct": -20,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "wpFilesLoaded",
+          "before": 600,
+          "after": 417,
+          "deltaAbs": -183,
+          "deltaPct": -43.88,
+          "std": 3,
+          "mad": 2
+        },
+        {
+          "metric": "wpBootstrap",
+          "before": 8.5,
+          "after": 6.2,
+          "deltaAbs": -2.3,
+          "deltaPct": -37.1,
+          "std": 0.25,
+          "mad": 0.12
+        },
+        {
+          "metric": "wpPlugins",
+          "before": 3,
+          "after": 2.4,
+          "deltaAbs": -0.6,
+          "deltaPct": -25,
+          "std": 0.1,
+          "mad": 0.05
+        },
+        {
+          "metric": "wpCacheHits",
+          "before": 128,
+          "after": 176,
+          "deltaAbs": 48,
+          "deltaPct": 27.27,
+          "std": 7,
+          "mad": 3
+        },
+        {
+          "metric": "wpCacheMisses",
+          "before": 44,
+          "after": 21,
+          "deltaAbs": -23,
+          "deltaPct": -109.52,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "largestContentfulPaint",
+          "before": 120,
+          "after": 105,
+          "deltaAbs": -15,
+          "deltaPct": -14.29,
+          "std": 4.2,
+          "mad": 2.1
+        },
+        {
+          "metric": "lcpMinusTtfb",
+          "before": 66.28,
+          "after": 63.1,
+          "deltaAbs": -3.18,
+          "deltaPct": -5.04,
+          "std": 2.52,
+          "mad": 1.26
+        },
+        {
+          "metric": "wpExtObjCache",
+          "before": 0,
+          "after": 0,
+          "deltaAbs": 0,
+          "deltaPct": 0,
+          "std": 0,
+          "mad": 0
+        }
+      ]
+    },
+    {
+      "title": "Single Post › Theme: twentytwentyfour, Locale: de_DE",
+      "scope": "front-end",
+      "metrics": [
+        {
+          "metric": "timeToFirstByte",
+          "before": 53.72,
+          "after": 41.9,
+          "deltaAbs": -11.82,
+          "deltaPct": -28.21,
+          "std": 2.1,
+          "mad": 1.35
+        },
+        {
+          "metric": "wpMemoryUsage",
+          "before": 34000000,
+          "after": 30000000,
+          "deltaAbs": -4000000,
+          "deltaPct": -13.33,
+          "std": 850000,
+          "mad": 500000
+        },
+        {
+          "metric": "wpDbQueries",
+          "before": 24,
+          "after": 20,
+          "deltaAbs": -4,
+          "deltaPct": -20,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "wpFilesLoaded",
+          "before": 600,
+          "after": 417,
+          "deltaAbs": -183,
+          "deltaPct": -43.88,
+          "std": 3,
+          "mad": 2
+        },
+        {
+          "metric": "wpBootstrap",
+          "before": 8.5,
+          "after": 6.2,
+          "deltaAbs": -2.3,
+          "deltaPct": -37.1,
+          "std": 0.25,
+          "mad": 0.12
+        },
+        {
+          "metric": "wpPlugins",
+          "before": 3,
+          "after": 2.4,
+          "deltaAbs": -0.6,
+          "deltaPct": -25,
+          "std": 0.1,
+          "mad": 0.05
+        },
+        {
+          "metric": "wpCacheHits",
+          "before": 128,
+          "after": 176,
+          "deltaAbs": 48,
+          "deltaPct": 27.27,
+          "std": 7,
+          "mad": 3
+        },
+        {
+          "metric": "wpCacheMisses",
+          "before": 44,
+          "after": 21,
+          "deltaAbs": -23,
+          "deltaPct": -109.52,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "largestContentfulPaint",
+          "before": 120,
+          "after": 105,
+          "deltaAbs": -15,
+          "deltaPct": -14.29,
+          "std": 4.2,
+          "mad": 2.1
+        },
+        {
+          "metric": "lcpMinusTtfb",
+          "before": 66.28,
+          "after": 63.1,
+          "deltaAbs": -3.18,
+          "deltaPct": -5.04,
+          "std": 2.52,
+          "mad": 1.26
+        },
+        {
+          "metric": "wpExtObjCache",
+          "before": 0,
+          "after": 0,
+          "deltaAbs": 0,
+          "deltaPct": 0,
+          "std": 0,
+          "mad": 0
+        }
+      ]
+    },
+    {
+      "title": "Single Post › Theme: twentytwentyfive, Locale: en_US",
+      "scope": "front-end",
+      "metrics": [
+        {
+          "metric": "timeToFirstByte",
+          "before": 53.72,
+          "after": 41.9,
+          "deltaAbs": -11.82,
+          "deltaPct": -28.21,
+          "std": 2.1,
+          "mad": 1.35
+        },
+        {
+          "metric": "wpMemoryUsage",
+          "before": 34000000,
+          "after": 30000000,
+          "deltaAbs": -4000000,
+          "deltaPct": -13.33,
+          "std": 850000,
+          "mad": 500000
+        },
+        {
+          "metric": "wpDbQueries",
+          "before": 24,
+          "after": 20,
+          "deltaAbs": -4,
+          "deltaPct": -20,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "wpFilesLoaded",
+          "before": 600,
+          "after": 417,
+          "deltaAbs": -183,
+          "deltaPct": -43.88,
+          "std": 3,
+          "mad": 2
+        },
+        {
+          "metric": "wpBootstrap",
+          "before": 8.5,
+          "after": 6.2,
+          "deltaAbs": -2.3,
+          "deltaPct": -37.1,
+          "std": 0.25,
+          "mad": 0.12
+        },
+        {
+          "metric": "wpPlugins",
+          "before": 3,
+          "after": 2.4,
+          "deltaAbs": -0.6,
+          "deltaPct": -25,
+          "std": 0.1,
+          "mad": 0.05
+        },
+        {
+          "metric": "wpCacheHits",
+          "before": 128,
+          "after": 176,
+          "deltaAbs": 48,
+          "deltaPct": 27.27,
+          "std": 7,
+          "mad": 3
+        },
+        {
+          "metric": "wpCacheMisses",
+          "before": 44,
+          "after": 21,
+          "deltaAbs": -23,
+          "deltaPct": -109.52,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "largestContentfulPaint",
+          "before": 120,
+          "after": 105,
+          "deltaAbs": -15,
+          "deltaPct": -14.29,
+          "std": 4.2,
+          "mad": 2.1
+        },
+        {
+          "metric": "lcpMinusTtfb",
+          "before": 66.28,
+          "after": 63.1,
+          "deltaAbs": -3.18,
+          "deltaPct": -5.04,
+          "std": 2.52,
+          "mad": 1.26
+        },
+        {
+          "metric": "wpExtObjCache",
+          "before": 0,
+          "after": 0,
+          "deltaAbs": 0,
+          "deltaPct": 0,
+          "std": 0,
+          "mad": 0
+        }
+      ]
+    },
+    {
+      "title": "Single Post › Theme: twentytwentyfive, Locale: de_DE",
+      "scope": "front-end",
+      "metrics": [
+        {
+          "metric": "timeToFirstByte",
+          "before": 53.72,
+          "after": 41.9,
+          "deltaAbs": -11.82,
+          "deltaPct": -28.21,
+          "std": 2.1,
+          "mad": 1.35
+        },
+        {
+          "metric": "wpMemoryUsage",
+          "before": 34000000,
+          "after": 30000000,
+          "deltaAbs": -4000000,
+          "deltaPct": -13.33,
+          "std": 850000,
+          "mad": 500000
+        },
+        {
+          "metric": "wpDbQueries",
+          "before": 24,
+          "after": 20,
+          "deltaAbs": -4,
+          "deltaPct": -20,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "wpFilesLoaded",
+          "before": 600,
+          "after": 417,
+          "deltaAbs": -183,
+          "deltaPct": -43.88,
+          "std": 3,
+          "mad": 2
+        },
+        {
+          "metric": "wpBootstrap",
+          "before": 8.5,
+          "after": 6.2,
+          "deltaAbs": -2.3,
+          "deltaPct": -37.1,
+          "std": 0.25,
+          "mad": 0.12
+        },
+        {
+          "metric": "wpPlugins",
+          "before": 3,
+          "after": 2.4,
+          "deltaAbs": -0.6,
+          "deltaPct": -25,
+          "std": 0.1,
+          "mad": 0.05
+        },
+        {
+          "metric": "wpCacheHits",
+          "before": 128,
+          "after": 176,
+          "deltaAbs": 48,
+          "deltaPct": 27.27,
+          "std": 7,
+          "mad": 3
+        },
+        {
+          "metric": "wpCacheMisses",
+          "before": 44,
+          "after": 21,
+          "deltaAbs": -23,
+          "deltaPct": -109.52,
+          "std": 1,
+          "mad": 1
+        },
+        {
+          "metric": "largestContentfulPaint",
+          "before": 120,
+          "after": 105,
+          "deltaAbs": -15,
+          "deltaPct": -14.29,
+          "std": 4.2,
+          "mad": 2.1
+        },
+        {
+          "metric": "lcpMinusTtfb",
+          "before": 66.28,
+          "after": 63.1,
+          "deltaAbs": -3.18,
+          "deltaPct": -5.04,
+          "std": 2.52,
+          "mad": 1.26
+        },
+        {
+          "metric": "wpExtObjCache",
+          "before": 0,
+          "after": 0,
+          "deltaAbs": 0,
+          "deltaPct": 0,
+          "std": 0,
+          "mad": 0
+        }
+      ]
+    }
+  ],
+  "serverTimingMetrics": [
+    "wpBootstrap",
+    "wpPlugins",
+    "wpFilesLoaded",
+    "wpCacheHits",
+    "wpCacheMisses",
+    "wpDbQueries",
+    "wpMemoryUsage"
+  ],
+  "summary": {
+    "targetsMet": 5,
+    "targetsTotal": 6,
+    "allTargetsMet": false
+  }
+}

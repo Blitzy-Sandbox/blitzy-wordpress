@@ -149,6 +149,16 @@ function wp_print_scripts( $handles = false ) {
 		}
 	}
 
+	/*
+	 * Delegate printing to WP_Scripts::do_items(), which resolves the enqueued
+	 * dependency tree using the reverse-dependency map memoized in WP_Scripts
+	 * (see WP_Scripts::get_dependents()). That map is invalidated whenever the
+	 * dependency graph changes, so printing transparently benefits from the
+	 * cached resolution without any change to enqueue ordering or
+	 * dependency-resolution behavior. This wrapper is intentionally kept thin:
+	 * the wp_print_scripts action, the doing-it-wrong guard, and the lazy
+	 * $wp_scripts instantiation above are established contract, left unchanged.
+	 */
 	return wp_scripts()->do_items( $handles );
 }
 

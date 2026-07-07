@@ -510,14 +510,20 @@ add_filter( 'determine_current_user', 'wp_validate_logged_in_cookie', 20 );
 add_filter( 'determine_current_user', 'wp_validate_application_password', 20 );
 
 // Split term updates.
-add_action( 'admin_init', '_wp_check_for_scheduled_split_terms' );
+// `admin_init` only fires in the admin context, so this registration is a no-op elsewhere.
+if ( is_admin() ) {
+	add_action( 'admin_init', '_wp_check_for_scheduled_split_terms' );
+}
 add_action( 'split_shared_term', '_wp_check_split_default_terms', 10, 4 );
 add_action( 'split_shared_term', '_wp_check_split_terms_in_menus', 10, 4 );
 add_action( 'split_shared_term', '_wp_check_split_nav_menu_terms', 10, 4 );
 add_action( 'wp_split_shared_term_batch', '_wp_batch_split_terms' );
 
 // Comment type updates.
-add_action( 'admin_init', '_wp_check_for_scheduled_update_comment_type' );
+// `admin_init` only fires in the admin context, so this registration is a no-op elsewhere.
+if ( is_admin() ) {
+	add_action( 'admin_init', '_wp_check_for_scheduled_update_comment_type' );
+}
 add_action( 'wp_update_comment_type_batch', '_wp_batch_update_comment_type' );
 
 // Email notifications.
@@ -680,7 +686,10 @@ add_action( 'plugins_loaded', '_wp_add_additional_image_sizes', 0 );
 add_filter( 'plupload_default_settings', 'wp_show_heic_upload_error' );
 
 // Client-side media processing.
-add_action( 'admin_init', 'wp_set_client_side_media_processing_flag' );
+// `admin_init` only fires in the admin context, so this registration is a no-op elsewhere.
+if ( is_admin() ) {
+	add_action( 'admin_init', 'wp_set_client_side_media_processing_flag' );
+}
 // Cross-origin isolation for client-side media processing.
 add_action( 'load-post.php', 'wp_set_up_cross_origin_isolation' );
 add_action( 'load-post-new.php', 'wp_set_up_cross_origin_isolation' );
@@ -798,7 +807,10 @@ add_action( 'before_delete_post', '_wp_before_delete_font_face', 10, 2 );
 add_action( 'init', '_wp_register_default_font_collections' );
 
 // Collaboration.
-add_action( 'admin_init', 'wp_collaboration_inject_setting' );
+// `admin_init` only fires in the admin context, so this registration is a no-op elsewhere.
+if ( is_admin() ) {
+	add_action( 'admin_init', 'wp_collaboration_inject_setting' );
+}
 
 // Add ignoredHookedBlocks metadata attribute to the template and template part post types.
 add_filter( 'rest_pre_insert_wp_template', 'inject_ignored_hooked_blocks_metadata_attributes' );

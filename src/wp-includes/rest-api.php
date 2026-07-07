@@ -3498,3 +3498,171 @@ function wp_is_rest_endpoint() {
 	 */
 	return (bool) apply_filters( 'wp_is_rest_endpoint', $is_rest_endpoint );
 }
+
+/**
+ * Builds the object cache key for a prepared REST API response payload.
+ *
+ * The key incorporates every input that can change the serialized output of a
+ * prepared item: the object type and identifier, the request context
+ * ('view', 'edit', or 'embed'), the specific set of requested fields, and the
+ * 'last changed' invalidation token for the object's cache group. Because that
+ * token is part of the key, a mutation that bumps the group's last-changed value
+ * (for example via clean_post_cache()) naturally abandons every now-stale entry
+ * for that object without requiring an explicit delete.
+ *
+ * The requested fields are normalized (cast to strings, de-duplicated, and
+ * sorted) so that two requests asking for the same fields in a different order
+ * resolve to the same cache key.
+ *
+ * @since 7.0.0
+ *
+ * @param string     $object_type  The object type the payload belongs to, e.g. 'post', 'term', 'user', 'comment'.
+ * @param int|string $object_id    The unique identifier of the object being prepared.
+ * @param string     $context      Optional. The request context: 'view', 'edit', or 'embed'. Default 'view'.
+ * @param string[]   $fields       Optional. Top-level field names requested via `_fields`. Default empty array (all fields).
+ * @param string     $last_changed Optional. The last-changed invalidation token for the object's cache group,
+ *                                 typically obtained from wp_cache_get_last_changed(). Default empty string.
+ * @return string The object cache key for the prepared response payload.
+ */
+function rest_get_prepared_response_cache_key( $object_type, $object_id, $context = 'view', $fields = array(), $last_changed = '' ) {
+	if ( empty( $context ) ) {
+		$context = 'view';
+	}
+
+	// Normalize the requested fields so their order never affects the cache key.
+	$fields = array_map( 'strval', array_filter( (array) $fields, 'is_scalar' ) );
+	$fields = array_unique( $fields );
+	sort( $fields );
+
+	$key_parts = implode(
+		'|',
+		array(
+			(string) $object_type,
+			(string) $object_id,
+			(string) $context,
+			implode( ',', $fields ),
+			(string) $last_changed,
+		)
+	);
+
+	return 'rest_prepared:' . md5( $key_parts );
+}
+
+/**
+ * Retrieves a cached prepared REST API response payload, if one is available.
+ *
+ * This is the read half of the opt-in, cache-first serialization seam that REST
+ * controllers may use to avoid recomputing the schema-shaped array for an item on
+ * every request. Controllers MUST call this only AFTER their permission callbacks
+ * have authorized the request: the cache stores object representations, never
+ * authorization decisions, so a cached payload must only ever be returned to a
+ * request that has already passed the same permission checks. Because the context
+ * is part of the cache key, an 'edit'-context payload can never be served to a
+ * 'view'-context request.
+ *
+ * The returned data is the pre-filter prepared array. Callers must still apply the
+ * relevant `rest_prepare_{$type}` filter on both hits and misses so that plugins
+ * adding dynamic, per-request data continue to run.
+ *
+ * Degrades gracefully: with no persistent object cache configured the value is
+ * still served from the in-memory runtime cache within the same request; with a
+ * persistent backend it is reused across requests until invalidated.
+ *
+ * @since 7.0.0
+ *
+ * @param string     $object_type  The object type the payload belongs to, e.g. 'post', 'term', 'user', 'comment'.
+ * @param int|string $object_id    The unique identifier of the object being prepared.
+ * @param string     $context      Optional. The request context: 'view', 'edit', or 'embed'. Default 'view'.
+ * @param string[]   $fields       Optional. Top-level field names requested via `_fields`. Default empty array (all fields).
+ * @param string     $last_changed Optional. The last-changed invalidation token for the object's cache group. Default empty string.
+ * @return array|false The cached prepared response payload on a hit, or false when there is no usable cached value.
+ */
+function rest_get_cached_prepared_response( $object_type, $object_id, $context = 'view', $fields = array(), $last_changed = '' ) {
+	if ( empty( $object_id ) ) {
+		return false;
+	}
+
+	/**
+	 * Filters whether cache-first serialization of prepared REST responses is enabled.
+	 *
+	 * Returning false disables both reads and writes of the prepared-response cache,
+	 * forcing controllers that opt in to recompute the payload. This never affects
+	 * permission checks, which always run before the cache is consulted.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @param bool   $enabled     Whether the prepared-response cache is enabled. Default true.
+	 * @param string $object_type The object type the payload belongs to.
+	 */
+	if ( ! apply_filters( 'rest_prepared_response_cache_enabled', true, $object_type ) ) {
+		return false;
+	}
+
+	$cache_key = rest_get_prepared_response_cache_key( $object_type, $object_id, $context, $fields, $last_changed );
+
+	$found  = false;
+	$cached = wp_cache_get( $cache_key, 'rest', false, $found );
+
+	if ( ! $found || ! is_array( $cached ) ) {
+		return false;
+	}
+
+	return $cached;
+}
+
+/**
+ * Stores a prepared REST API response payload in the cache for later reuse.
+ *
+ * This is the write half of the opt-in, cache-first serialization seam. It should
+ * be called by a controller only after the request has been authorized, and only
+ * with the pre-filter prepared array (the schema-shaped data before the
+ * `rest_prepare_{$type}` filter runs), so that per-request dynamic data added by
+ * that filter is never baked into the cached value.
+ *
+ * The payload is stored in the dedicated 'rest' cache group. When a persistent
+ * object cache is present the value is reused across requests; otherwise it is
+ * retained in the in-memory runtime cache for the remainder of the request.
+ * Invalidation is handled through the `$last_changed` token that forms part of the
+ * cache key, mirroring the approach used by WP_Query result caching.
+ *
+ * @since 7.0.0
+ *
+ * @param string     $object_type  The object type the payload belongs to, e.g. 'post', 'term', 'user', 'comment'.
+ * @param int|string $object_id    The unique identifier of the object being prepared.
+ * @param array      $data         The pre-filter, schema-shaped prepared response payload to cache.
+ * @param string     $context      Optional. The request context: 'view', 'edit', or 'embed'. Default 'view'.
+ * @param string[]   $fields       Optional. Top-level field names requested via `_fields`. Default empty array (all fields).
+ * @param string     $last_changed Optional. The last-changed invalidation token for the object's cache group. Default empty string.
+ * @return bool True if the payload was stored, false otherwise.
+ */
+function rest_set_cached_prepared_response( $object_type, $object_id, $data, $context = 'view', $fields = array(), $last_changed = '' ) {
+	if ( empty( $object_id ) || ! is_array( $data ) ) {
+		return false;
+	}
+
+	/** This filter is documented in wp-includes/rest-api.php */
+	if ( ! apply_filters( 'rest_prepared_response_cache_enabled', true, $object_type ) ) {
+		return false;
+	}
+
+	/**
+	 * Filters the expiration time, in seconds, for cached prepared REST responses.
+	 *
+	 * The default of 0 means the cached payload does not expire on a timer and instead
+	 * relies on the `$last_changed` invalidation token in the cache key to become stale
+	 * when the underlying object changes. Returning a positive value adds a
+	 * time-to-live ceiling, which can help bound memory use on high-cardinality types.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @param int        $expiration  Cache expiration in seconds. Default 0 (no timed expiration).
+	 * @param string     $object_type The object type the payload belongs to.
+	 * @param int|string $object_id   The unique identifier of the object being prepared.
+	 * @param string     $context     The request context: 'view', 'edit', or 'embed'.
+	 */
+	$expiration = (int) apply_filters( 'rest_prepared_response_cache_expiration', 0, $object_type, $object_id, $context );
+
+	$cache_key = rest_get_prepared_response_cache_key( $object_type, $object_id, $context, $fields, $last_changed );
+
+	return wp_cache_set( $cache_key, $data, 'rest', $expiration );
+}
