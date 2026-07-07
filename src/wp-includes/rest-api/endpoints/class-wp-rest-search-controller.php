@@ -483,12 +483,17 @@ class WP_REST_Search_Controller extends WP_REST_Controller {
 
 		$last_changed = wp_cache_get_last_changed( $cache_group );
 
-		$data = rest_get_cached_prepared_response( $type, $item_id, $request, $last_changed );
+		// Namespace the cached object type so the search representation occupies a
+		// key space disjoint from the posts and terms controllers, which prepare the
+		// same IDs under the bare 'post'/'term' types in the shared 'rest' group.
+		$cache_object_type = 'search:' . $type;
+
+		$data = rest_get_cached_prepared_response( $cache_object_type, $item_id, $request, $last_changed );
 
 		if ( false === $data ) {
 			$data = $handler->prepare_item( $item_id, $fields );
 
-			rest_set_cached_prepared_response( $type, $item_id, $data, $request, $last_changed );
+			rest_set_cached_prepared_response( $cache_object_type, $item_id, $data, $request, $last_changed );
 		}
 
 		return $data;
