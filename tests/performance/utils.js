@@ -126,7 +126,7 @@ function formatValue( metric, value ) {
 		'wpCacheHits' === metric ||
 		'wpCacheMisses' === metric
 	) {
-		return value;
+		return String( value );
 	}
 
 	if ( 'adminJsTransferSize' === metric ) {

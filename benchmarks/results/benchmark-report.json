@@ -16,10 +16,18 @@
       "after": 41.9,
       "beforeFormatted": "53.72 ms",
       "afterFormatted": "41.90 ms",
-      "reductionPct": 22,
+      "reductionPct": 22.002978406552494,
       "threshold": 20,
       "direction": "reduction",
-      "passed": true
+      "passed": true,
+      "significance": {
+        "test": "welch-two-sample-t",
+        "tStatistic": 142.281558,
+        "degreesOfFreedom": 1278,
+        "pValue": 0,
+        "significant": true,
+        "alpha": 0.05
+      }
     },
     {
       "id": 2,
@@ -31,10 +39,18 @@
       "after": 42.05,
       "beforeFormatted": "50.66 ms",
       "afterFormatted": "42.05 ms",
-      "reductionPct": 17,
+      "reductionPct": 16.99565732333202,
       "threshold": 15,
       "direction": "reduction",
-      "passed": true
+      "passed": true,
+      "significance": {
+        "test": "welch-two-sample-t",
+        "tStatistic": 45.551996,
+        "degreesOfFreedom": 158,
+        "pValue": 0,
+        "significant": true,
+        "alpha": 0.05
+      }
     },
     {
       "id": 3,
@@ -46,10 +62,18 @@
       "after": 430080,
       "beforeFormatted": "512.00 KB",
       "afterFormatted": "420.00 KB",
-      "reductionPct": 17.97,
+      "reductionPct": 17.96875,
       "threshold": 30,
       "direction": "reduction",
-      "passed": false
+      "passed": false,
+      "significance": {
+        "test": "welch-two-sample-t",
+        "tStatistic": 48.674011,
+        "degreesOfFreedom": 158,
+        "pValue": 0,
+        "significant": true,
+        "alpha": 0.05
+      }
     },
     {
       "id": 4,
@@ -61,40 +85,64 @@
       "after": 30000000,
       "beforeFormatted": "34.00 MB",
       "afterFormatted": "30.00 MB",
-      "reductionPct": 11.76,
+      "reductionPct": 11.76470588235294,
       "threshold": 10,
       "direction": "reduction",
-      "passed": true
+      "passed": true,
+      "significance": {
+        "test": "welch-two-sample-t",
+        "tStatistic": 118.957409,
+        "degreesOfFreedom": 1278,
+        "pValue": 0,
+        "significant": true,
+        "alpha": 0.05
+      }
     },
     {
       "id": 5,
       "label": "DB queries per front-end page",
       "metric": "wpDbQueries",
       "scope": "front-end",
-      "unit": "count",
+      "unit": "raw count",
       "before": 24,
       "after": 20,
-      "beforeFormatted": 24,
-      "afterFormatted": 20,
-      "reductionPct": 16.67,
+      "beforeFormatted": "24",
+      "afterFormatted": "20",
+      "reductionPct": 16.666666666666664,
       "threshold": 15,
       "direction": "reduction",
-      "passed": true
+      "passed": true,
+      "significance": {
+        "test": "welch-two-sample-t",
+        "tStatistic": 101.113797,
+        "degreesOfFreedom": 1278,
+        "pValue": 0,
+        "significant": true,
+        "alpha": 0.05
+      }
     },
     {
       "id": 6,
       "label": "PHP files loaded per front-end request",
       "metric": "wpFilesLoaded",
       "scope": "front-end",
-      "unit": "count",
+      "unit": "raw count",
       "before": 600,
       "after": 417,
-      "beforeFormatted": 600,
-      "afterFormatted": 417,
+      "beforeFormatted": "600",
+      "afterFormatted": "417",
       "reductionPct": 30.5,
       "threshold": 30,
       "direction": "reduction",
-      "passed": true
+      "passed": true,
+      "significance": {
+        "test": "welch-two-sample-t",
+        "tStatistic": 1541.985408,
+        "degreesOfFreedom": 1278,
+        "pValue": 0,
+        "significant": true,
+        "alpha": 0.05
+      }
     }
   ],
   "suites": [
@@ -107,27 +155,51 @@
           "before": 50.66,
           "after": 42.05,
           "deltaAbs": -8.61,
-          "deltaPct": -20.48,
-          "std": 1.68,
-          "mad": 0.84
+          "deltaPct": -20.4756242568371,
+          "std": 1.1879393923933996,
+          "mad": 0.8399999999999999,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 32.005615,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "adminJsTransferSize",
           "before": 524288,
           "after": 430080,
           "deltaAbs": -94208,
-          "deltaPct": -21.9,
-          "std": 17203,
-          "mad": 8602
+          "deltaPct": -21.904761904761905,
+          "std": 12164.357956752177,
+          "mad": 8601.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 34.199196,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "timeToFirstByte",
           "before": 60.4,
           "after": 52,
-          "deltaAbs": -8.4,
-          "deltaPct": -16.15,
-          "std": 2.08,
-          "mad": 1.04
+          "deltaAbs": -8.399999999999999,
+          "deltaPct": -16.153846153846153,
+          "std": 1.4707821048680176,
+          "mad": 1.0399999999999991,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 25.220184,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpMemoryUsage",
@@ -135,53 +207,101 @@
           "after": 32000000,
           "deltaAbs": -4000000,
           "deltaPct": -12.5,
-          "std": 900000,
-          "mad": 530000
+          "std": 636396.1030678927,
+          "mad": 450000,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 27.755547,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpDbQueries",
           "before": 34,
           "after": 29,
           "deltaAbs": -5,
-          "deltaPct": -17.24,
-          "std": 1,
-          "mad": 1
+          "deltaPct": -17.24137931034483,
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 31.22499,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpFilesLoaded",
           "before": 642,
           "after": 447,
           "deltaAbs": -195,
-          "deltaPct": -43.62,
-          "std": 3,
-          "mad": 2
+          "deltaPct": -43.624161073825505,
+          "std": 2.1213203435596424,
+          "mad": 1.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 405.92487,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpBootstrap",
           "before": 9.1,
           "after": 6.8,
           "deltaAbs": -2.3,
-          "deltaPct": -33.82,
-          "std": 0.27,
-          "mad": 0.14
+          "deltaPct": -33.8235294117647,
+          "std": 0.19091883092036815,
+          "mad": 0.13500000000000023,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 53.198131,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpPlugins",
           "before": 3.4,
           "after": 2.7,
-          "deltaAbs": -0.7,
-          "deltaPct": -25.93,
-          "std": 0.11,
-          "mad": 0.05
+          "deltaAbs": -0.6999999999999997,
+          "deltaPct": -25.925925925925913,
+          "std": 0.07778174593052013,
+          "mad": 0.05499999999999994,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 39.740896,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheHits",
           "before": 150,
           "after": 205,
           "deltaAbs": 55,
-          "deltaPct": 26.83,
-          "std": 8,
-          "mad": 4
+          "deltaPct": 26.82926829268293,
+          "std": 5.656854249492381,
+          "mad": 4,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": -42.934361,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheMisses",
@@ -189,17 +309,26 @@
           "after": 26,
           "deltaAbs": -26,
           "deltaPct": -100,
-          "std": 1,
-          "mad": 1
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 162.369948,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpExtObjCache",
           "before": 0,
           "after": 0,
-          "deltaAbs": 0,
-          "deltaPct": 0,
+          "deltaAbs": null,
+          "deltaPct": null,
           "std": 0,
-          "mad": 0
+          "mad": 0,
+          "significance": null
         }
       ]
     },
@@ -212,27 +341,51 @@
           "before": 50.66,
           "after": 42.05,
           "deltaAbs": -8.61,
-          "deltaPct": -20.48,
-          "std": 1.68,
-          "mad": 0.84
+          "deltaPct": -20.4756242568371,
+          "std": 1.1879393923933996,
+          "mad": 0.8399999999999999,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 32.005615,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "adminJsTransferSize",
           "before": 524288,
           "after": 430080,
           "deltaAbs": -94208,
-          "deltaPct": -21.9,
-          "std": 17203,
-          "mad": 8602
+          "deltaPct": -21.904761904761905,
+          "std": 12164.357956752177,
+          "mad": 8601.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 34.199196,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "timeToFirstByte",
           "before": 60.4,
           "after": 52,
-          "deltaAbs": -8.4,
-          "deltaPct": -16.15,
-          "std": 2.08,
-          "mad": 1.04
+          "deltaAbs": -8.399999999999999,
+          "deltaPct": -16.153846153846153,
+          "std": 1.4707821048680176,
+          "mad": 1.0399999999999991,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 25.220184,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpMemoryUsage",
@@ -240,53 +393,101 @@
           "after": 32000000,
           "deltaAbs": -4000000,
           "deltaPct": -12.5,
-          "std": 900000,
-          "mad": 530000
+          "std": 636396.1030678927,
+          "mad": 450000,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 27.755547,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpDbQueries",
           "before": 34,
           "after": 29,
           "deltaAbs": -5,
-          "deltaPct": -17.24,
-          "std": 1,
-          "mad": 1
+          "deltaPct": -17.24137931034483,
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 31.22499,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpFilesLoaded",
           "before": 642,
           "after": 447,
           "deltaAbs": -195,
-          "deltaPct": -43.62,
-          "std": 3,
-          "mad": 2
+          "deltaPct": -43.624161073825505,
+          "std": 2.1213203435596424,
+          "mad": 1.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 405.92487,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpBootstrap",
           "before": 9.1,
           "after": 6.8,
           "deltaAbs": -2.3,
-          "deltaPct": -33.82,
-          "std": 0.27,
-          "mad": 0.14
+          "deltaPct": -33.8235294117647,
+          "std": 0.19091883092036815,
+          "mad": 0.13500000000000023,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 53.198131,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpPlugins",
           "before": 3.4,
           "after": 2.7,
-          "deltaAbs": -0.7,
-          "deltaPct": -25.93,
-          "std": 0.11,
-          "mad": 0.05
+          "deltaAbs": -0.6999999999999997,
+          "deltaPct": -25.925925925925913,
+          "std": 0.07778174593052013,
+          "mad": 0.05499999999999994,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 39.740896,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheHits",
           "before": 150,
           "after": 205,
           "deltaAbs": 55,
-          "deltaPct": 26.83,
-          "std": 8,
-          "mad": 4
+          "deltaPct": 26.82926829268293,
+          "std": 5.656854249492381,
+          "mad": 4,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": -42.934361,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheMisses",
@@ -294,17 +495,26 @@
           "after": 26,
           "deltaAbs": -26,
           "deltaPct": -100,
-          "std": 1,
-          "mad": 1
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 162.369948,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpExtObjCache",
           "before": 0,
           "after": 0,
-          "deltaAbs": 0,
-          "deltaPct": 0,
+          "deltaAbs": null,
+          "deltaPct": null,
           "std": 0,
-          "mad": 0
+          "mad": 0,
+          "significance": null
         }
       ]
     },
@@ -317,18 +527,34 @@
           "before": 53.72,
           "after": 41.9,
           "deltaAbs": -11.82,
-          "deltaPct": -28.21,
-          "std": 2.1,
-          "mad": 1.35
+          "deltaPct": -28.21002386634845,
+          "std": 1.484924240491751,
+          "mad": 1.0500000000000007,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 35.150417,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpMemoryUsage",
           "before": 34000000,
           "after": 30000000,
           "deltaAbs": -4000000,
-          "deltaPct": -13.33,
-          "std": 850000,
-          "mad": 500000
+          "deltaPct": -13.333333333333334,
+          "std": 601040.7640085653,
+          "mad": 425000,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 29.388226,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpDbQueries",
@@ -336,80 +562,145 @@
           "after": 20,
           "deltaAbs": -4,
           "deltaPct": -20,
-          "std": 1,
-          "mad": 1
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 24.979992,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpFilesLoaded",
           "before": 600,
           "after": 417,
           "deltaAbs": -183,
-          "deltaPct": -43.88,
-          "std": 3,
-          "mad": 2
+          "deltaPct": -43.884892086330936,
+          "std": 2.1213203435596424,
+          "mad": 1.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 380.944878,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpBootstrap",
           "before": 8.5,
           "after": 6.2,
           "deltaAbs": -2.3,
-          "deltaPct": -37.1,
-          "std": 0.25,
-          "mad": 0.12
+          "deltaPct": -37.096774193548384,
+          "std": 0.1767766952966369,
+          "mad": 0.125,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 57.453982,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpPlugins",
           "before": 3,
           "after": 2.4,
-          "deltaAbs": -0.6,
-          "deltaPct": -25,
-          "std": 0.1,
-          "mad": 0.05
+          "deltaAbs": -0.6000000000000001,
+          "deltaPct": -25.000000000000007,
+          "std": 0.07071067811865481,
+          "mad": 0.050000000000000044,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 37.469988,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheHits",
           "before": 128,
           "after": 176,
           "deltaAbs": 48,
-          "deltaPct": 27.27,
-          "std": 7,
-          "mad": 3
+          "deltaPct": 27.27272727272727,
+          "std": 4.949747468305833,
+          "mad": 3.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": -42.822843,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheMisses",
           "before": 44,
           "after": 21,
           "deltaAbs": -23,
-          "deltaPct": -109.52,
-          "std": 1,
-          "mad": 1
+          "deltaPct": -109.52380952380953,
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 143.634954,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "largestContentfulPaint",
           "before": 120,
           "after": 105,
           "deltaAbs": -15,
-          "deltaPct": -14.29,
-          "std": 4.2,
-          "mad": 2.1
+          "deltaPct": -14.285714285714285,
+          "std": 2.9698484809835017,
+          "mad": 2.1000000000000014,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 22.303564,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "lcpMinusTtfb",
           "before": 66.28,
           "after": 63.1,
-          "deltaAbs": -3.18,
-          "deltaPct": -5.04,
-          "std": 2.52,
-          "mad": 1.26
+          "deltaAbs": -3.1799999999999997,
+          "deltaPct": -5.039619651347067,
+          "std": 1.781909088590102,
+          "mad": 1.2600000000000016,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 7.880593,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpExtObjCache",
           "before": 0,
           "after": 0,
-          "deltaAbs": 0,
-          "deltaPct": 0,
+          "deltaAbs": null,
+          "deltaPct": null,
           "std": 0,
-          "mad": 0
+          "mad": 0,
+          "significance": null
         }
       ]
     },
@@ -422,18 +713,34 @@
           "before": 53.72,
           "after": 41.9,
           "deltaAbs": -11.82,
-          "deltaPct": -28.21,
-          "std": 2.1,
-          "mad": 1.35
+          "deltaPct": -28.21002386634845,
+          "std": 1.484924240491751,
+          "mad": 1.0500000000000007,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 35.150417,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpMemoryUsage",
           "before": 34000000,
           "after": 30000000,
           "deltaAbs": -4000000,
-          "deltaPct": -13.33,
-          "std": 850000,
-          "mad": 500000
+          "deltaPct": -13.333333333333334,
+          "std": 601040.7640085653,
+          "mad": 425000,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 29.388226,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpDbQueries",
@@ -441,80 +748,145 @@
           "after": 20,
           "deltaAbs": -4,
           "deltaPct": -20,
-          "std": 1,
-          "mad": 1
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 24.979992,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpFilesLoaded",
           "before": 600,
           "after": 417,
           "deltaAbs": -183,
-          "deltaPct": -43.88,
-          "std": 3,
-          "mad": 2
+          "deltaPct": -43.884892086330936,
+          "std": 2.1213203435596424,
+          "mad": 1.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 380.944878,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpBootstrap",
           "before": 8.5,
           "after": 6.2,
           "deltaAbs": -2.3,
-          "deltaPct": -37.1,
-          "std": 0.25,
-          "mad": 0.12
+          "deltaPct": -37.096774193548384,
+          "std": 0.1767766952966369,
+          "mad": 0.125,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 57.453982,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpPlugins",
           "before": 3,
           "after": 2.4,
-          "deltaAbs": -0.6,
-          "deltaPct": -25,
-          "std": 0.1,
-          "mad": 0.05
+          "deltaAbs": -0.6000000000000001,
+          "deltaPct": -25.000000000000007,
+          "std": 0.07071067811865481,
+          "mad": 0.050000000000000044,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 37.469988,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheHits",
           "before": 128,
           "after": 176,
           "deltaAbs": 48,
-          "deltaPct": 27.27,
-          "std": 7,
-          "mad": 3
+          "deltaPct": 27.27272727272727,
+          "std": 4.949747468305833,
+          "mad": 3.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": -42.822843,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheMisses",
           "before": 44,
           "after": 21,
           "deltaAbs": -23,
-          "deltaPct": -109.52,
-          "std": 1,
-          "mad": 1
+          "deltaPct": -109.52380952380953,
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 143.634954,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "largestContentfulPaint",
           "before": 120,
           "after": 105,
           "deltaAbs": -15,
-          "deltaPct": -14.29,
-          "std": 4.2,
-          "mad": 2.1
+          "deltaPct": -14.285714285714285,
+          "std": 2.9698484809835017,
+          "mad": 2.1000000000000014,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 22.303564,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "lcpMinusTtfb",
           "before": 66.28,
           "after": 63.1,
-          "deltaAbs": -3.18,
-          "deltaPct": -5.04,
-          "std": 2.52,
-          "mad": 1.26
+          "deltaAbs": -3.1799999999999997,
+          "deltaPct": -5.039619651347067,
+          "std": 1.781909088590102,
+          "mad": 1.2600000000000016,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 7.880593,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpExtObjCache",
           "before": 0,
           "after": 0,
-          "deltaAbs": 0,
-          "deltaPct": 0,
+          "deltaAbs": null,
+          "deltaPct": null,
           "std": 0,
-          "mad": 0
+          "mad": 0,
+          "significance": null
         }
       ]
     },
@@ -527,18 +899,34 @@
           "before": 53.72,
           "after": 41.9,
           "deltaAbs": -11.82,
-          "deltaPct": -28.21,
-          "std": 2.1,
-          "mad": 1.35
+          "deltaPct": -28.21002386634845,
+          "std": 1.484924240491751,
+          "mad": 1.0500000000000007,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 35.150417,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpMemoryUsage",
           "before": 34000000,
           "after": 30000000,
           "deltaAbs": -4000000,
-          "deltaPct": -13.33,
-          "std": 850000,
-          "mad": 500000
+          "deltaPct": -13.333333333333334,
+          "std": 601040.7640085653,
+          "mad": 425000,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 29.388226,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpDbQueries",
@@ -546,80 +934,145 @@
           "after": 20,
           "deltaAbs": -4,
           "deltaPct": -20,
-          "std": 1,
-          "mad": 1
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 24.979992,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpFilesLoaded",
           "before": 600,
           "after": 417,
           "deltaAbs": -183,
-          "deltaPct": -43.88,
-          "std": 3,
-          "mad": 2
+          "deltaPct": -43.884892086330936,
+          "std": 2.1213203435596424,
+          "mad": 1.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 380.944878,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpBootstrap",
           "before": 8.5,
           "after": 6.2,
           "deltaAbs": -2.3,
-          "deltaPct": -37.1,
-          "std": 0.25,
-          "mad": 0.12
+          "deltaPct": -37.096774193548384,
+          "std": 0.1767766952966369,
+          "mad": 0.125,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 57.453982,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpPlugins",
           "before": 3,
           "after": 2.4,
-          "deltaAbs": -0.6,
-          "deltaPct": -25,
-          "std": 0.1,
-          "mad": 0.05
+          "deltaAbs": -0.6000000000000001,
+          "deltaPct": -25.000000000000007,
+          "std": 0.07071067811865481,
+          "mad": 0.050000000000000044,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 37.469988,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheHits",
           "before": 128,
           "after": 176,
           "deltaAbs": 48,
-          "deltaPct": 27.27,
-          "std": 7,
-          "mad": 3
+          "deltaPct": 27.27272727272727,
+          "std": 4.949747468305833,
+          "mad": 3.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": -42.822843,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheMisses",
           "before": 44,
           "after": 21,
           "deltaAbs": -23,
-          "deltaPct": -109.52,
-          "std": 1,
-          "mad": 1
+          "deltaPct": -109.52380952380953,
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 143.634954,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "largestContentfulPaint",
           "before": 120,
           "after": 105,
           "deltaAbs": -15,
-          "deltaPct": -14.29,
-          "std": 4.2,
-          "mad": 2.1
+          "deltaPct": -14.285714285714285,
+          "std": 2.9698484809835017,
+          "mad": 2.1000000000000014,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 22.303564,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "lcpMinusTtfb",
           "before": 66.28,
           "after": 63.1,
-          "deltaAbs": -3.18,
-          "deltaPct": -5.04,
-          "std": 2.52,
-          "mad": 1.26
+          "deltaAbs": -3.1799999999999997,
+          "deltaPct": -5.039619651347067,
+          "std": 1.781909088590102,
+          "mad": 1.2600000000000016,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 7.880593,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpExtObjCache",
           "before": 0,
           "after": 0,
-          "deltaAbs": 0,
-          "deltaPct": 0,
+          "deltaAbs": null,
+          "deltaPct": null,
           "std": 0,
-          "mad": 0
+          "mad": 0,
+          "significance": null
         }
       ]
     },
@@ -632,18 +1085,34 @@
           "before": 53.72,
           "after": 41.9,
           "deltaAbs": -11.82,
-          "deltaPct": -28.21,
-          "std": 2.1,
-          "mad": 1.35
+          "deltaPct": -28.21002386634845,
+          "std": 1.484924240491751,
+          "mad": 1.0500000000000007,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 35.150417,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpMemoryUsage",
           "before": 34000000,
           "after": 30000000,
           "deltaAbs": -4000000,
-          "deltaPct": -13.33,
-          "std": 850000,
-          "mad": 500000
+          "deltaPct": -13.333333333333334,
+          "std": 601040.7640085653,
+          "mad": 425000,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 29.388226,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpDbQueries",
@@ -651,80 +1120,145 @@
           "after": 20,
           "deltaAbs": -4,
           "deltaPct": -20,
-          "std": 1,
-          "mad": 1
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 24.979992,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpFilesLoaded",
           "before": 600,
           "after": 417,
           "deltaAbs": -183,
-          "deltaPct": -43.88,
-          "std": 3,
-          "mad": 2
+          "deltaPct": -43.884892086330936,
+          "std": 2.1213203435596424,
+          "mad": 1.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 380.944878,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpBootstrap",
           "before": 8.5,
           "after": 6.2,
           "deltaAbs": -2.3,
-          "deltaPct": -37.1,
-          "std": 0.25,
-          "mad": 0.12
+          "deltaPct": -37.096774193548384,
+          "std": 0.1767766952966369,
+          "mad": 0.125,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 57.453982,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpPlugins",
           "before": 3,
           "after": 2.4,
-          "deltaAbs": -0.6,
-          "deltaPct": -25,
-          "std": 0.1,
-          "mad": 0.05
+          "deltaAbs": -0.6000000000000001,
+          "deltaPct": -25.000000000000007,
+          "std": 0.07071067811865481,
+          "mad": 0.050000000000000044,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 37.469988,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheHits",
           "before": 128,
           "after": 176,
           "deltaAbs": 48,
-          "deltaPct": 27.27,
-          "std": 7,
-          "mad": 3
+          "deltaPct": 27.27272727272727,
+          "std": 4.949747468305833,
+          "mad": 3.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": -42.822843,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheMisses",
           "before": 44,
           "after": 21,
           "deltaAbs": -23,
-          "deltaPct": -109.52,
-          "std": 1,
-          "mad": 1
+          "deltaPct": -109.52380952380953,
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 143.634954,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "largestContentfulPaint",
           "before": 120,
           "after": 105,
           "deltaAbs": -15,
-          "deltaPct": -14.29,
-          "std": 4.2,
-          "mad": 2.1
+          "deltaPct": -14.285714285714285,
+          "std": 2.9698484809835017,
+          "mad": 2.1000000000000014,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 22.303564,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "lcpMinusTtfb",
           "before": 66.28,
           "after": 63.1,
-          "deltaAbs": -3.18,
-          "deltaPct": -5.04,
-          "std": 2.52,
-          "mad": 1.26
+          "deltaAbs": -3.1799999999999997,
+          "deltaPct": -5.039619651347067,
+          "std": 1.781909088590102,
+          "mad": 1.2600000000000016,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 7.880593,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpExtObjCache",
           "before": 0,
           "after": 0,
-          "deltaAbs": 0,
-          "deltaPct": 0,
+          "deltaAbs": null,
+          "deltaPct": null,
           "std": 0,
-          "mad": 0
+          "mad": 0,
+          "significance": null
         }
       ]
     },
@@ -737,18 +1271,34 @@
           "before": 53.72,
           "after": 41.9,
           "deltaAbs": -11.82,
-          "deltaPct": -28.21,
-          "std": 2.1,
-          "mad": 1.35
+          "deltaPct": -28.21002386634845,
+          "std": 1.484924240491751,
+          "mad": 1.0500000000000007,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 35.150417,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpMemoryUsage",
           "before": 34000000,
           "after": 30000000,
           "deltaAbs": -4000000,
-          "deltaPct": -13.33,
-          "std": 850000,
-          "mad": 500000
+          "deltaPct": -13.333333333333334,
+          "std": 601040.7640085653,
+          "mad": 425000,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 29.388226,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpDbQueries",
@@ -756,80 +1306,145 @@
           "after": 20,
           "deltaAbs": -4,
           "deltaPct": -20,
-          "std": 1,
-          "mad": 1
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 24.979992,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpFilesLoaded",
           "before": 600,
           "after": 417,
           "deltaAbs": -183,
-          "deltaPct": -43.88,
-          "std": 3,
-          "mad": 2
+          "deltaPct": -43.884892086330936,
+          "std": 2.1213203435596424,
+          "mad": 1.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 380.944878,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpBootstrap",
           "before": 8.5,
           "after": 6.2,
           "deltaAbs": -2.3,
-          "deltaPct": -37.1,
-          "std": 0.25,
-          "mad": 0.12
+          "deltaPct": -37.096774193548384,
+          "std": 0.1767766952966369,
+          "mad": 0.125,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 57.453982,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpPlugins",
           "before": 3,
           "after": 2.4,
-          "deltaAbs": -0.6,
-          "deltaPct": -25,
-          "std": 0.1,
-          "mad": 0.05
+          "deltaAbs": -0.6000000000000001,
+          "deltaPct": -25.000000000000007,
+          "std": 0.07071067811865481,
+          "mad": 0.050000000000000044,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 37.469988,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheHits",
           "before": 128,
           "after": 176,
           "deltaAbs": 48,
-          "deltaPct": 27.27,
-          "std": 7,
-          "mad": 3
+          "deltaPct": 27.27272727272727,
+          "std": 4.949747468305833,
+          "mad": 3.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": -42.822843,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheMisses",
           "before": 44,
           "after": 21,
           "deltaAbs": -23,
-          "deltaPct": -109.52,
-          "std": 1,
-          "mad": 1
+          "deltaPct": -109.52380952380953,
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 143.634954,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "largestContentfulPaint",
           "before": 120,
           "after": 105,
           "deltaAbs": -15,
-          "deltaPct": -14.29,
-          "std": 4.2,
-          "mad": 2.1
+          "deltaPct": -14.285714285714285,
+          "std": 2.9698484809835017,
+          "mad": 2.1000000000000014,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 22.303564,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "lcpMinusTtfb",
           "before": 66.28,
           "after": 63.1,
-          "deltaAbs": -3.18,
-          "deltaPct": -5.04,
-          "std": 2.52,
-          "mad": 1.26
+          "deltaAbs": -3.1799999999999997,
+          "deltaPct": -5.039619651347067,
+          "std": 1.781909088590102,
+          "mad": 1.2600000000000016,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 7.880593,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpExtObjCache",
           "before": 0,
           "after": 0,
-          "deltaAbs": 0,
-          "deltaPct": 0,
+          "deltaAbs": null,
+          "deltaPct": null,
           "std": 0,
-          "mad": 0
+          "mad": 0,
+          "significance": null
         }
       ]
     },
@@ -842,18 +1457,34 @@
           "before": 53.72,
           "after": 41.9,
           "deltaAbs": -11.82,
-          "deltaPct": -28.21,
-          "std": 2.1,
-          "mad": 1.35
+          "deltaPct": -28.21002386634845,
+          "std": 1.484924240491751,
+          "mad": 1.0500000000000007,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 35.150417,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpMemoryUsage",
           "before": 34000000,
           "after": 30000000,
           "deltaAbs": -4000000,
-          "deltaPct": -13.33,
-          "std": 850000,
-          "mad": 500000
+          "deltaPct": -13.333333333333334,
+          "std": 601040.7640085653,
+          "mad": 425000,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 29.388226,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpDbQueries",
@@ -861,80 +1492,145 @@
           "after": 20,
           "deltaAbs": -4,
           "deltaPct": -20,
-          "std": 1,
-          "mad": 1
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 24.979992,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpFilesLoaded",
           "before": 600,
           "after": 417,
           "deltaAbs": -183,
-          "deltaPct": -43.88,
-          "std": 3,
-          "mad": 2
+          "deltaPct": -43.884892086330936,
+          "std": 2.1213203435596424,
+          "mad": 1.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 380.944878,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpBootstrap",
           "before": 8.5,
           "after": 6.2,
           "deltaAbs": -2.3,
-          "deltaPct": -37.1,
-          "std": 0.25,
-          "mad": 0.12
+          "deltaPct": -37.096774193548384,
+          "std": 0.1767766952966369,
+          "mad": 0.125,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 57.453982,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpPlugins",
           "before": 3,
           "after": 2.4,
-          "deltaAbs": -0.6,
-          "deltaPct": -25,
-          "std": 0.1,
-          "mad": 0.05
+          "deltaAbs": -0.6000000000000001,
+          "deltaPct": -25.000000000000007,
+          "std": 0.07071067811865481,
+          "mad": 0.050000000000000044,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 37.469988,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheHits",
           "before": 128,
           "after": 176,
           "deltaAbs": 48,
-          "deltaPct": 27.27,
-          "std": 7,
-          "mad": 3
+          "deltaPct": 27.27272727272727,
+          "std": 4.949747468305833,
+          "mad": 3.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": -42.822843,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheMisses",
           "before": 44,
           "after": 21,
           "deltaAbs": -23,
-          "deltaPct": -109.52,
-          "std": 1,
-          "mad": 1
+          "deltaPct": -109.52380952380953,
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 143.634954,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "largestContentfulPaint",
           "before": 120,
           "after": 105,
           "deltaAbs": -15,
-          "deltaPct": -14.29,
-          "std": 4.2,
-          "mad": 2.1
+          "deltaPct": -14.285714285714285,
+          "std": 2.9698484809835017,
+          "mad": 2.1000000000000014,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 22.303564,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "lcpMinusTtfb",
           "before": 66.28,
           "after": 63.1,
-          "deltaAbs": -3.18,
-          "deltaPct": -5.04,
-          "std": 2.52,
-          "mad": 1.26
+          "deltaAbs": -3.1799999999999997,
+          "deltaPct": -5.039619651347067,
+          "std": 1.781909088590102,
+          "mad": 1.2600000000000016,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 7.880593,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpExtObjCache",
           "before": 0,
           "after": 0,
-          "deltaAbs": 0,
-          "deltaPct": 0,
+          "deltaAbs": null,
+          "deltaPct": null,
           "std": 0,
-          "mad": 0
+          "mad": 0,
+          "significance": null
         }
       ]
     },
@@ -947,18 +1643,34 @@
           "before": 53.72,
           "after": 41.9,
           "deltaAbs": -11.82,
-          "deltaPct": -28.21,
-          "std": 2.1,
-          "mad": 1.35
+          "deltaPct": -28.21002386634845,
+          "std": 1.484924240491751,
+          "mad": 1.0500000000000007,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 35.150417,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpMemoryUsage",
           "before": 34000000,
           "after": 30000000,
           "deltaAbs": -4000000,
-          "deltaPct": -13.33,
-          "std": 850000,
-          "mad": 500000
+          "deltaPct": -13.333333333333334,
+          "std": 601040.7640085653,
+          "mad": 425000,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 29.388226,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpDbQueries",
@@ -966,80 +1678,145 @@
           "after": 20,
           "deltaAbs": -4,
           "deltaPct": -20,
-          "std": 1,
-          "mad": 1
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 24.979992,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpFilesLoaded",
           "before": 600,
           "after": 417,
           "deltaAbs": -183,
-          "deltaPct": -43.88,
-          "std": 3,
-          "mad": 2
+          "deltaPct": -43.884892086330936,
+          "std": 2.1213203435596424,
+          "mad": 1.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 380.944878,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpBootstrap",
           "before": 8.5,
           "after": 6.2,
           "deltaAbs": -2.3,
-          "deltaPct": -37.1,
-          "std": 0.25,
-          "mad": 0.12
+          "deltaPct": -37.096774193548384,
+          "std": 0.1767766952966369,
+          "mad": 0.125,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 57.453982,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpPlugins",
           "before": 3,
           "after": 2.4,
-          "deltaAbs": -0.6,
-          "deltaPct": -25,
-          "std": 0.1,
-          "mad": 0.05
+          "deltaAbs": -0.6000000000000001,
+          "deltaPct": -25.000000000000007,
+          "std": 0.07071067811865481,
+          "mad": 0.050000000000000044,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 37.469988,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheHits",
           "before": 128,
           "after": 176,
           "deltaAbs": 48,
-          "deltaPct": 27.27,
-          "std": 7,
-          "mad": 3
+          "deltaPct": 27.27272727272727,
+          "std": 4.949747468305833,
+          "mad": 3.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": -42.822843,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheMisses",
           "before": 44,
           "after": 21,
           "deltaAbs": -23,
-          "deltaPct": -109.52,
-          "std": 1,
-          "mad": 1
+          "deltaPct": -109.52380952380953,
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 143.634954,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "largestContentfulPaint",
           "before": 120,
           "after": 105,
           "deltaAbs": -15,
-          "deltaPct": -14.29,
-          "std": 4.2,
-          "mad": 2.1
+          "deltaPct": -14.285714285714285,
+          "std": 2.9698484809835017,
+          "mad": 2.1000000000000014,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 22.303564,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "lcpMinusTtfb",
           "before": 66.28,
           "after": 63.1,
-          "deltaAbs": -3.18,
-          "deltaPct": -5.04,
-          "std": 2.52,
-          "mad": 1.26
+          "deltaAbs": -3.1799999999999997,
+          "deltaPct": -5.039619651347067,
+          "std": 1.781909088590102,
+          "mad": 1.2600000000000016,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 7.880593,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpExtObjCache",
           "before": 0,
           "after": 0,
-          "deltaAbs": 0,
-          "deltaPct": 0,
+          "deltaAbs": null,
+          "deltaPct": null,
           "std": 0,
-          "mad": 0
+          "mad": 0,
+          "significance": null
         }
       ]
     },
@@ -1052,18 +1829,34 @@
           "before": 53.72,
           "after": 41.9,
           "deltaAbs": -11.82,
-          "deltaPct": -28.21,
-          "std": 2.1,
-          "mad": 1.35
+          "deltaPct": -28.21002386634845,
+          "std": 1.484924240491751,
+          "mad": 1.0500000000000007,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 35.150417,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpMemoryUsage",
           "before": 34000000,
           "after": 30000000,
           "deltaAbs": -4000000,
-          "deltaPct": -13.33,
-          "std": 850000,
-          "mad": 500000
+          "deltaPct": -13.333333333333334,
+          "std": 601040.7640085653,
+          "mad": 425000,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 29.388226,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpDbQueries",
@@ -1071,80 +1864,145 @@
           "after": 20,
           "deltaAbs": -4,
           "deltaPct": -20,
-          "std": 1,
-          "mad": 1
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 24.979992,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpFilesLoaded",
           "before": 600,
           "after": 417,
           "deltaAbs": -183,
-          "deltaPct": -43.88,
-          "std": 3,
-          "mad": 2
+          "deltaPct": -43.884892086330936,
+          "std": 2.1213203435596424,
+          "mad": 1.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 380.944878,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpBootstrap",
           "before": 8.5,
           "after": 6.2,
           "deltaAbs": -2.3,
-          "deltaPct": -37.1,
-          "std": 0.25,
-          "mad": 0.12
+          "deltaPct": -37.096774193548384,
+          "std": 0.1767766952966369,
+          "mad": 0.125,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 57.453982,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpPlugins",
           "before": 3,
           "after": 2.4,
-          "deltaAbs": -0.6,
-          "deltaPct": -25,
-          "std": 0.1,
-          "mad": 0.05
+          "deltaAbs": -0.6000000000000001,
+          "deltaPct": -25.000000000000007,
+          "std": 0.07071067811865481,
+          "mad": 0.050000000000000044,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 37.469988,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheHits",
           "before": 128,
           "after": 176,
           "deltaAbs": 48,
-          "deltaPct": 27.27,
-          "std": 7,
-          "mad": 3
+          "deltaPct": 27.27272727272727,
+          "std": 4.949747468305833,
+          "mad": 3.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": -42.822843,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheMisses",
           "before": 44,
           "after": 21,
           "deltaAbs": -23,
-          "deltaPct": -109.52,
-          "std": 1,
-          "mad": 1
+          "deltaPct": -109.52380952380953,
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 143.634954,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "largestContentfulPaint",
           "before": 120,
           "after": 105,
           "deltaAbs": -15,
-          "deltaPct": -14.29,
-          "std": 4.2,
-          "mad": 2.1
+          "deltaPct": -14.285714285714285,
+          "std": 2.9698484809835017,
+          "mad": 2.1000000000000014,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 22.303564,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "lcpMinusTtfb",
           "before": 66.28,
           "after": 63.1,
-          "deltaAbs": -3.18,
-          "deltaPct": -5.04,
-          "std": 2.52,
-          "mad": 1.26
+          "deltaAbs": -3.1799999999999997,
+          "deltaPct": -5.039619651347067,
+          "std": 1.781909088590102,
+          "mad": 1.2600000000000016,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 7.880593,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpExtObjCache",
           "before": 0,
           "after": 0,
-          "deltaAbs": 0,
-          "deltaPct": 0,
+          "deltaAbs": null,
+          "deltaPct": null,
           "std": 0,
-          "mad": 0
+          "mad": 0,
+          "significance": null
         }
       ]
     },
@@ -1157,18 +2015,34 @@
           "before": 53.72,
           "after": 41.9,
           "deltaAbs": -11.82,
-          "deltaPct": -28.21,
-          "std": 2.1,
-          "mad": 1.35
+          "deltaPct": -28.21002386634845,
+          "std": 1.484924240491751,
+          "mad": 1.0500000000000007,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 35.150417,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpMemoryUsage",
           "before": 34000000,
           "after": 30000000,
           "deltaAbs": -4000000,
-          "deltaPct": -13.33,
-          "std": 850000,
-          "mad": 500000
+          "deltaPct": -13.333333333333334,
+          "std": 601040.7640085653,
+          "mad": 425000,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 29.388226,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpDbQueries",
@@ -1176,80 +2050,145 @@
           "after": 20,
           "deltaAbs": -4,
           "deltaPct": -20,
-          "std": 1,
-          "mad": 1
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 24.979992,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpFilesLoaded",
           "before": 600,
           "after": 417,
           "deltaAbs": -183,
-          "deltaPct": -43.88,
-          "std": 3,
-          "mad": 2
+          "deltaPct": -43.884892086330936,
+          "std": 2.1213203435596424,
+          "mad": 1.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 380.944878,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpBootstrap",
           "before": 8.5,
           "after": 6.2,
           "deltaAbs": -2.3,
-          "deltaPct": -37.1,
-          "std": 0.25,
-          "mad": 0.12
+          "deltaPct": -37.096774193548384,
+          "std": 0.1767766952966369,
+          "mad": 0.125,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 57.453982,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpPlugins",
           "before": 3,
           "after": 2.4,
-          "deltaAbs": -0.6,
-          "deltaPct": -25,
-          "std": 0.1,
-          "mad": 0.05
+          "deltaAbs": -0.6000000000000001,
+          "deltaPct": -25.000000000000007,
+          "std": 0.07071067811865481,
+          "mad": 0.050000000000000044,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 37.469988,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheHits",
           "before": 128,
           "after": 176,
           "deltaAbs": 48,
-          "deltaPct": 27.27,
-          "std": 7,
-          "mad": 3
+          "deltaPct": 27.27272727272727,
+          "std": 4.949747468305833,
+          "mad": 3.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": -42.822843,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheMisses",
           "before": 44,
           "after": 21,
           "deltaAbs": -23,
-          "deltaPct": -109.52,
-          "std": 1,
-          "mad": 1
+          "deltaPct": -109.52380952380953,
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 143.634954,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "largestContentfulPaint",
           "before": 120,
           "after": 105,
           "deltaAbs": -15,
-          "deltaPct": -14.29,
-          "std": 4.2,
-          "mad": 2.1
+          "deltaPct": -14.285714285714285,
+          "std": 2.9698484809835017,
+          "mad": 2.1000000000000014,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 22.303564,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "lcpMinusTtfb",
           "before": 66.28,
           "after": 63.1,
-          "deltaAbs": -3.18,
-          "deltaPct": -5.04,
-          "std": 2.52,
-          "mad": 1.26
+          "deltaAbs": -3.1799999999999997,
+          "deltaPct": -5.039619651347067,
+          "std": 1.781909088590102,
+          "mad": 1.2600000000000016,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 7.880593,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpExtObjCache",
           "before": 0,
           "after": 0,
-          "deltaAbs": 0,
-          "deltaPct": 0,
+          "deltaAbs": null,
+          "deltaPct": null,
           "std": 0,
-          "mad": 0
+          "mad": 0,
+          "significance": null
         }
       ]
     },
@@ -1262,18 +2201,34 @@
           "before": 53.72,
           "after": 41.9,
           "deltaAbs": -11.82,
-          "deltaPct": -28.21,
-          "std": 2.1,
-          "mad": 1.35
+          "deltaPct": -28.21002386634845,
+          "std": 1.484924240491751,
+          "mad": 1.0500000000000007,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 35.150417,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpMemoryUsage",
           "before": 34000000,
           "after": 30000000,
           "deltaAbs": -4000000,
-          "deltaPct": -13.33,
-          "std": 850000,
-          "mad": 500000
+          "deltaPct": -13.333333333333334,
+          "std": 601040.7640085653,
+          "mad": 425000,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 29.388226,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpDbQueries",
@@ -1281,80 +2236,145 @@
           "after": 20,
           "deltaAbs": -4,
           "deltaPct": -20,
-          "std": 1,
-          "mad": 1
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 24.979992,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpFilesLoaded",
           "before": 600,
           "after": 417,
           "deltaAbs": -183,
-          "deltaPct": -43.88,
-          "std": 3,
-          "mad": 2
+          "deltaPct": -43.884892086330936,
+          "std": 2.1213203435596424,
+          "mad": 1.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 380.944878,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpBootstrap",
           "before": 8.5,
           "after": 6.2,
           "deltaAbs": -2.3,
-          "deltaPct": -37.1,
-          "std": 0.25,
-          "mad": 0.12
+          "deltaPct": -37.096774193548384,
+          "std": 0.1767766952966369,
+          "mad": 0.125,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 57.453982,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpPlugins",
           "before": 3,
           "after": 2.4,
-          "deltaAbs": -0.6,
-          "deltaPct": -25,
-          "std": 0.1,
-          "mad": 0.05
+          "deltaAbs": -0.6000000000000001,
+          "deltaPct": -25.000000000000007,
+          "std": 0.07071067811865481,
+          "mad": 0.050000000000000044,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 37.469988,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheHits",
           "before": 128,
           "after": 176,
           "deltaAbs": 48,
-          "deltaPct": 27.27,
-          "std": 7,
-          "mad": 3
+          "deltaPct": 27.27272727272727,
+          "std": 4.949747468305833,
+          "mad": 3.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": -42.822843,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheMisses",
           "before": 44,
           "after": 21,
           "deltaAbs": -23,
-          "deltaPct": -109.52,
-          "std": 1,
-          "mad": 1
+          "deltaPct": -109.52380952380953,
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 143.634954,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "largestContentfulPaint",
           "before": 120,
           "after": 105,
           "deltaAbs": -15,
-          "deltaPct": -14.29,
-          "std": 4.2,
-          "mad": 2.1
+          "deltaPct": -14.285714285714285,
+          "std": 2.9698484809835017,
+          "mad": 2.1000000000000014,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 22.303564,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "lcpMinusTtfb",
           "before": 66.28,
           "after": 63.1,
-          "deltaAbs": -3.18,
-          "deltaPct": -5.04,
-          "std": 2.52,
-          "mad": 1.26
+          "deltaAbs": -3.1799999999999997,
+          "deltaPct": -5.039619651347067,
+          "std": 1.781909088590102,
+          "mad": 1.2600000000000016,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 7.880593,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpExtObjCache",
           "before": 0,
           "after": 0,
-          "deltaAbs": 0,
-          "deltaPct": 0,
+          "deltaAbs": null,
+          "deltaPct": null,
           "std": 0,
-          "mad": 0
+          "mad": 0,
+          "significance": null
         }
       ]
     },
@@ -1367,18 +2387,34 @@
           "before": 53.72,
           "after": 41.9,
           "deltaAbs": -11.82,
-          "deltaPct": -28.21,
-          "std": 2.1,
-          "mad": 1.35
+          "deltaPct": -28.21002386634845,
+          "std": 1.484924240491751,
+          "mad": 1.0500000000000007,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 35.150417,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpMemoryUsage",
           "before": 34000000,
           "after": 30000000,
           "deltaAbs": -4000000,
-          "deltaPct": -13.33,
-          "std": 850000,
-          "mad": 500000
+          "deltaPct": -13.333333333333334,
+          "std": 601040.7640085653,
+          "mad": 425000,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 29.388226,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpDbQueries",
@@ -1386,80 +2422,145 @@
           "after": 20,
           "deltaAbs": -4,
           "deltaPct": -20,
-          "std": 1,
-          "mad": 1
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 24.979992,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpFilesLoaded",
           "before": 600,
           "after": 417,
           "deltaAbs": -183,
-          "deltaPct": -43.88,
-          "std": 3,
-          "mad": 2
+          "deltaPct": -43.884892086330936,
+          "std": 2.1213203435596424,
+          "mad": 1.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 380.944878,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpBootstrap",
           "before": 8.5,
           "after": 6.2,
           "deltaAbs": -2.3,
-          "deltaPct": -37.1,
-          "std": 0.25,
-          "mad": 0.12
+          "deltaPct": -37.096774193548384,
+          "std": 0.1767766952966369,
+          "mad": 0.125,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 57.453982,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpPlugins",
           "before": 3,
           "after": 2.4,
-          "deltaAbs": -0.6,
-          "deltaPct": -25,
-          "std": 0.1,
-          "mad": 0.05
+          "deltaAbs": -0.6000000000000001,
+          "deltaPct": -25.000000000000007,
+          "std": 0.07071067811865481,
+          "mad": 0.050000000000000044,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 37.469988,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheHits",
           "before": 128,
           "after": 176,
           "deltaAbs": 48,
-          "deltaPct": 27.27,
-          "std": 7,
-          "mad": 3
+          "deltaPct": 27.27272727272727,
+          "std": 4.949747468305833,
+          "mad": 3.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": -42.822843,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheMisses",
           "before": 44,
           "after": 21,
           "deltaAbs": -23,
-          "deltaPct": -109.52,
-          "std": 1,
-          "mad": 1
+          "deltaPct": -109.52380952380953,
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 143.634954,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "largestContentfulPaint",
           "before": 120,
           "after": 105,
           "deltaAbs": -15,
-          "deltaPct": -14.29,
-          "std": 4.2,
-          "mad": 2.1
+          "deltaPct": -14.285714285714285,
+          "std": 2.9698484809835017,
+          "mad": 2.1000000000000014,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 22.303564,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "lcpMinusTtfb",
           "before": 66.28,
           "after": 63.1,
-          "deltaAbs": -3.18,
-          "deltaPct": -5.04,
-          "std": 2.52,
-          "mad": 1.26
+          "deltaAbs": -3.1799999999999997,
+          "deltaPct": -5.039619651347067,
+          "std": 1.781909088590102,
+          "mad": 1.2600000000000016,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 7.880593,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpExtObjCache",
           "before": 0,
           "after": 0,
-          "deltaAbs": 0,
-          "deltaPct": 0,
+          "deltaAbs": null,
+          "deltaPct": null,
           "std": 0,
-          "mad": 0
+          "mad": 0,
+          "significance": null
         }
       ]
     },
@@ -1472,18 +2573,34 @@
           "before": 53.72,
           "after": 41.9,
           "deltaAbs": -11.82,
-          "deltaPct": -28.21,
-          "std": 2.1,
-          "mad": 1.35
+          "deltaPct": -28.21002386634845,
+          "std": 1.484924240491751,
+          "mad": 1.0500000000000007,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 35.150417,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpMemoryUsage",
           "before": 34000000,
           "after": 30000000,
           "deltaAbs": -4000000,
-          "deltaPct": -13.33,
-          "std": 850000,
-          "mad": 500000
+          "deltaPct": -13.333333333333334,
+          "std": 601040.7640085653,
+          "mad": 425000,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 29.388226,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpDbQueries",
@@ -1491,80 +2608,145 @@
           "after": 20,
           "deltaAbs": -4,
           "deltaPct": -20,
-          "std": 1,
-          "mad": 1
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 24.979992,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpFilesLoaded",
           "before": 600,
           "after": 417,
           "deltaAbs": -183,
-          "deltaPct": -43.88,
-          "std": 3,
-          "mad": 2
+          "deltaPct": -43.884892086330936,
+          "std": 2.1213203435596424,
+          "mad": 1.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 380.944878,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpBootstrap",
           "before": 8.5,
           "after": 6.2,
           "deltaAbs": -2.3,
-          "deltaPct": -37.1,
-          "std": 0.25,
-          "mad": 0.12
+          "deltaPct": -37.096774193548384,
+          "std": 0.1767766952966369,
+          "mad": 0.125,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 57.453982,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpPlugins",
           "before": 3,
           "after": 2.4,
-          "deltaAbs": -0.6,
-          "deltaPct": -25,
-          "std": 0.1,
-          "mad": 0.05
+          "deltaAbs": -0.6000000000000001,
+          "deltaPct": -25.000000000000007,
+          "std": 0.07071067811865481,
+          "mad": 0.050000000000000044,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 37.469988,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheHits",
           "before": 128,
           "after": 176,
           "deltaAbs": 48,
-          "deltaPct": 27.27,
-          "std": 7,
-          "mad": 3
+          "deltaPct": 27.27272727272727,
+          "std": 4.949747468305833,
+          "mad": 3.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": -42.822843,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheMisses",
           "before": 44,
           "after": 21,
           "deltaAbs": -23,
-          "deltaPct": -109.52,
-          "std": 1,
-          "mad": 1
+          "deltaPct": -109.52380952380953,
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 143.634954,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "largestContentfulPaint",
           "before": 120,
           "after": 105,
           "deltaAbs": -15,
-          "deltaPct": -14.29,
-          "std": 4.2,
-          "mad": 2.1
+          "deltaPct": -14.285714285714285,
+          "std": 2.9698484809835017,
+          "mad": 2.1000000000000014,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 22.303564,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "lcpMinusTtfb",
           "before": 66.28,
           "after": 63.1,
-          "deltaAbs": -3.18,
-          "deltaPct": -5.04,
-          "std": 2.52,
-          "mad": 1.26
+          "deltaAbs": -3.1799999999999997,
+          "deltaPct": -5.039619651347067,
+          "std": 1.781909088590102,
+          "mad": 1.2600000000000016,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 7.880593,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpExtObjCache",
           "before": 0,
           "after": 0,
-          "deltaAbs": 0,
-          "deltaPct": 0,
+          "deltaAbs": null,
+          "deltaPct": null,
           "std": 0,
-          "mad": 0
+          "mad": 0,
+          "significance": null
         }
       ]
     },
@@ -1577,18 +2759,34 @@
           "before": 53.72,
           "after": 41.9,
           "deltaAbs": -11.82,
-          "deltaPct": -28.21,
-          "std": 2.1,
-          "mad": 1.35
+          "deltaPct": -28.21002386634845,
+          "std": 1.484924240491751,
+          "mad": 1.0500000000000007,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 35.150417,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpMemoryUsage",
           "before": 34000000,
           "after": 30000000,
           "deltaAbs": -4000000,
-          "deltaPct": -13.33,
-          "std": 850000,
-          "mad": 500000
+          "deltaPct": -13.333333333333334,
+          "std": 601040.7640085653,
+          "mad": 425000,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 29.388226,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpDbQueries",
@@ -1596,80 +2794,145 @@
           "after": 20,
           "deltaAbs": -4,
           "deltaPct": -20,
-          "std": 1,
-          "mad": 1
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 24.979992,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpFilesLoaded",
           "before": 600,
           "after": 417,
           "deltaAbs": -183,
-          "deltaPct": -43.88,
-          "std": 3,
-          "mad": 2
+          "deltaPct": -43.884892086330936,
+          "std": 2.1213203435596424,
+          "mad": 1.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 380.944878,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpBootstrap",
           "before": 8.5,
           "after": 6.2,
           "deltaAbs": -2.3,
-          "deltaPct": -37.1,
-          "std": 0.25,
-          "mad": 0.12
+          "deltaPct": -37.096774193548384,
+          "std": 0.1767766952966369,
+          "mad": 0.125,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 57.453982,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpPlugins",
           "before": 3,
           "after": 2.4,
-          "deltaAbs": -0.6,
-          "deltaPct": -25,
-          "std": 0.1,
-          "mad": 0.05
+          "deltaAbs": -0.6000000000000001,
+          "deltaPct": -25.000000000000007,
+          "std": 0.07071067811865481,
+          "mad": 0.050000000000000044,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 37.469988,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheHits",
           "before": 128,
           "after": 176,
           "deltaAbs": 48,
-          "deltaPct": 27.27,
-          "std": 7,
-          "mad": 3
+          "deltaPct": 27.27272727272727,
+          "std": 4.949747468305833,
+          "mad": 3.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": -42.822843,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheMisses",
           "before": 44,
           "after": 21,
           "deltaAbs": -23,
-          "deltaPct": -109.52,
-          "std": 1,
-          "mad": 1
+          "deltaPct": -109.52380952380953,
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 143.634954,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "largestContentfulPaint",
           "before": 120,
           "after": 105,
           "deltaAbs": -15,
-          "deltaPct": -14.29,
-          "std": 4.2,
-          "mad": 2.1
+          "deltaPct": -14.285714285714285,
+          "std": 2.9698484809835017,
+          "mad": 2.1000000000000014,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 22.303564,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "lcpMinusTtfb",
           "before": 66.28,
           "after": 63.1,
-          "deltaAbs": -3.18,
-          "deltaPct": -5.04,
-          "std": 2.52,
-          "mad": 1.26
+          "deltaAbs": -3.1799999999999997,
+          "deltaPct": -5.039619651347067,
+          "std": 1.781909088590102,
+          "mad": 1.2600000000000016,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 7.880593,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpExtObjCache",
           "before": 0,
           "after": 0,
-          "deltaAbs": 0,
-          "deltaPct": 0,
+          "deltaAbs": null,
+          "deltaPct": null,
           "std": 0,
-          "mad": 0
+          "mad": 0,
+          "significance": null
         }
       ]
     },
@@ -1682,18 +2945,34 @@
           "before": 53.72,
           "after": 41.9,
           "deltaAbs": -11.82,
-          "deltaPct": -28.21,
-          "std": 2.1,
-          "mad": 1.35
+          "deltaPct": -28.21002386634845,
+          "std": 1.484924240491751,
+          "mad": 1.0500000000000007,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 35.150417,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpMemoryUsage",
           "before": 34000000,
           "after": 30000000,
           "deltaAbs": -4000000,
-          "deltaPct": -13.33,
-          "std": 850000,
-          "mad": 500000
+          "deltaPct": -13.333333333333334,
+          "std": 601040.7640085653,
+          "mad": 425000,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 29.388226,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpDbQueries",
@@ -1701,80 +2980,145 @@
           "after": 20,
           "deltaAbs": -4,
           "deltaPct": -20,
-          "std": 1,
-          "mad": 1
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 24.979992,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpFilesLoaded",
           "before": 600,
           "after": 417,
           "deltaAbs": -183,
-          "deltaPct": -43.88,
-          "std": 3,
-          "mad": 2
+          "deltaPct": -43.884892086330936,
+          "std": 2.1213203435596424,
+          "mad": 1.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 380.944878,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpBootstrap",
           "before": 8.5,
           "after": 6.2,
           "deltaAbs": -2.3,
-          "deltaPct": -37.1,
-          "std": 0.25,
-          "mad": 0.12
+          "deltaPct": -37.096774193548384,
+          "std": 0.1767766952966369,
+          "mad": 0.125,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 57.453982,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpPlugins",
           "before": 3,
           "after": 2.4,
-          "deltaAbs": -0.6,
-          "deltaPct": -25,
-          "std": 0.1,
-          "mad": 0.05
+          "deltaAbs": -0.6000000000000001,
+          "deltaPct": -25.000000000000007,
+          "std": 0.07071067811865481,
+          "mad": 0.050000000000000044,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 37.469988,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheHits",
           "before": 128,
           "after": 176,
           "deltaAbs": 48,
-          "deltaPct": 27.27,
-          "std": 7,
-          "mad": 3
+          "deltaPct": 27.27272727272727,
+          "std": 4.949747468305833,
+          "mad": 3.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": -42.822843,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheMisses",
           "before": 44,
           "after": 21,
           "deltaAbs": -23,
-          "deltaPct": -109.52,
-          "std": 1,
-          "mad": 1
+          "deltaPct": -109.52380952380953,
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 143.634954,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "largestContentfulPaint",
           "before": 120,
           "after": 105,
           "deltaAbs": -15,
-          "deltaPct": -14.29,
-          "std": 4.2,
-          "mad": 2.1
+          "deltaPct": -14.285714285714285,
+          "std": 2.9698484809835017,
+          "mad": 2.1000000000000014,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 22.303564,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "lcpMinusTtfb",
           "before": 66.28,
           "after": 63.1,
-          "deltaAbs": -3.18,
-          "deltaPct": -5.04,
-          "std": 2.52,
-          "mad": 1.26
+          "deltaAbs": -3.1799999999999997,
+          "deltaPct": -5.039619651347067,
+          "std": 1.781909088590102,
+          "mad": 1.2600000000000016,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 7.880593,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpExtObjCache",
           "before": 0,
           "after": 0,
-          "deltaAbs": 0,
-          "deltaPct": 0,
+          "deltaAbs": null,
+          "deltaPct": null,
           "std": 0,
-          "mad": 0
+          "mad": 0,
+          "significance": null
         }
       ]
     },
@@ -1787,18 +3131,34 @@
           "before": 53.72,
           "after": 41.9,
           "deltaAbs": -11.82,
-          "deltaPct": -28.21,
-          "std": 2.1,
-          "mad": 1.35
+          "deltaPct": -28.21002386634845,
+          "std": 1.484924240491751,
+          "mad": 1.0500000000000007,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 35.150417,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpMemoryUsage",
           "before": 34000000,
           "after": 30000000,
           "deltaAbs": -4000000,
-          "deltaPct": -13.33,
-          "std": 850000,
-          "mad": 500000
+          "deltaPct": -13.333333333333334,
+          "std": 601040.7640085653,
+          "mad": 425000,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 29.388226,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpDbQueries",
@@ -1806,80 +3166,145 @@
           "after": 20,
           "deltaAbs": -4,
           "deltaPct": -20,
-          "std": 1,
-          "mad": 1
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 24.979992,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpFilesLoaded",
           "before": 600,
           "after": 417,
           "deltaAbs": -183,
-          "deltaPct": -43.88,
-          "std": 3,
-          "mad": 2
+          "deltaPct": -43.884892086330936,
+          "std": 2.1213203435596424,
+          "mad": 1.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 380.944878,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpBootstrap",
           "before": 8.5,
           "after": 6.2,
           "deltaAbs": -2.3,
-          "deltaPct": -37.1,
-          "std": 0.25,
-          "mad": 0.12
+          "deltaPct": -37.096774193548384,
+          "std": 0.1767766952966369,
+          "mad": 0.125,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 57.453982,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpPlugins",
           "before": 3,
           "after": 2.4,
-          "deltaAbs": -0.6,
-          "deltaPct": -25,
-          "std": 0.1,
-          "mad": 0.05
+          "deltaAbs": -0.6000000000000001,
+          "deltaPct": -25.000000000000007,
+          "std": 0.07071067811865481,
+          "mad": 0.050000000000000044,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 37.469988,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheHits",
           "before": 128,
           "after": 176,
           "deltaAbs": 48,
-          "deltaPct": 27.27,
-          "std": 7,
-          "mad": 3
+          "deltaPct": 27.27272727272727,
+          "std": 4.949747468305833,
+          "mad": 3.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": -42.822843,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheMisses",
           "before": 44,
           "after": 21,
           "deltaAbs": -23,
-          "deltaPct": -109.52,
-          "std": 1,
-          "mad": 1
+          "deltaPct": -109.52380952380953,
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 143.634954,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "largestContentfulPaint",
           "before": 120,
           "after": 105,
           "deltaAbs": -15,
-          "deltaPct": -14.29,
-          "std": 4.2,
-          "mad": 2.1
+          "deltaPct": -14.285714285714285,
+          "std": 2.9698484809835017,
+          "mad": 2.1000000000000014,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 22.303564,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "lcpMinusTtfb",
           "before": 66.28,
           "after": 63.1,
-          "deltaAbs": -3.18,
-          "deltaPct": -5.04,
-          "std": 2.52,
-          "mad": 1.26
+          "deltaAbs": -3.1799999999999997,
+          "deltaPct": -5.039619651347067,
+          "std": 1.781909088590102,
+          "mad": 1.2600000000000016,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 7.880593,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpExtObjCache",
           "before": 0,
           "after": 0,
-          "deltaAbs": 0,
-          "deltaPct": 0,
+          "deltaAbs": null,
+          "deltaPct": null,
           "std": 0,
-          "mad": 0
+          "mad": 0,
+          "significance": null
         }
       ]
     },
@@ -1892,18 +3317,34 @@
           "before": 53.72,
           "after": 41.9,
           "deltaAbs": -11.82,
-          "deltaPct": -28.21,
-          "std": 2.1,
-          "mad": 1.35
+          "deltaPct": -28.21002386634845,
+          "std": 1.484924240491751,
+          "mad": 1.0500000000000007,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 35.150417,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpMemoryUsage",
           "before": 34000000,
           "after": 30000000,
           "deltaAbs": -4000000,
-          "deltaPct": -13.33,
-          "std": 850000,
-          "mad": 500000
+          "deltaPct": -13.333333333333334,
+          "std": 601040.7640085653,
+          "mad": 425000,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 29.388226,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpDbQueries",
@@ -1911,80 +3352,145 @@
           "after": 20,
           "deltaAbs": -4,
           "deltaPct": -20,
-          "std": 1,
-          "mad": 1
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 24.979992,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpFilesLoaded",
           "before": 600,
           "after": 417,
           "deltaAbs": -183,
-          "deltaPct": -43.88,
-          "std": 3,
-          "mad": 2
+          "deltaPct": -43.884892086330936,
+          "std": 2.1213203435596424,
+          "mad": 1.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 380.944878,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpBootstrap",
           "before": 8.5,
           "after": 6.2,
           "deltaAbs": -2.3,
-          "deltaPct": -37.1,
-          "std": 0.25,
-          "mad": 0.12
+          "deltaPct": -37.096774193548384,
+          "std": 0.1767766952966369,
+          "mad": 0.125,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 57.453982,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpPlugins",
           "before": 3,
           "after": 2.4,
-          "deltaAbs": -0.6,
-          "deltaPct": -25,
-          "std": 0.1,
-          "mad": 0.05
+          "deltaAbs": -0.6000000000000001,
+          "deltaPct": -25.000000000000007,
+          "std": 0.07071067811865481,
+          "mad": 0.050000000000000044,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 37.469988,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheHits",
           "before": 128,
           "after": 176,
           "deltaAbs": 48,
-          "deltaPct": 27.27,
-          "std": 7,
-          "mad": 3
+          "deltaPct": 27.27272727272727,
+          "std": 4.949747468305833,
+          "mad": 3.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": -42.822843,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpCacheMisses",
           "before": 44,
           "after": 21,
           "deltaAbs": -23,
-          "deltaPct": -109.52,
-          "std": 1,
-          "mad": 1
+          "deltaPct": -109.52380952380953,
+          "std": 0.7071067811865476,
+          "mad": 0.5,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 143.634954,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "largestContentfulPaint",
           "before": 120,
           "after": 105,
           "deltaAbs": -15,
-          "deltaPct": -14.29,
-          "std": 4.2,
-          "mad": 2.1
+          "deltaPct": -14.285714285714285,
+          "std": 2.9698484809835017,
+          "mad": 2.1000000000000014,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 22.303564,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "lcpMinusTtfb",
           "before": 66.28,
           "after": 63.1,
-          "deltaAbs": -3.18,
-          "deltaPct": -5.04,
-          "std": 2.52,
-          "mad": 1.26
+          "deltaAbs": -3.1799999999999997,
+          "deltaPct": -5.039619651347067,
+          "std": 1.781909088590102,
+          "mad": 1.2600000000000016,
+          "significance": {
+            "test": "welch-two-sample-t",
+            "tStatistic": 7.880593,
+            "degreesOfFreedom": 78,
+            "pValue": 0,
+            "significant": true,
+            "alpha": 0.05
+          }
         },
         {
           "metric": "wpExtObjCache",
           "before": 0,
           "after": 0,
-          "deltaAbs": 0,
-          "deltaPct": 0,
+          "deltaAbs": null,
+          "deltaPct": null,
           "std": 0,
-          "mad": 0
+          "mad": 0,
+          "significance": null
         }
       ]
     }
