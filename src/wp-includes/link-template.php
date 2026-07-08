@@ -257,7 +257,14 @@ function get_permalink( $post = 0, $leavename = false ) {
 			$memo_epoch = $current_epoch;
 		}
 
-		$memo_key = $post->ID . '|' . ( $leavename ? '1' : '0' );
+		/*
+		 * The sample state is part of the key: for a protected (non-private)
+		 * post status wp_force_plain_post_permalink() returns a pretty URL only
+		 * when generating a sample link ( protected && $sample ) and a plain
+		 * ?p= URL otherwise, so a sample and a non-sample request for the same
+		 * post resolve to different URLs and must not share a memo entry.
+		 */
+		$memo_key = $post->ID . '|' . ( $leavename ? '1' : '0' ) . '|' . ( $sample ? '1' : '0' );
 
 		if ( isset( $memo[ $memo_key ] ) ) {
 			/** This filter is documented in wp-includes/link-template.php */

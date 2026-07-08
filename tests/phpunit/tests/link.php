@@ -96,6 +96,54 @@ class Tests_Link extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Ensures the request-scoped get_permalink() memoization does not allow a
+	 * sample permalink to leak into a later non-sample lookup for a protected
+	 * (non-private) post status.
+	 *
+	 * For a protected status such as 'future', wp_force_plain_post_permalink()
+	 * returns a pretty URL only when generating a sample link and a plain "?p="
+	 * URL otherwise, so the memo key must distinguish the sample state. This is
+	 * a regression guard for that memoization.
+	 *
+	 * @covers ::get_permalink
+	 */
+	public function test_get_permalink_memo_should_not_leak_sample_url_for_protected_status() {
+		update_option( 'permalink_structure', '/%year%/%monthnum%/%day%/%postname%/' );
+
+		flush_rewrite_rules();
+
+		$p = self::factory()->post->create(
+			array(
+				'post_status' => 'future',
+				'post_date'   => date_format( date_create( '+1 day' ), 'Y-m-d H:i:s' ),
+			)
+		);
+
+		$non_pretty_permalink = add_query_arg( 'p', $p, trailingslashit( home_url() ) );
+
+		/*
+		 * Prime the memo with a sample link first. get_sample_permalink() sets
+		 * the post's filter to 'sample', which forces the pretty URL form for a
+		 * protected status; replicate that here on a clone so the cached post
+		 * object is not mutated.
+		 */
+		$sample_post         = clone get_post( $p );
+		$sample_post->filter = 'sample';
+		$sample_permalink    = get_permalink( $sample_post );
+
+		// The sample link is the pretty form and must differ from the plain URL.
+		$this->assertNotSame(
+			$non_pretty_permalink,
+			$sample_permalink,
+			'The sample permalink for a future post should be the pretty form.'
+		);
+
+		// A subsequent non-sample lookup must return the plain "?p=" URL and
+		// must not return the memoized sample (pretty) URL.
+		$this->assertSame( $non_pretty_permalink, get_permalink( $p ) );
+	}
+
+	/**
 	 * @ticket 30910
 	 */
 	public function test_get_permalink_should_not_reveal_post_name_for_cpt_with_post_status_future() {

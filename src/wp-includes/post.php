@@ -7799,6 +7799,15 @@ function clean_post_cache( $post ) {
 /**
  * Updates post, term, and metadata caches for a list of post objects.
  *
+ * This is the batch cache-priming entry point that WP_Query calls once for a
+ * full result set: the term relationships for every post are primed in a single
+ * update_object_term_cache() call and the post metadata for every post in one
+ * update_postmeta_cache() call (controlled by `$update_term_cache` and
+ * `$update_meta_cache`, both enabled by default). Priming the whole set up front
+ * lets later per-post reads in a template loop - get_the_terms(),
+ * get_post_meta(), has_post_thumbnail() and similar - resolve from the object
+ * cache instead of issuing one database query per post.
+ *
  * @since 1.5.0
  *
  * @param WP_Post[] $posts             Array of post objects (passed by reference).
@@ -7894,6 +7903,11 @@ function update_post_parent_caches( $posts ) {
  * Performs SQL query to retrieve the metadata for the post IDs and updates the
  * metadata cache for the posts. Therefore, the functions, which call this
  * function, do not need to perform SQL queries on their own.
+ *
+ * The lookup is a single batched query for all supplied IDs via
+ * update_meta_cache(), so priming a post set here means subsequent
+ * get_post_meta() reads for those posts are served from the meta cache without a
+ * per-post query.
  *
  * @since 2.1.0
  *
@@ -8288,6 +8302,13 @@ function _update_term_count_on_transition_post_status( $new_status, $old_status,
 
 /**
  * Adds any posts from the given IDs to the cache that do not already exist in cache.
+ *
+ * The posts missing from the cache are fetched with a single IN() query and,
+ * when requested, their term relationships and metadata are primed in bulk
+ * through update_post_caches(). This is the mechanism WP_Query and related
+ * callers use to prime an entire post set in a fixed number of queries, so that
+ * later reads for those posts resolve from cache rather than falling back to a
+ * per-post lookup.
  *
  * @since 3.4.0
  * @since 6.1.0 This function is no longer marked as "private".

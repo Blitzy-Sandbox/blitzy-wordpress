@@ -50,7 +50,7 @@ if ( empty( $load ) ) {
 
 $rtl            = ( isset( $_GET['dir'] ) && 'rtl' === $_GET['dir'] );
 $expires_offset = 31536000; // 1 year.
-$out            = '';
+$parts          = array();
 
 $wp_styles = new WP_Styles();
 wp_default_styles( $wp_styles );
@@ -62,6 +62,17 @@ if ( isset( $_SERVER['HTTP_IF_NONE_MATCH'] ) && stripslashes( $_SERVER['HTTP_IF_
 	exit;
 }
 
+/*
+ * Concatenate the requested styles in a single pass.
+ *
+ * Each registered handle's (path-rewritten) contents are collected into a
+ * buffer and joined once with implode(), rather than repeatedly growing the
+ * output string on every iteration. This avoids reallocating an ever-growing
+ * buffer while producing byte-identical output: the same per-handle contents,
+ * in the same requested order, as the previous string concatenation.
+ *
+ * @since 7.0.0
+ */
 foreach ( $load as $handle ) {
 	if ( ! array_key_exists( $handle, $wp_styles->registered ) ) {
 		continue;
@@ -87,11 +98,13 @@ foreach ( $load as $handle ) {
 		$content = str_replace( '../images/', '../' . WPINC . '/images/', $content );
 		$content = str_replace( '../js/tinymce/', '../' . WPINC . '/js/tinymce/', $content );
 		$content = str_replace( '../fonts/', '../' . WPINC . '/fonts/', $content );
-		$out    .= $content;
+		$parts[] = $content;
 	} else {
-		$out .= str_replace( '../images/', 'images/', $content );
+		$parts[] = str_replace( '../images/', 'images/', $content );
 	}
 }
+
+$out = implode( '', $parts );
 
 header( "Etag: $etag" );
 header( 'Content-Type: text/css; charset=UTF-8' );

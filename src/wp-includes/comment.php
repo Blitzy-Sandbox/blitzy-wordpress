@@ -527,6 +527,11 @@ function get_comment_meta( $comment_id, $key = '', $single = false ) {
 /**
  * Queue comment meta for lazy-loading.
  *
+ * Rather than querying comment meta immediately, the IDs are added to the
+ * metadata lazy-load queue. The first get_comment_meta() read for any queued
+ * comment triggers a single batched query that primes the meta cache for every
+ * queued comment at once, eliminating per-comment meta queries in comment loops.
+ *
  * @since 6.3.0
  *
  * @param array $comment_ids List of comment IDs.
@@ -3435,6 +3440,13 @@ function clean_comment_cache( $ids ) {
  * in the comment cache then it will not be updated. The comment is added to the
  * cache using the comment group with the key using the ID of the comments.
  *
+ * When `$update_meta_cache` is true, the comment meta for the whole set of
+ * comment IDs is queued for lazy-loading through wp_lazyload_comment_meta()
+ * rather than queried immediately, so the first get_comment_meta() call for the
+ * set primes all of their meta in a single query. This is how WP_Comment_Query
+ * (via its 'update_comment_meta_cache' argument, enabled by default) avoids a
+ * per-comment meta query when a comment list is rendered.
+ *
  * @since 2.3.0
  * @since 4.4.0 Introduced the `$update_meta_cache` parameter.
  *
@@ -3460,6 +3472,11 @@ function update_comment_cache( $comments, $update_meta_cache = true ) {
 
 /**
  * Adds any comments from the given IDs to the cache that do not already exist in cache.
+ *
+ * The comments missing from the cache are fetched with a single IN() query and
+ * passed to update_comment_cache(), which additionally queues their comment meta
+ * for batch lazy-loading. Priming an entire comment set this way keeps the query
+ * count fixed regardless of how many of those comments are later read.
  *
  * @since 4.4.0
  * @since 6.1.0 This function is no longer marked as "private".

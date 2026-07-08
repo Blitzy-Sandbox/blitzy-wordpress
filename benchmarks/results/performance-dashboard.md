@@ -174,8 +174,8 @@ flushes the object cache coarsely.
 flowchart TD
     subgraph BEFORE["Runtime Path — Before (Eager, always-on)"]
         direction TB
-        A["HTTP Request"] --> B["wp-settings.php<br/>324 eager require/include statements"]
-        B --> C["All subsystems loaded<br/>block editor, REST, new-7.0, admin<br/>regardless of context"]
+        A["HTTP Request"] --> B["wp-settings.php<br/>eager require/include bootstrap chain"]
+        B --> C["All subsystems loaded eagerly<br/>including the 53 REST controller classes<br/>regardless of context"]
         C --> D["default-filters.php<br/>465 hook registrations"]
         D --> E["WP_Hook dispatch<br/>always call_user_func_array"]
         E --> F["WP_Query<br/>per-object meta/term queries (N+1)"]
@@ -193,18 +193,21 @@ flowchart TD
 request; the entire chain runs in full regardless of whether the request is front-end,
 admin, REST, or AJAX. This is the state measured as the baseline (`before` column).*
 
-The diagram **Runtime Path — After (Deferred)** shows the optimized target: a context branch
-that loads only the files a given request needs, an arity-aware hook dispatcher with a
-fast-path for empty callbacks, batch metadata/term priming, multi-get / granular cache
-invalidation with per-group hit/miss counters, and the seven Server-Timing metrics emitted in
-the test environment.
+The diagram **Runtime Path — After (Deferred)** shows the optimized target: on a non-REST
+front-end request the bootstrap defers the 53 REST controller classes to `rest_api_init`
+behind an `spl_autoload_register()` safety net (every other context still loads them eagerly),
+an arity-aware hook dispatcher with a fast-path for empty callbacks, batch metadata/term
+priming, multi-get / granular cache invalidation with per-group hit/miss counters, and the
+seven Server-Timing metrics emitted in the test environment.
 
 ```mermaid
 flowchart TD
     subgraph AFTER["Runtime Path — After (Context-aware, deferred)"]
         direction TB
-        A2["HTTP Request"] --> CTX{"Detect context<br/>front-end / admin / REST / AJAX"}
-        CTX --> B2["wp-settings.php<br/>load only files needed for context"]
+        A2["HTTP Request"] --> CTX{"Non-REST front-end?<br/>WP_USE_THEMES and not is_admin<br/>and not wp_is_rest_request"}
+        CTX -->|"yes"| B2["wp-settings.php<br/>defer 53 REST controller classes to rest_api_init<br/>+ spl_autoload_register safety net"]
+        CTX -->|"no (REST / admin / AJAX / cron / CLI)"| B3["wp-settings.php<br/>load all 53 REST controllers eagerly"]
+        B3 --> D2
         B2 --> D2["default-filters.php<br/>same 465 registrations preserved"]
         D2 --> E2["WP_Hook dispatch<br/>arity tree: direct call for 0-1 args<br/>fast-path empty-callback check"]
         E2 --> F2["WP_Query<br/>batch prime meta/terms in bulk queries"]
@@ -214,16 +217,18 @@ flowchart TD
     end
     subgraph LEGA["Legend"]
         direction TB
-        LA1["Diamond = context branch (front-end / admin / REST / AJAX)"]
-        LA2["Only context-relevant subsystems load; public contracts unchanged"]
+        LA1["Diamond = non-REST front-end predicate (wp_is_rest_request)"]
+        LA2["Yes = defer 53 REST controllers; No = load eagerly; contracts unchanged"]
     end
 ```
 
-*Legend — **Runtime Path — After (Deferred)**: the diamond is the request-context branch;
-only context-relevant subsystems load; the same 465 hook registrations and every public API
-signature are preserved, so functional output is byte-identical. This is the state measured
-as the optimized result (`after` column), and the added `Server-Timing` emission is the
-observability substrate described in §2.*
+*Legend — **Runtime Path — After (Deferred)**: the diamond is the non-REST front-end
+predicate; when it is true the bootstrap defers the 53 REST controller classes to
+`rest_api_init` behind an `spl_autoload_register()` safety net, and every other context (REST,
+admin, AJAX, cron, CLI) loads them eagerly; the same 465 hook registrations and every public
+API signature are preserved, so functional output is byte-identical. This is the state
+measured as the optimized result (`after` column), and the added `Server-Timing` emission is
+the observability substrate described in §2.*
 
 ---
 
