@@ -270,6 +270,7 @@
     .status-badge svg{ width:18px; height:18px; }
     .status-badge.met{ background:rgba(46,204,113,.12); color:var(--blitzy-success); border-color:rgba(46,204,113,.35); }
     .status-badge.partial{ background:rgba(245,166,35,.12); color:var(--blitzy-warn); border-color:rgba(245,166,35,.4); }
+    .status-badge.open{ background:rgba(154,163,199,.1); color:var(--blitzy-text-muted); border-color:rgba(154,163,199,.3); }
 
     /* ============================================================
        COMPONENT: process row (mission)
@@ -316,6 +317,7 @@
     }
     .score-row.met{ border-left-color:var(--blitzy-success); }
     .score-row.partial{ border-left-color:var(--blitzy-warn); }
+    .score-row.open{ border-left-color:var(--blitzy-text-dim); }
     .score-row .s-ico{
       width:42px; height:42px; border-radius:11px; flex:none;
       background:rgba(79,107,255,.14); color:var(--blitzy-accent);
@@ -327,10 +329,12 @@
     .score-row .s-pct{ font-family:var(--blitzy-font-mono); font-weight:600; font-size:.56em; text-align:right; }
     .score-row.met .s-pct{ color:var(--blitzy-success); }
     .score-row.partial .s-pct{ color:var(--blitzy-warn); }
+    .score-row.open .s-pct{ color:var(--blitzy-text-muted); }
     .score-row .s-status{ display:flex; align-items:center; }
     .score-row .s-status svg{ width:26px; height:26px; }
     .score-row.met .s-status{ color:var(--blitzy-success); }
     .score-row.partial .s-status{ color:var(--blitzy-warn); }
+    .score-row.open .s-status{ color:var(--blitzy-text-dim); }
 
     /* ============================================================
        COMPONENT: before/after comparison bars
@@ -377,6 +381,7 @@
     .legend .dot.metric{ background:var(--blitzy-accent-3); }
     .legend .dot.met{ background:var(--blitzy-success); }
     .legend .dot.partial{ background:var(--blitzy-warn); }
+    .legend .dot.open{ background:var(--blitzy-text-dim); }
 
     /* ============================================================
        COMPONENT: risk / mitigation table
@@ -560,45 +565,46 @@
       <section>
         <div class="slide-head">
           <span class="eyebrow"><i data-lucide="clipboard-check" aria-hidden="true"></i> Executive Summary</span>
-          <h2>5 of 6 targets met &mdash; all tests green</h2>
+          <h2>Real gains, measured honestly &mdash; every test still green</h2>
         </div>
         <div class="kpi-grid">
-          <div class="kpi-card met">
+          <div class="kpi-card partial">
             <span class="accent-bar"></span>
             <div class="kpi-head">
               <div class="kpi-icon"><i data-lucide="files" aria-hidden="true"></i></div>
               <div class="kpi-label">PHP files loaded<br>per front-end request</div>
             </div>
-            <div class="kpi-value">600 &rarr; 417</div>
-            <div class="kpi-delta"><span class="kpi-pct">-30.50%</span><span>largest single win</span></div>
+            <div class="kpi-value">493 &rarr; 431</div>
+            <div class="kpi-delta"><span class="kpi-pct">-12.58%</span><span>largest win &middot; target &ge;30%</span></div>
           </div>
-          <div class="kpi-card met">
+          <div class="kpi-card partial">
             <span class="accent-bar"></span>
             <div class="kpi-head">
               <div class="kpi-icon"><i data-lucide="rocket" aria-hidden="true"></i></div>
               <div class="kpi-label">Front-end time<br>to first byte</div>
             </div>
-            <div class="kpi-value">53.72 &rarr; 41.90</div>
-            <div class="kpi-delta"><span class="kpi-pct">-22.00%</span><span>milliseconds</span></div>
+            <div class="kpi-value">390.6 &rarr; 351.3</div>
+            <div class="kpi-delta"><span class="kpi-pct">-10.06%</span><span>milliseconds &middot; target &ge;20%</span></div>
           </div>
-          <div class="kpi-card met">
+          <div class="kpi-card partial">
             <span class="accent-bar"></span>
             <div class="kpi-head">
-              <div class="kpi-icon"><i data-lucide="database" aria-hidden="true"></i></div>
-              <div class="kpi-label">Database queries<br>per front-end page</div>
+              <div class="kpi-icon"><i data-lucide="cpu" aria-hidden="true"></i></div>
+              <div class="kpi-label">PHP memory<br>per front-end request</div>
             </div>
-            <div class="kpi-value">24 &rarr; 20</div>
-            <div class="kpi-delta"><span class="kpi-pct">-16.67%</span><span>round-trips</span></div>
+            <div class="kpi-value">6.77 &rarr; 6.41</div>
+            <div class="kpi-delta"><span class="kpi-pct">-5.31%</span><span>megabytes &middot; target &ge;10%</span></div>
           </div>
         </div>
         <div class="badge-row">
-          <span class="status-badge met"><i data-lucide="check-circle" aria-hidden="true"></i> TTFB</span>
-          <span class="status-badge met"><i data-lucide="check-circle" aria-hidden="true"></i> Admin DCL</span>
-          <span class="status-badge partial"><i data-lucide="alert-triangle" aria-hidden="true"></i> Admin JS (partial)</span>
-          <span class="status-badge met"><i data-lucide="check-circle" aria-hidden="true"></i> Memory</span>
-          <span class="status-badge met"><i data-lucide="check-circle" aria-hidden="true"></i> DB queries</span>
-          <span class="status-badge met"><i data-lucide="check-circle" aria-hidden="true"></i> Files loaded</span>
+          <span class="status-badge partial"><i data-lucide="trending-down" aria-hidden="true"></i> TTFB -10.06%</span>
+          <span class="status-badge partial"><i data-lucide="trending-down" aria-hidden="true"></i> Memory -5.31%</span>
+          <span class="status-badge partial"><i data-lucide="trending-down" aria-hidden="true"></i> Files -12.58%</span>
+          <span class="status-badge open"><i data-lucide="minus" aria-hidden="true"></i> Admin DCL flat</span>
+          <span class="status-badge open"><i data-lucide="minus" aria-hidden="true"></i> Admin JS flat</span>
+          <span class="status-badge open"><i data-lucide="minus" aria-hidden="true"></i> DB queries flat</span>
         </div>
+        <p class="mt-2"><strong>0 of 6</strong> aggressive targets met; three metrics show genuine, statistically-significant improvement below target and three are flat. All improvements are bounded by a strict byte-identical-output guarantee &mdash; and this replaces earlier fabricated figures with honest measurements.</p>
       </section>
 
       <!-- ===== Slide 4 — Divider: Business Value ===== -->
@@ -619,7 +625,7 @@
           <div class="icon-card">
             <div class="ic"><i data-lucide="timer" aria-hidden="true"></i></div>
             <h3>Faster pages</h3>
-            <p>A 22% quicker first byte keeps visitors engaged and lifts conversion on every page view.</p>
+            <p>A 10% quicker first byte and 62 fewer files per request keep visitors engaged and lift conversion.</p>
           </div>
           <div class="icon-card">
             <div class="ic"><i data-lucide="server" aria-hidden="true"></i></div>
@@ -647,55 +653,55 @@
         </div>
         <div class="two-col">
           <div class="score-list">
-            <div class="score-row met">
-              <div class="s-ico"><i data-lucide="rocket" aria-hidden="true"></i></div>
-              <div><div class="s-label">Front-end TTFB (uncached)</div><div class="s-sub">53.72 &rarr; 41.90 ms &middot; target &ge;20%</div></div>
-              <div class="s-pct">-22.00%</div>
-              <div class="s-status"><i data-lucide="check-circle" aria-hidden="true"></i></div>
-            </div>
-            <div class="score-row met">
-              <div class="s-ico"><i data-lucide="monitor" aria-hidden="true"></i></div>
-              <div><div class="s-label">Admin DOMContentLoaded</div><div class="s-sub">50.66 &rarr; 42.05 ms &middot; target &ge;15%</div></div>
-              <div class="s-pct">-17.00%</div>
-              <div class="s-status"><i data-lucide="check-circle" aria-hidden="true"></i></div>
-            </div>
             <div class="score-row partial">
-              <div class="s-ico"><i data-lucide="file-code-2" aria-hidden="true"></i></div>
-              <div><div class="s-label">Admin JS transfer (gzipped)</div><div class="s-sub">512.00 &rarr; 420.00 KB &middot; target &ge;30%</div></div>
-              <div class="s-pct">-17.97%</div>
+              <div class="s-ico"><i data-lucide="rocket" aria-hidden="true"></i></div>
+              <div><div class="s-label">Front-end TTFB (uncached)</div><div class="s-sub">390.6 &rarr; 351.3 ms &middot; target &ge;20%</div></div>
+              <div class="s-pct">-10.06%</div>
               <div class="s-status"><i data-lucide="alert-triangle" aria-hidden="true"></i></div>
             </div>
-            <div class="score-row met">
+            <div class="score-row open">
+              <div class="s-ico"><i data-lucide="monitor" aria-hidden="true"></i></div>
+              <div><div class="s-label">Admin DOMContentLoaded</div><div class="s-sub">1026.75 &rarr; 1028.50 ms &middot; target &ge;15%</div></div>
+              <div class="s-pct">-0.17%</div>
+              <div class="s-status"><i data-lucide="minus" aria-hidden="true"></i></div>
+            </div>
+            <div class="score-row open">
+              <div class="s-ico"><i data-lucide="file-code-2" aria-hidden="true"></i></div>
+              <div><div class="s-label">Admin JS transfer (gzipped)</div><div class="s-sub">11296.12 &rarr; 11296.68 KB &middot; target &ge;30%</div></div>
+              <div class="s-pct">-0.00%</div>
+              <div class="s-status"><i data-lucide="minus" aria-hidden="true"></i></div>
+            </div>
+            <div class="score-row partial">
               <div class="s-ico"><i data-lucide="cpu" aria-hidden="true"></i></div>
-              <div><div class="s-label">PHP memory per request</div><div class="s-sub">34.00 &rarr; 30.00 MB &middot; target &ge;10%</div></div>
-              <div class="s-pct">-11.76%</div>
-              <div class="s-status"><i data-lucide="check-circle" aria-hidden="true"></i></div>
+              <div><div class="s-label">PHP memory per request</div><div class="s-sub">6.77 &rarr; 6.41 MB &middot; target &ge;10%</div></div>
+              <div class="s-pct">-5.31%</div>
+              <div class="s-status"><i data-lucide="alert-triangle" aria-hidden="true"></i></div>
             </div>
-            <div class="score-row met">
+            <div class="score-row open">
               <div class="s-ico"><i data-lucide="database" aria-hidden="true"></i></div>
-              <div><div class="s-label">DB queries per page</div><div class="s-sub">24 &rarr; 20 &middot; target &ge;15%</div></div>
-              <div class="s-pct">-16.67%</div>
-              <div class="s-status"><i data-lucide="check-circle" aria-hidden="true"></i></div>
+              <div><div class="s-label">DB queries per page</div><div class="s-sub">21 &rarr; 21 &middot; target &ge;15%</div></div>
+              <div class="s-pct">0.00%</div>
+              <div class="s-status"><i data-lucide="minus" aria-hidden="true"></i></div>
             </div>
-            <div class="score-row met">
+            <div class="score-row partial">
               <div class="s-ico"><i data-lucide="files" aria-hidden="true"></i></div>
-              <div><div class="s-label">PHP files loaded per request</div><div class="s-sub">600 &rarr; 417 &middot; target &ge;30%</div></div>
-              <div class="s-pct">-30.50%</div>
-              <div class="s-status"><i data-lucide="check-circle" aria-hidden="true"></i></div>
+              <div><div class="s-label">PHP files loaded per request</div><div class="s-sub">493 &rarr; 431 &middot; target &ge;30%</div></div>
+              <div class="s-pct">-12.58%</div>
+              <div class="s-status"><i data-lucide="alert-triangle" aria-hidden="true"></i></div>
             </div>
           </div>
           <div>
-            <div class="diagram-title"><i data-lucide="pie-chart" aria-hidden="true"></i> KPI Attainment</div>
+            <div class="diagram-title"><i data-lucide="pie-chart" aria-hidden="true"></i> KPI Outcomes</div>
             <div class="diagram-wrap">
               <div class="mermaid">
-pie title KPI Attainment (5 met / 1 partial)
-    "Targets met" : 5
-    "Partial (Admin JS)" : 1
+pie title KPI outcomes (0 of 6 met target)
+    "Improved, below target" : 3
+    "Flat / no change" : 3
               </div>
             </div>
             <div class="legend">
-              <span class="lg"><span class="dot met"></span> Targets met (5)</span>
-              <span class="lg"><span class="dot partial"></span> Partial &mdash; Admin JS (1)</span>
+              <span class="lg"><span class="dot partial"></span> Improved, below target (3)</span>
+              <span class="lg"><span class="dot open"></span> Flat / no change (3)</span>
             </div>
           </div>
         </div>
@@ -707,21 +713,21 @@ pie title KPI Attainment (5 met / 1 partial)
           <span class="eyebrow"><i data-lucide="rocket" aria-hidden="true"></i> Deep Dive &middot; Speed</span>
           <h2>The front-end got faster by loading less</h2>
         </div>
-        <p class="lead">Deferring the 53 REST controller classes on non-REST front-end requests cut the files parsed per request, which drives both a faster first byte and lower memory.</p>
+        <p class="lead">Deferring REST controllers and nine new-7.0 subsystem classes on non-REST front-end requests cut 62 files (12.58%) parsed per request, which drives both a faster first byte and lower memory &mdash; all while emitting byte-identical HTML.</p>
         <div class="bars">
           <div class="bar-group">
-            <div class="bar-label"><span>Front-end TTFB (uncached)</span><span class="pct">-22.00%</span></div>
+            <div class="bar-label"><span>Front-end TTFB (uncached)</span><span class="pct">-10.06%</span></div>
             <div class="bar-tag">Before</div>
-            <div class="bar-track"><div class="bar-fill before" style="width:100%">53.72 ms</div></div>
+            <div class="bar-track"><div class="bar-fill before" style="width:100%">390.6 ms</div></div>
             <div class="bar-tag">After</div>
-            <div class="bar-track"><div class="bar-fill after" style="width:78%">41.90 ms</div></div>
+            <div class="bar-track"><div class="bar-fill after" style="width:89.9%">351.3 ms</div></div>
           </div>
           <div class="bar-group">
-            <div class="bar-label"><span>PHP files loaded per request</span><span class="pct">-30.50%</span></div>
+            <div class="bar-label"><span>PHP files loaded per request</span><span class="pct">-12.58%</span></div>
             <div class="bar-tag">Before</div>
-            <div class="bar-track"><div class="bar-fill before" style="width:100%">600 files</div></div>
+            <div class="bar-track"><div class="bar-fill before" style="width:100%">493 files</div></div>
             <div class="bar-tag">After</div>
-            <div class="bar-track"><div class="bar-fill after" style="width:69.5%">417 files</div></div>
+            <div class="bar-track"><div class="bar-fill after" style="width:87.4%">431 files</div></div>
           </div>
         </div>
       </section>
@@ -730,29 +736,29 @@ pie title KPI Attainment (5 met / 1 partial)
       <section>
         <div class="slide-head">
           <span class="eyebrow"><i data-lucide="activity" aria-hidden="true"></i> Deep Dive &middot; Efficiency</span>
-          <h2>Fewer database queries, less memory per request</h2>
+          <h2>Lighter memory &mdash; and why queries are already at the floor</h2>
         </div>
-        <p class="lead">Batch priming and N+1 elimination collapse repeated per-object lookups into single bulk reads served from the object cache.</p>
+        <p class="lead">Batch priming and N+1 elimination were already present at the WordPress 6.1+ baseline, so query count holds at its floor; the honest efficiency win lands in memory held per request.</p>
         <div class="stat-duo">
           <div class="stat-big">
             <div class="sb-ico"><i data-lucide="cpu" aria-hidden="true"></i></div>
             <div class="sb-label">PHP memory per front-end request</div>
             <div class="sb-flow">
-              <span class="sb-before">34.00 MB</span>
+              <span class="sb-before">6.77 MB</span>
               <span class="sb-arrow"><i data-lucide="arrow-right" aria-hidden="true"></i></span>
-              <span class="sb-after">30.00 MB</span>
+              <span class="sb-after">6.41 MB</span>
             </div>
-            <div class="sb-pct"><i data-lucide="trending-down" aria-hidden="true"></i> 11.76% lighter</div>
+            <div class="sb-pct"><i data-lucide="trending-down" aria-hidden="true"></i> 5.31% lighter &middot; target &ge;10%</div>
           </div>
           <div class="stat-big">
             <div class="sb-ico"><i data-lucide="database" aria-hidden="true"></i></div>
             <div class="sb-label">Database queries per front-end page</div>
             <div class="sb-flow">
-              <span class="sb-before">24</span>
+              <span class="sb-before" style="text-decoration:none;color:var(--blitzy-text-dim)">21</span>
               <span class="sb-arrow"><i data-lucide="arrow-right" aria-hidden="true"></i></span>
-              <span class="sb-after">20</span>
+              <span class="sb-after">21</span>
             </div>
-            <div class="sb-pct"><i data-lucide="trending-down" aria-hidden="true"></i> 16.67% fewer round-trips</div>
+            <div class="sb-pct" style="color:var(--blitzy-text-muted)"><i data-lucide="minus" aria-hidden="true"></i> 0.00% &middot; already at batched floor</div>
           </div>
         </div>
       </section>
@@ -890,8 +896,8 @@ graph LR
             </tr>
             <tr>
               <td><span class="rk"><i data-lucide="alert-triangle" aria-hidden="true"></i> Admin JS &ge;30% target</span></td>
-              <td>Runtime conditional loading lands 17.97% now; webpack cannot split the Grunt-uglified admin JS, so reaching the target means relocating admin JS onto webpack entry points &mdash; the prioritized next step.</td>
-              <td><span class="st open">Partial</span></td>
+              <td>Admin JS transfer is essentially flat (-0.00%): the admin bundles load eagerly by design and webpack cannot split the Grunt-uglified admin JS, so reaching the target requires relocating admin JS onto webpack entry points with splitChunks &mdash; the prioritized next step, deferred under the minimal-diff principle.</td>
+              <td><span class="st open">Deferred</span></td>
             </tr>
             <tr>
               <td><span class="rk"><i data-lucide="git-branch" aria-hidden="true"></i> Minimal-diff discipline</span></td>
@@ -923,7 +929,7 @@ graph LR
           <div class="step-item">
             <div class="num">2</div>
             <div class="sico"><i data-lucide="play" aria-hidden="true"></i></div>
-            <div class="stext"><strong>Capture baseline, then optimized</strong>Run <code>run-baseline.sh</code> then <code>run-optimized.sh</code> &mdash; 20 iterations with 2 repetitions each for statistical stability.</div>
+            <div class="stext"><strong>Capture baseline, then optimized</strong>Run <code>run-baseline.sh</code> then <code>run-optimized.sh</code> &mdash; the committed run used 10 iterations with 2 repetitions each for statistical stability.</div>
           </div>
           <div class="step-item">
             <div class="num">3</div>
@@ -942,7 +948,7 @@ graph LR
       <section class="slide-closing" data-background-gradient="radial-gradient(circle at 50% 38%, #1A1F38 0%, #070912 78%)">
         <div class="closing-mark"><i data-lucide="check-circle" aria-hidden="true"></i></div>
         <h1>Faster by evidence</h1>
-        <p class="lead">5 of 6 targets met, with baseline test parity preserved across the 28,930 PHPUnit and 456 QUnit suites. The measurement harness ships with the code, so every future gain is provable too.</p>
+        <p class="lead">Three genuine, statistically-significant improvements &mdash; files -12.58%, TTFB -10.06%, memory -5.31% &mdash; with baseline test parity preserved across the 28,930 PHPUnit and 456 QUnit suites. No target was inflated: the measurement harness ships with the code, so every future gain is provable too.</p>
         <div class="next-list">
           <span class="next-chip"><i data-lucide="file-code-2" aria-hidden="true"></i> Move admin JS onto webpack entry points</span>
           <span class="next-chip"><i data-lucide="boxes" aria-hidden="true"></i> Audit 35 remaining REST controllers</span>
@@ -983,8 +989,8 @@ graph LR
         textColor: '#E6E9F5',
         clusterBkg: '#121629',
         clusterBorder: '#2A3157',
-        pie1: '#2ecc71',
-        pie2: '#f5a623',
+        pie1: '#f5a623',
+        pie2: '#6b7399',
         pieTitleTextColor: '#E6E9F5',
         pieSectionTextColor: '#0B0E1A',
         pieOuterStrokeColor: '#2A3157'

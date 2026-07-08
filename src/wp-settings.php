@@ -304,15 +304,80 @@ require ABSPATH . WPINC . '/nav-menu-template.php';
 require ABSPATH . WPINC . '/nav-menu.php';
 require ABSPATH . WPINC . '/admin-bar.php';
 require ABSPATH . WPINC . '/class-wp-application-passwords.php';
-require ABSPATH . WPINC . '/abilities-api/class-wp-ability-category.php';
-require ABSPATH . WPINC . '/abilities-api/class-wp-ability-categories-registry.php';
-require ABSPATH . WPINC . '/abilities-api/class-wp-ability.php';
-require ABSPATH . WPINC . '/abilities-api/class-wp-abilities-registry.php';
+/*
+ * New-in-7.0 subsystem classes: the Abilities API, the collaboration sync
+ * infrastructure, and two block-editor helper classes.
+ *
+ * These are plain class/interface declarations with no file-scope side effects
+ * (no hook registration and no instantiation at include time). They are only
+ * ever reached through normal instantiation or static access:
+ *   - the Abilities API classes through the WP_Abilities_Registry and
+ *     WP_Ability_Categories_Registry singletons, which are populated on the
+ *     'wp_abilities_api_init' / 'wp_abilities_api_categories_init' actions that
+ *     fire only the first time a registry is accessed (for example from the
+ *     abilities REST controllers on 'rest_api_init');
+ *   - the collaboration classes only from create_initial_rest_routes(), which
+ *     runs on 'rest_api_init' at priority 99;
+ *   - WP_Block_Editor_Context and WP_Classic_To_Block_Menu_Converter only from
+ *     block-editor and navigation code paths.
+ *
+ * None of these paths execute during a standard non-REST front-end theme
+ * render, so on that path the eager require is skipped and a classmap
+ * autoloader resolves any of these classes on demand - loading only the files
+ * actually referenced and pulling in dependencies (such as the WP_Sync_Storage
+ * interface implemented by WP_Sync_Post_Meta_Storage) transitively. Every other
+ * context - admin, AJAX, cron, WP-CLI, XML-RPC, an explicit REST request, and
+ * the test suite, none of which define WP_USE_THEMES - loads all of them
+ * eagerly at this position, preserving the previous behavior exactly.
+ */
+$wp_deferred_class_map = array(
+	'WP_Ability_Category'                => ABSPATH . WPINC . '/abilities-api/class-wp-ability-category.php',
+	'WP_Ability_Categories_Registry'     => ABSPATH . WPINC . '/abilities-api/class-wp-ability-categories-registry.php',
+	'WP_Ability'                         => ABSPATH . WPINC . '/abilities-api/class-wp-ability.php',
+	'WP_Abilities_Registry'              => ABSPATH . WPINC . '/abilities-api/class-wp-abilities-registry.php',
+	'WP_Sync_Storage'                    => ABSPATH . WPINC . '/collaboration/interface-wp-sync-storage.php',
+	'WP_Sync_Post_Meta_Storage'          => ABSPATH . WPINC . '/collaboration/class-wp-sync-post-meta-storage.php',
+	'WP_HTTP_Polling_Sync_Server'        => ABSPATH . WPINC . '/collaboration/class-wp-http-polling-sync-server.php',
+	'WP_Block_Editor_Context'            => ABSPATH . WPINC . '/class-wp-block-editor-context.php',
+	'WP_Classic_To_Block_Menu_Converter' => ABSPATH . WPINC . '/class-wp-classic-to-block-menu-converter.php',
+);
+
+/*
+ * Iterating the classmap in insertion order preserves the required load order:
+ * the WP_Sync_Storage interface is listed before WP_Sync_Post_Meta_Storage,
+ * which implements it, so eager loading in any context matches the previous
+ * explicit require sequence.
+ */
+$wp_load_deferred_classes = static function () use ( $wp_deferred_class_map ) {
+	foreach ( $wp_deferred_class_map as $wp_deferred_class_file ) {
+		require_once $wp_deferred_class_file;
+	}
+};
+
+if ( defined( 'WP_USE_THEMES' ) && WP_USE_THEMES && ! is_admin() && ! wp_is_rest_request() ) {
+	/*
+	 * Non-REST front-end page view: register a classmap autoloader as a safety
+	 * net so that any reference to one of these classes during the request
+	 * resolves by loading just the referenced file (and its dependencies) on
+	 * demand, without eagerly loading the whole set. No forced hook load is
+	 * required because these classes have no file-scope side effects and are
+	 * only reached through autoloadable instantiation or static access.
+	 */
+	spl_autoload_register(
+		static function ( $class_name ) use ( $wp_deferred_class_map ) {
+			if ( isset( $wp_deferred_class_map[ $class_name ] ) ) {
+				require_once $wp_deferred_class_map[ $class_name ];
+			}
+		}
+	);
+} else {
+	// Every other context loads these classes eagerly, preserving prior behavior.
+	$wp_load_deferred_classes();
+}
+
+unset( $wp_load_deferred_classes, $wp_deferred_class_map );
 require ABSPATH . WPINC . '/abilities-api.php';
 require ABSPATH . WPINC . '/abilities.php';
-require ABSPATH . WPINC . '/collaboration/interface-wp-sync-storage.php';
-require ABSPATH . WPINC . '/collaboration/class-wp-sync-post-meta-storage.php';
-require ABSPATH . WPINC . '/collaboration/class-wp-http-polling-sync-server.php';
 require ABSPATH . WPINC . '/collaboration.php';
 require ABSPATH . WPINC . '/rest-api.php';
 require ABSPATH . WPINC . '/rest-api/class-wp-rest-server.php';
@@ -457,7 +522,6 @@ require ABSPATH . WPINC . '/sitemaps/providers/class-wp-sitemaps-taxonomies.php'
 require ABSPATH . WPINC . '/sitemaps/providers/class-wp-sitemaps-users.php';
 require ABSPATH . WPINC . '/class-wp-block-bindings-source.php';
 require ABSPATH . WPINC . '/class-wp-block-bindings-registry.php';
-require ABSPATH . WPINC . '/class-wp-block-editor-context.php';
 require ABSPATH . WPINC . '/class-wp-block-type.php';
 require ABSPATH . WPINC . '/class-wp-block-pattern-categories-registry.php';
 require ABSPATH . WPINC . '/class-wp-block-patterns-registry.php';
@@ -469,7 +533,6 @@ require ABSPATH . WPINC . '/class-wp-block-metadata-registry.php';
 require ABSPATH . WPINC . '/class-wp-block-parser-block.php';
 require ABSPATH . WPINC . '/class-wp-block-parser-frame.php';
 require ABSPATH . WPINC . '/class-wp-block-parser.php';
-require ABSPATH . WPINC . '/class-wp-classic-to-block-menu-converter.php';
 require ABSPATH . WPINC . '/class-wp-navigation-fallback.php';
 require ABSPATH . WPINC . '/block-bindings.php';
 require ABSPATH . WPINC . '/block-bindings/pattern-overrides.php';

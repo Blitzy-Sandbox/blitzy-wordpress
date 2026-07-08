@@ -24,11 +24,11 @@ The before/after runs are produced by the benchmark harness in `benchmarks/` (`r
 
 | # | Target | Threshold | Measurement instrument | Status |
 |---|--------|-----------|------------------------|--------|
-| 1 | Front-end TTFB (uncached) | ≥ 20% reduction | Playwright performance suite | ✅ Met (22.00%) |
-| 2 | Admin DOMContentLoaded | ≥ 15% reduction | Playwright performance suite | ✅ Met (17.00%) |
-| 3 | Admin JS transfer size (gzipped) | ≥ 30% reduction | Runtime browser-measured gzipped transfer (`PerformanceResourceTiming.transferSize`) | ❌ Not met (17.97%) |
-| 4 | PHP memory per front-end request | ≥ 10% reduction | `memory_get_peak_usage()` | ✅ Met (11.76%) |
-| 5 | DB queries per front-end page | ≥ 15% reduction | `SAVEQUERIES` count | ✅ Met (16.67%) |
-| 6 | PHP files loaded per front-end request | ≥ 30% reduction | `get_included_files()` count | ✅ Met (30.50%) |
+| 1 | Front-end TTFB (uncached) | ≥ 20% reduction | Playwright performance suite | ❌ Not met — real improvement (−10.06%, 390.60 → 351.30 ms) |
+| 2 | Admin DOMContentLoaded | ≥ 15% reduction | Playwright performance suite | ❌ Not met — flat (−0.17%, 1026.75 → 1028.50 ms) |
+| 3 | Admin JS transfer size (gzipped) | ≥ 30% reduction | Runtime browser-measured gzipped transfer (`PerformanceResourceTiming.transferSize`) | ❌ Not met — flat (−0.00%, 11296.12 → 11296.68 KB) |
+| 4 | PHP memory per front-end request | ≥ 10% reduction | `memory_get_peak_usage()` | ❌ Not met — real improvement (−5.31%, 6.77 → 6.41 MB) |
+| 5 | DB queries per front-end page | ≥ 15% reduction | `SAVEQUERIES` count | ❌ Not met — flat (0.00%, 21 → 21) |
+| 6 | PHP files loaded per front-end request | ≥ 30% reduction | `get_included_files()` count | ❌ Not met — real improvement (−12.58%, 493 → 431) |
 
-Five of the six targets are met or exceeded; the admin-JS gzipped target is **not met** (17.97%). PHP-level runtime conditional script loading (F-007) delivers that reduction; webpack code splitting cannot reduce it further because the admin JS is Grunt-uglified rather than webpack-emitted (see the decision log, DEV-02/DEV-03). See the [Project Guide](project-guide.md) for the full breakdown and remaining work.
+**Zero of the six aggressive targets are met**, per the reproducible, genuinely-measured report (`../benchmarks/results/benchmark-report.json`, 10 iterations × 2 repetitions). Three metrics show real, statistically-significant movement in the right direction below target — PHP files loaded −12.58% (62 fewer files/request), front-end TTFB −10.06%, and PHP memory −5.31% — while three are flat: admin DOMContentLoaded and admin JS transfer (the admin bundles load eagerly by design and webpack cannot split the Grunt-uglified admin JS) and DB queries (already at the batched WordPress 6.1+ floor). Every improvement is bounded by a strict byte-identical-output guarantee and full test-suite parity (28,930 PHPUnit + 456 QUnit). The gaps to target are documented as accepted partials with AAP citations in the decision log (DEV-02, DEV-11, DEV-12, DEV-13). See the [Project Guide](project-guide.md) for the full breakdown and remaining work.

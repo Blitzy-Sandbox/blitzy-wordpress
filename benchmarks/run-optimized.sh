@@ -103,7 +103,18 @@ OUTPUT_FILE="${ARTIFACTS_DIR}/performance-results.json"
 # credentials are fixed because the performance suite's global setup
 # authenticates over REST as this admin user (admin / password).
 WP_PATH="/var/www/src"
-WP_CONFIG_PATH_IN_CONTAINER="/var/www/wp-config.php"
+# The nginx docroot is "src", so WordPress (and WP-CLI with --path=src) resolve
+# ABSPATH/wp-config.php = src/wp-config.php BEFORE any config one directory up.
+# We therefore write the benchmark config at that resolved path (writing to
+# /var/www/wp-config.php would be shadowed by any developer src/wp-config.php the
+# project setup creates, whose DEV database host is unreachable from inside the
+# benchmark network — the exact cause of a served-site "database error" 500).
+WP_CONFIG_PATH_IN_CONTAINER="/var/www/src/wp-config.php"
+# Host-side path to that served config, plus a slot remembering a pre-existing
+# file we temporarily displace so cleanup() can restore it. src/wp-config.php is
+# gitignored, so writing/restoring it never dirties the tracked tree.
+HOST_WP_CONFIG="${repo_root}/src/wp-config.php"
+HOST_WP_CONFIG_BACKUP=""
 DB_NAME="wordpress_develop"
 DB_USER="root"
 DB_PASS="${BENCHMARK_MYSQL_ROOT_PASSWORD:-password}"
@@ -199,6 +210,15 @@ require_command() {
 cleanup() {
 	local exit_code=$?
 
+	# Restore any pre-existing src/wp-config.php we displaced for the benchmark
+	# (see ensure_wordpress). Runs on the host regardless of stack ownership, so
+	# the developer's original config is always put back.
+	if [[ -n "${HOST_WP_CONFIG_BACKUP}" && -f "${HOST_WP_CONFIG_BACKUP}" ]]; then
+		cp -f "${HOST_WP_CONFIG_BACKUP}" "${HOST_WP_CONFIG}"
+		rm -f "${HOST_WP_CONFIG_BACKUP}"
+		printf '[run-optimized] Restored the original src/wp-config.php.\n'
+	fi
+
 	if [[ "${keep_up}" == true ]]; then
 		local down_hint="docker compose -p ${COMPOSE_PROJECT} -f ${COMPOSE_FILE} down"
 		if [[ "${clean_volumes}" == true ]]; then
@@ -219,6 +239,26 @@ cleanup() {
 	fi
 
 	exit "${exit_code}"
+}
+
+# ---------------------------------------------------------------------------
+# ensure_assets_built — guarantee the served source tree has its built JS/CSS.
+# The nginx docroot is "src"; WordPress refuses to render an unbuilt source tree
+# (HTTP 500, "running WordPress without JavaScript and CSS files"). A production
+# `grunt build` runs `clean:js`, emptying src/**/js — the exact state that 500s
+# here. This guarded, revision-appropriate safety net builds the DEV assets for
+# WHATEVER revision is currently checked out only when they are absent; both the
+# readable .js and the minified .min.js land under src/ (which is gitignored, so
+# this never dirties the tracked tree). An already-built tree is a no-op, so the
+# common "operator already built" path is unaffected.
+# ---------------------------------------------------------------------------
+ensure_assets_built() {
+	if [[ -f "${repo_root}/src/wp-includes/js/wp-emoji-loader.js" ]]; then
+		printf '[run-optimized] Built src/ assets present; skipping asset build.\n'
+		return 0
+	fi
+	printf '[run-optimized] src/ assets missing; building dev assets (this may take a few minutes)...\n'
+	( cd "${repo_root}" && CI=true npm run build:dev )
 }
 
 # ---------------------------------------------------------------------------
@@ -304,19 +344,26 @@ wait_for_db() {
 # "if ... / else" form keeps the non-zero probe from tripping "set -e".
 # ---------------------------------------------------------------------------
 ensure_wordpress() {
-	if wp_cli config path >/dev/null 2>&1; then
-		printf '[run-optimized] wp-config.php already present; skipping config creation.\n'
-	else
-		printf '[run-optimized] Creating wp-config.php (db host "%s", db "%s")...\n' "${DB_HOST}" "${DB_NAME}"
-		wp_cli config create \
-			--config-file="${WP_CONFIG_PATH_IN_CONTAINER}" \
-			--dbname="${DB_NAME}" \
-			--dbuser="${DB_USER}" \
-			--dbpass="${DB_PASS}" \
-			--dbhost="${DB_HOST}" \
-			--skip-check \
-			--force
+	# Authoritatively (re)write the benchmark config at the docroot-resolved path
+	# (src/wp-config.php). A developer checkout typically already has one pointing
+	# at the DEV database (host 127.0.0.1:3306), unreachable from the benchmark
+	# network, which would make the served site fail with a "database error" 500;
+	# so we do not "skip when present". Any pre-existing file is preserved first
+	# and restored by cleanup(). src/wp-config.php is gitignored (never committed).
+	if [[ -f "${HOST_WP_CONFIG}" ]]; then
+		HOST_WP_CONFIG_BACKUP="$( mktemp )"
+		cp -f "${HOST_WP_CONFIG}" "${HOST_WP_CONFIG_BACKUP}"
+		printf '[run-optimized] Preserved existing src/wp-config.php (restored on teardown).\n'
 	fi
+	printf '[run-optimized] Writing benchmark wp-config.php (db host "%s", db "%s")...\n' "${DB_HOST}" "${DB_NAME}"
+	wp_cli config create \
+		--config-file="${WP_CONFIG_PATH_IN_CONTAINER}" \
+		--dbname="${DB_NAME}" \
+		--dbuser="${DB_USER}" \
+		--dbpass="${DB_PASS}" \
+		--dbhost="${DB_HOST}" \
+		--skip-check \
+		--force
 
 	# is-installed and core install both connect to the database, so wait for
 	# it to accept authenticated connections before running either.
@@ -333,6 +380,25 @@ ensure_wordpress() {
 			--admin_email="${WP_ADMIN_EMAIL}" \
 			--admin_password="${WP_ADMIN_PASS}" \
 			--skip-email
+	fi
+
+	# The single-post performance spec measures /2018/11/03/block-image/. Ensure
+	# pretty permalinks and that exact fixture exist so the spec measures a real
+	# published post rather than a 404 (theme-unit-test data is not imported by the
+	# suite's global setup). Both steps are idempotent, so re-running is safe.
+	wp_cli rewrite structure '/%year%/%monthnum%/%day%/%postname%/' >/dev/null 2>&1 || true
+	if wp_cli post list --name=block-image --post_type=post --field=ID 2>/dev/null | grep -q .; then
+		printf '[run-optimized] Single-post benchmark fixture already present; skipping.\n'
+	else
+		printf '[run-optimized] Creating single-post benchmark fixture (/2018/11/03/block-image/)...\n'
+		wp_cli post create \
+			--post_type=post \
+			--post_status=publish \
+			--post_title='Block Image' \
+			--post_name='block-image' \
+			--post_date='2018-11-03 10:00:00' \
+			--post_content='<!-- wp:paragraph --><p>Benchmark single-post fixture.</p><!-- /wp:paragraph -->' \
+			--porcelain >/dev/null
 	fi
 }
 
@@ -431,6 +497,10 @@ require_command curl
 require_command node
 
 mkdir -p "${ARTIFACTS_DIR}"
+
+# Guarantee the served source tree is built before nginx serves it (host-side;
+# independent of Docker, so it also applies under --no-up).
+ensure_assets_built
 
 if [[ "${no_up}" == true ]]; then
 	printf '[run-optimized] --no-up set; assuming the benchmark stack is already running.\n'

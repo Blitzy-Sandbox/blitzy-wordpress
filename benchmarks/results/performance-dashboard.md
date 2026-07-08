@@ -8,9 +8,11 @@
 
 ## Data Sources & Provenance
 
-This dashboard is a **template populated from a representative, committed measurement
-snapshot**. Every number below is traceable to one of two authoritative sources — nothing
-here is hand-invented:
+This dashboard is **populated from genuine committed harness runs** (baseline commit
+`5e9d05d7dd` vs the delivered tree, 10 runs per state in the isolated
+`docker-compose.benchmark.yml` environment) — the same real measurements that replaced the
+previous agent's fabricated data (finding CR-5). Every number below is traceable to one of
+two authoritative sources — nothing here is hand-invented:
 
 - **`benchmarks/results/benchmark-report.json`** (this folder) — the machine-readable
   aggregate produced by the benchmark harness. It is the **single source of truth** for the
@@ -48,33 +50,39 @@ Thresholds are fixed by the mission and are not negotiable.
 
 | # | KPI | Instrument | Before | After | Reduction | Threshold | Status |
 |---|-----|-----------|--------|-------|-----------|-----------|--------|
-| 1 | Front-end TTFB (uncached) | Playwright `tests/performance/` | 53.72 ms | 41.90 ms | 22.00% | ≥ 20% | ✅ MET |
-| 2 | Admin DOMContentLoaded | Playwright `tests/performance/` | 50.66 ms | 42.05 ms | 17.00% | ≥ 15% | ✅ MET |
-| 3 | Admin JS transfer size (gzipped) | Runtime browser-measured gzipped transfer (`PerformanceResourceTiming.transferSize`) | 512.00 KB | 420.00 KB | 17.97% | ≥ 30% | ⚠️ PARTIAL — ❌ NOT MET |
-| 4 | PHP memory per front-end request | `memory_get_peak_usage()` | 34.00 MB | 30.00 MB | 11.76% | ≥ 10% | ✅ MET |
-| 5 | DB queries per front-end page | `SAVEQUERIES` count | 24 | 20 | 16.67% | ≥ 15% | ✅ MET |
-| 6 | PHP files loaded per front-end request | `get_included_files()` count | 600 | 417 | 30.50% | ≥ 30% | ✅ MET |
+| 1 | Front-end TTFB (uncached) | Playwright `tests/performance/` | 390.60 ms | 351.30 ms | 10.06% | ≥ 20% | ❌ NOT MET |
+| 2 | Admin DOMContentLoaded | Playwright `tests/performance/` | 1026.75 ms | 1028.50 ms | −0.17% | ≥ 15% | ❌ NOT MET |
+| 3 | Admin JS transfer size (gzipped) | Runtime browser-measured gzipped transfer (`PerformanceResourceTiming.transferSize`) | 11296.12 KB | 11296.68 KB | −0.00% | ≥ 30% | ❌ NOT MET |
+| 4 | PHP memory per front-end request | `memory_get_peak_usage()` (harness/PHP-FPM) | 6.77 MB | 6.41 MB | 5.31% | ≥ 10% | ❌ NOT MET |
+| 5 | DB queries per front-end page | `SAVEQUERIES` count | 21 | 21 | 0.00% | ≥ 15% | ❌ NOT MET |
+| 6 | PHP files loaded per front-end request | `get_included_files()` count | 493 | 431 | 12.58% | ≥ 30% | ❌ NOT MET |
 
-**At a glance: 5 / 6 targets met (5 ✅, 1 ⚠️).** Overall status: **5 of 6 targets met; KPI #3
-is partial** — the admin JavaScript gzipped transfer size fell ≈ 18% (17.97%), short of the
-≥ 30% threshold. This is honestly reflected here and in the decision log: webpack code
-splitting was prepared but is not yet producing separate bundles, so KPI #3 remains an open
-item (`summary.allTargetsMet = false`).
+**At a glance: 0 / 6 targets met against the deliberately aggressive thresholds** — reported
+honestly (`summary.targetsMet = 0`, `summary.allTargetsMet = false`). This corrects a prior
+fabricated "5 / 6" claim built on synthetic inputs (finding CR-5). **What the real data
+shows:** three KPIs register **genuine, statistically-significant improvements** below their
+targets — files loaded **−12.58%** (62 fewer files/request), PHP memory **−5.31%**, and
+front-end TTFB **−10.06%** (driven by a ≈ −13% front-end `wpBootstrap` reduction). The other
+three are flat: DB queries **0%** (already batched at the WordPress 6.1+ baseline) and both
+admin metrics (the admin context loads eagerly by design; F-007 changes *when* JS runs, not
+the payload). Each shortfall is a **documented accepted partial** bounded by the hard
+byte-identity + test-identity gate — see the decision log §6 and deviations DEV-11/12/13.
 
-The diagram **KPI Attainment Overview** below summarizes attainment at a glance: five of the
-six mission targets are met and one is partial.
+The diagram **KPI Attainment Overview** below summarizes attainment: zero targets meet the
+aggressive threshold, but three show real (sub-threshold) improvement and three are flat.
 
 ```mermaid
 pie showData
-    title KPI Attainment Overview
-    "Targets Met (KPIs 1, 2, 4, 5, 6)" : 5
-    "Targets Partial / Not Met (KPI 3)" : 1
+    title KPI Attainment Overview (real data)
+    "Real improvement, below target (KPIs 1, 4, 6)" : 3
+    "Flat / no movement (KPIs 2, 3, 5)" : 3
 ```
 
-*Legend — **KPI Attainment Overview**: each slice is a count of mission KPIs by attainment
-status. The larger slice (value 5) = targets that met or exceeded their threshold; the
-smaller slice (value 1) = KPI #3 (admin JS gzipped), which is partial (17.97% vs the ≥ 30%
-threshold). Total = 6 KPIs.*
+*Legend — **KPI Attainment Overview**: each slice counts mission KPIs by outcome against the
+real harness data. One slice (value 3) = KPIs with a genuine statistically-significant
+improvement that nonetheless falls short of the aggressive threshold (TTFB #1, memory #4,
+files #6); the other slice (value 3) = KPIs that are flat (admin DCL #2, admin JS #3, DB
+queries #5). Total = 6 KPIs; 0 meet their threshold. Lower is better for every KPI.*
 
 ---
 
@@ -87,21 +95,28 @@ headers on both the front-end (`template_include`) and admin (`admin_init`) path
 header slug maps to a camelCase report key via `camelCaseDashes()` in
 `tests/performance/utils.js` (for example, `files-loaded` → `wpFilesLoaded`).
 
+Values below are medians over the real harness runs: the **front-end** column is the median
+across all front-end suites (home + single-post × themes × locales) and the **admin** column
+is the median across the admin suites. They are consistent with the KPI scorecard in §1.
+
 | Metric (report key) | Server-Timing slug | Instrument | Unit | Front-end Before → After | Admin Before → After |
 |---|---|---|---|---|---|
-| `wpBootstrap` | `bootstrap` | timer around the bootstrap phase (`$timestart` → `muplugins_loaded`) | ms | 8.50 → 6.20 | 9.10 → 6.80 |
-| `wpPlugins` | `plugins` | timer around plugin load (`muplugins_loaded` → `plugins_loaded`) | ms | 3.00 → 2.40 | 3.40 → 2.70 |
-| `wpFilesLoaded` | `files-loaded` | `count( get_included_files() )` | count | 600 → 417 | 642 → 447 |
-| `wpCacheHits` | `cache-hits` | `WP_Object_Cache` hit counter (`cache_hits`) | count | 128 → 176 | 150 → 205 |
-| `wpCacheMisses` | `cache-misses` | `WP_Object_Cache` miss counter (`cache_misses`) | count | 44 → 21 | 52 → 26 |
-| `wpDbQueries` | `db-queries` | `$wpdb->num_queries` under `SAVEQUERIES` | count | 24 → 20 | 34 → 29 |
-| `wpMemoryUsage` | `memory-usage` | `memory_get_peak_usage()` | bytes → MB | 34.00 MB → 30.00 MB | 36.00 MB → 32.00 MB |
+| `wpBootstrap` | `bootstrap` | timer around the bootstrap phase (`$timestart` → `muplugins_loaded`) | ms | 319.13 → 278.21 | 318.04 → 321.64 |
+| `wpPlugins` | `plugins` | timer around plugin load (`muplugins_loaded` → `plugins_loaded`) | ms | 7.99 → 7.90 | 8.07 → 8.10 |
+| `wpFilesLoaded` | `files-loaded` | `count( get_included_files() )` | count | 493 → 431 | 531 → 531 |
+| `wpCacheHits` | `cache-hits` | `WP_Object_Cache` hit counter (`cache_hits`) | count | 757 → 761 | 802 → 794 |
+| `wpCacheMisses` | `cache-misses` | `WP_Object_Cache` miss counter (`cache_misses`) | count | 51 → 51 | 79 → 79 |
+| `wpDbQueries` | `db-queries` | `$wpdb->num_queries` under `SAVEQUERIES` | count | 21 → 21 | 40 → 40 |
+| `wpMemoryUsage` | `memory-usage` | `memory_get_peak_usage()` | bytes → MB | 6.77 MB → 6.41 MB | 6.89 MB → 6.94 MB |
 
 **How to read the direction of "good":** for `wpBootstrap`, `wpPlugins`, `wpFilesLoaded`,
-`wpCacheMisses`, `wpDbQueries`, and `wpMemoryUsage`, **lower is better** — the after value is
-smaller than the before value. For `wpCacheHits`, **higher is better** — the counter rises
-(front-end 128 → 176, admin 150 → 205) because batch priming and multi-get convert former
-misses into hits, which is why `wpCacheMisses` falls in tandem.
+`wpCacheMisses`, `wpDbQueries`, and `wpMemoryUsage`, **lower is better**. On the front-end,
+`wpBootstrap` (319.13 → 278.21 ms, ≈ −13%), `wpFilesLoaded` (493 → 431), and `wpMemoryUsage`
+(6.77 → 6.41 MB) all fall — this is where the real gains are. In the **admin** context these
+metrics are **flat or marginally higher** (files 531 → 531, bootstrap 318 → 322), because the
+admin path is intentionally not deferred. `wpCacheHits` rises slightly on the front-end
+(757 → 761) as the deferred-class autoloader and priming add a few hits; `wpCacheMisses` and
+`wpDbQueries` are unchanged (the query/cache-miss set is already at its baseline floor).
 
 **Instrument notes.** `wpBootstrap` and `wpPlugins` are PHP floats (durations) that the
 plugin auto-scales ×1000 into milliseconds during header emission; the remaining five are
@@ -161,9 +176,11 @@ Per Rule 3 (Visual Architecture Documentation), because this work modifies an ex
 architecture, **both states are shown** — never target-state-only. The two diagrams below
 mirror the current-state and target-state runtime diagrams in the technical specification
 (AAP §0.5.1). The measured effect of moving from the first path to the second is exactly
-what the Server-Timing panel (§2) and the KPI scorecard (§1) quantify: fewer files loaded,
-fewer DB queries, lower peak memory, and higher cache-hit ratios — with byte-identical
-functional output.
+what the Server-Timing panel (§2) and the KPI scorecard (§1) quantify on the front end:
+**fewer files loaded** (493 → 431), **a faster bootstrap** (≈ −13% `wpBootstrap`), and
+**lower peak memory** (6.77 → 6.41 MB) — with **byte-identical functional output**. DB
+queries and cache misses are already at their baseline floor and remain unchanged (0%); the
+admin context is intentionally not deferred and is flat.
 
 The diagram **Runtime Path — Before (Eager)** shows the baseline: an eager bootstrap that
 loads every subsystem regardless of request context, always dispatches hooks through
@@ -237,23 +254,27 @@ the observability substrate described in §2.*
 The diagram **Metric Reduction by KPI** plots each KPI's achieved percentage reduction (the
 bars) against its fixed mission threshold (the line). Categories on the x-axis correspond to
 KPIs 1–6 in order: TTFB (#1), Admin DCL (#2), Admin JS (#3), Memory (#4), DB (#5), Files
-(#6). Wherever a bar reaches or exceeds the threshold line the target passes; the only bar
-that sits below its threshold line is **Admin JS (#3)** at 17.97% against the ≥ 30% line.
+(#6). On the real data **no bar reaches its threshold line** (0 / 6 met); three bars show a
+genuine but sub-threshold reduction — Files (#6) at 12.58%, TTFB (#1) at 10.06%, Memory (#4)
+at 5.31% — and three are flat at ≈ 0% (Admin DCL #2 at −0.17%, Admin JS #3 at −0.00%, DB #5
+at 0%). Positive = improvement (reduction over baseline).
 
 ```mermaid
 xychart-beta
     title "Metric Reduction by KPI — Achieved vs Threshold (%)"
     x-axis ["TTFB", "Admin DCL", "Admin JS", "Memory", "DB", "Files"]
-    y-axis "Percent reduction (%)" 0 --> 35
-    bar [22.00, 17.00, 17.97, 11.76, 16.67, 30.50]
+    y-axis "Percent reduction (%)" -5 --> 35
+    bar [10.06, -0.17, 0, 5.31, 0, 12.58]
     line [20, 15, 30, 10, 15, 30]
 ```
 
 *Legend — **Metric Reduction by KPI**: the **bar** series is the achieved reduction per KPI
-(22.00, 17.00, 17.97, 11.76, 16.67, 30.50 percent for KPIs 1–6 respectively); the **line**
-series is that KPI's fixed threshold (20, 15, 30, 10, 15, 30 percent). A bar at or above its
-line = target met; a bar below its line = target missed. Five bars clear their thresholds;
-**Admin JS (#3)** is the single bar beneath its line (17.97% vs ≥ 30%).*
+(10.06, −0.17, −0.00, 5.31, 0.00, 12.58 percent for KPIs 1–6 respectively; positive =
+improvement); the **line** series is that KPI's fixed threshold (20, 15, 30, 10, 15, 30
+percent). A bar at or above its line = target met; a bar below its line = target missed. **No
+bar clears its threshold (0 / 6 met);** the three tallest bars (Files 12.58%, TTFB 10.06%,
+Memory 5.31%) are real, statistically-significant improvements that fall short of the
+aggressive targets, and the remaining three are flat.*
 
 For readers whose Markdown viewer does not render `xychart-beta`, the same achieved-versus-
 threshold comparison is restated in plain text below (the values are identical to the chart
@@ -261,12 +282,12 @@ and to §1):
 
 | KPI (order) | Achieved reduction | Threshold line | Margin vs threshold | Pass? |
 |---|---|---|---|---|
-| TTFB (#1) | 22.00% | 20% | +2.00 pts | ✅ |
-| Admin DCL (#2) | 17.00% | 15% | +2.00 pts | ✅ |
-| Admin JS (#3) | 17.97% | 30% | −12.03 pts | ❌ |
-| Memory (#4) | 11.76% | 10% | +1.76 pts | ✅ |
-| DB (#5) | 16.67% | 15% | +1.67 pts | ✅ |
-| Files (#6) | 30.50% | 30% | +0.50 pts | ✅ |
+| TTFB (#1) | 10.06% | 20% | −9.94 pts | ❌ |
+| Admin DCL (#2) | −0.17% | 15% | −15.17 pts | ❌ |
+| Admin JS (#3) | −0.00% | 30% | −30.00 pts | ❌ |
+| Memory (#4) | 5.31% | 10% | −4.69 pts | ❌ |
+| DB (#5) | 0.00% | 15% | −15.00 pts | ❌ |
+| Files (#6) | 12.58% | 30% | −17.42 pts | ❌ |
 
 ---
 
@@ -337,14 +358,18 @@ report **zero violations**. The table below summarizes the gate status for this 
 | Scope delivered | Core source files optimized | 51 core source files across the eight AAP code subsystems (F-001–F-008); five in-scope files intentionally unchanged with documented rationale (DEV-04/05/06) | ✅ Complete |
 
 **Interpretation.** The static-analysis and JS-lint gates are verified green this session;
-behavior is preserved byte-for-byte, and module suites covering every modified file pass with
-full-suite baseline parity confirmed in final validation. The single open item is a *target*
-shortfall, not a *test* failure — **KPI #3 (admin JS gzipped)** reached 17.97% against the
-≥ 30% threshold. It is delivered via F-007 runtime conditional loading; webpack `splitChunks`
-cannot reduce it because the admin JS is Grunt-uglified rather than webpack-emitted, so
-reaching the target requires relocating admin JS onto webpack entry points (decision log
-DEV-02/DEV-03). That gap is tracked in `benchmarks/results/decision-log-and-traceability.md`
-and in `docs/project-guide.md`; it does not affect the pass-identity of any test suite.
+behavior is preserved **byte-for-byte**, and module suites covering every modified file pass
+with full-suite baseline parity confirmed in final validation. The open items are all
+*target* shortfalls, not *test* failures: **0 of 6 KPIs meet their aggressive thresholds**,
+while three register genuine statistically-significant improvements below target (files
+−12.58%, TTFB −10.06%, memory −5.31%) and three are flat (admin DCL, admin JS, DB queries).
+Every shortfall is bounded by the hard byte-identity + test-identity gate and is documented
+as an **accepted partial** with an AAP citation in the decision log (§6, DEV-11/12/13) — for
+example, closing the files gap to 30% would require deferring the block/widget subsystems,
+which register on `init`/`widgets_init` and would change front-end HTML. None of these gaps
+affects the pass-identity of any test suite. The highest-leverage future path (genuine
+admin-JS code splitting off the Grunt-uglify pipeline onto webpack entry points) is tracked
+in `benchmarks/results/decision-log-and-traceability.md` §7 and in `docs/project-guide.md`.
 
 ---
 

@@ -609,12 +609,14 @@ function medianOrNull( samples ) {
 /**
  * Evaluates a single KPI target against the baseline and optimized samples.
  *
- * The KPI verdict deliberately uses the conventional reduction-over-baseline
- * formula `( before - after ) / before * 100`, which differs from the
- * per-suite `deltaPct` (a signed change over the after value, kept for parity
- * with `compare-results.js`). Both formulas are intentional and coexist. The
- * entry also carries a `significance` object (Welch's two-sample t-test over
- * the raw baseline/optimized samples), or `null` when it cannot be computed.
+ * The KPI verdict uses the conventional reduction-over-baseline formula
+ * `( before - after ) / before * 100` (positive = improvement). The per-suite
+ * `deltaPct` shares the same `before` denominator but keeps the opposite sign
+ * convention `( after - before ) / before * 100` (negative = improvement); the
+ * two columns are reconciled by the "Percentage conventions" legend emitted at
+ * the top of the report. The entry also carries a `significance` object
+ * (Welch's two-sample t-test over the raw baseline/optimized samples), or
+ * `null` when it cannot be computed.
  *
  * @param {Object}                                                           definition  KPI definition.
  * @param {Array<{title: string, results: Array<Record<string, number[]>>}>} afterStats  Optimized raw results.
@@ -671,13 +673,16 @@ function evaluateKpi( definition, afterStats, beforeStats, hasBaseline ) {
 /**
  * Builds the per-suite, per-metric statistics for every optimized suite.
  *
- * Mirrors `compare-results.js`: `before`/`after` are medians of the
- * accumulated samples, `deltaAbs = after - before`, and
- * `deltaPct = ( after - before ) / after * 100` (a signed change over the
- * after value). `wpExtObjCache` is excluded from delta math. Baseline values
- * are only compared when the repetition counts match. Each metric also carries
- * a `significance` object (Welch's two-sample t-test over the raw
- * baseline/optimized samples), or `null` when it cannot be computed.
+ * `before`/`after` are medians of the accumulated samples,
+ * `deltaAbs = after - before`, and `deltaPct = ( after - before ) / before *
+ * 100` (a signed change over the BASELINE value). The denominator is `before`
+ * so this per-suite "Diff %" shares a single denominator with the KPI table's
+ * "Reduction %" (also over `before`), resolving the dual-denominator ambiguity
+ * (INFO-3); this intentionally diverges from `compare-results.js`, which
+ * normalises over `after`. `wpExtObjCache` is excluded from delta math.
+ * Baseline values are only compared when the repetition counts match. Each
+ * metric also carries a `significance` object (Welch's two-sample t-test over
+ * the raw baseline/optimized samples), or `null` when it cannot be computed.
  *
  * @param {Array<{title: string, results: Array<Record<string, number[]>>}>} afterStats  Optimized raw results.
  * @param {Array<{title: string, results: Array<Record<string, number[]>>}>} beforeStats Baseline raw results.
@@ -709,10 +714,17 @@ function buildSuites( afterStats, beforeStats ) {
 
 			const deltaAbs =
 				! excluded && before !== null ? after - before : null;
-			// Parity with compare-results.js: percentage = ( delta / after ) * 100.
+			// Signed change over the BASELINE: deltaPct = ( after - before ) /
+			// before * 100. The denominator is deliberately `before` so that
+			// this per-suite "Diff %" shares one denominator with the KPI
+			// table's "Reduction %" (also over `before`); the columns differ
+			// only in sign convention (see the "Percentage conventions" legend
+			// emitted at the top of the report). This intentionally diverges
+			// from compare-results.js (which normalises over `after`) to keep
+			// the benchmark report internally consistent (resolves INFO-3).
 			const deltaPct =
 				! excluded && before && after !== 0
-					? ( ( after - before ) / after ) * 100
+					? ( ( after - before ) / before ) * 100
 					: null;
 
 			// Two-sample significance of this metric's before/after difference.
@@ -872,6 +884,24 @@ function buildMarkdown( report ) {
 		);
 		lines.push( '' );
 	}
+
+	lines.push( '## Percentage conventions' );
+	lines.push( '' );
+	lines.push(
+		'All percentages in this report use the **baseline (`before`) value as the denominator**. Two column names appear, differing only in sign:'
+	);
+	lines.push( '' );
+	lines.push(
+		'- **`Reduction %`** (KPI Targets table) = `(before - after) / before * 100`. **Positive = improvement** (the metric got smaller). A KPI passes when `Reduction %` >= its threshold.'
+	);
+	lines.push(
+		'- **`Diff %`** (Per-Suite Metrics tables) = `(after - before) / before * 100`. **Negative = improvement** (the metric got smaller); positive = regression.'
+	);
+	lines.push( '' );
+	lines.push(
+		'The two columns are algebraic negations of each other over the same `before` denominator (`Reduction % = -Diff %`), so a single metric delta reads consistently across every table. Percentages are `null`/blank when no baseline is present or the baseline value is zero. Lower is better for every metric reported here.'
+	);
+	lines.push( '' );
 
 	lines.push( '## KPI Targets' );
 	lines.push( '' );
