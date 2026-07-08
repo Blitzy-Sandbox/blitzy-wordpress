@@ -45,7 +45,7 @@ require ABSPATH . WPINC . '/script-loader.php';
 require ABSPATH . WPINC . '/version.php';
 
 $expires_offset = 31536000; // 1 year.
-$out            = '';
+$parts          = array();
 
 $wp_scripts = new WP_Scripts();
 wp_default_scripts( $wp_scripts );
@@ -59,14 +59,27 @@ if ( isset( $_SERVER['HTTP_IF_NONE_MATCH'] ) && stripslashes( $_SERVER['HTTP_IF_
 	exit;
 }
 
+/*
+ * Concatenate the requested scripts in a single pass.
+ *
+ * Each registered handle's contents are collected into a buffer and joined
+ * once with implode(), rather than repeatedly growing the output string on
+ * every iteration. This avoids reallocating an ever-growing buffer while
+ * producing byte-identical output: each handle's file contents followed by a
+ * single trailing newline, in the requested order.
+ *
+ * @since 7.0.0
+ */
 foreach ( $load as $handle ) {
 	if ( ! array_key_exists( $handle, $wp_scripts->registered ) ) {
 		continue;
 	}
 
-	$path = ABSPATH . $wp_scripts->registered[ $handle ]->src;
-	$out .= get_file( $path ) . "\n";
+	$path    = ABSPATH . $wp_scripts->registered[ $handle ]->src;
+	$parts[] = get_file( $path ) . "\n";
 }
+
+$out = implode( '', $parts );
 
 header( "Etag: $etag" );
 header( 'Content-Type: application/javascript; charset=UTF-8' );

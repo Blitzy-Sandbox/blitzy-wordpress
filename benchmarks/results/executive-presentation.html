@@ -1,0 +1,999 @@
+<!doctype html>
+<!--
+  WordPress 7.0 Performance Optimization — Executive Briefing
+  Rule 4 (Executive Presentation) deliverable — single self-contained reveal.js deck.
+  KPI numbers are sourced verbatim from benchmarks/results/benchmark-report.json.
+  All libraries load from pinned CDNs; all CSS/JS is inline; no local asset dependencies.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WordPress 7.0 Performance Optimization — Executive Briefing</title>
+
+  <!-- Inline SVG favicon (self-contained; avoids a /favicon.ico request) -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2032%2032%27%3E%3Crect%20width%3D%2732%27%20height%3D%2732%27%20rx%3D%277%27%20fill%3D%27%234F6BFF%27%2F%3E%3Cpath%20d%3D%27M17%205%20L9%2018%20h6%20l-1%209%208-13%20h-6%20z%27%20fill%3D%27%23ffffff%27%2F%3E%3C%2Fsvg%3E">
+
+  <!-- Google Fonts: Inter (body), Space Grotesk (headings), Fira Code (mono) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- reveal.js 5.1.0 core layout CSS (Blitzy brand tokens override the look below) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+
+  <style>
+    /* ============================================================
+       BLITZY BRAND DESIGN SYSTEM
+       Canonical theme blitzy-deck/references/blitzy-reveal-theme.css
+       is an external asset not present in the repo; its brand tokens
+       are embedded verbatim here to keep this file self-contained.
+       ============================================================ */
+    :root{
+      /* --- Backgrounds --- */
+      --blitzy-bg:#0B0E1A;
+      --blitzy-bg-deep:#070912;
+      --blitzy-surface:#121629;
+      --blitzy-surface-2:#1A1F38;
+      --blitzy-surface-3:#232a4d;
+      --blitzy-border:#2A3157;
+      --blitzy-border-soft:#20264a;
+
+      /* --- Accents & status --- */
+      --blitzy-accent:#4F6BFF;
+      --blitzy-accent-2:#7C5CFF;
+      --blitzy-accent-3:#22D3EE;
+      --blitzy-success:#2ecc71;
+      --blitzy-warn:#f5a623;
+      --blitzy-danger:#ff5c7c;
+
+      /* --- Text --- */
+      --blitzy-text:#E6E9F5;
+      --blitzy-text-muted:#9AA3C7;
+      --blitzy-text-dim:#6b7399;
+
+      /* --- Typography --- */
+      --blitzy-font-heading:'Space Grotesk', sans-serif;
+      --blitzy-font-body:'Inter', sans-serif;
+      --blitzy-font-mono:'Fira Code', monospace;
+
+      /* --- Spacing scale --- */
+      --sp-1:8px;  --sp-2:16px; --sp-3:24px; --sp-4:32px;
+      --sp-5:48px; --sp-6:64px; --sp-7:96px; --sp-8:128px;
+
+      /* --- Radii --- */
+      --radius-sm:8px; --radius-md:14px; --radius-lg:22px; --radius-xl:32px;
+
+      /* --- Shadows / glow --- */
+      --shadow-sm:0 2px 8px rgba(0,0,0,.35);
+      --shadow-md:0 10px 30px rgba(0,0,0,.45);
+      --shadow-lg:0 24px 60px rgba(0,0,0,.55);
+      --glow-accent:0 0 40px rgba(79,107,255,.35);
+
+      /* --- Gradients --- */
+      --grad-accent:linear-gradient(135deg,#4F6BFF 0%,#7C5CFF 100%);
+      --grad-headline:linear-gradient(120deg,#7C5CFF 0%,#4F6BFF 45%,#22D3EE 100%);
+      --grad-panel:linear-gradient(160deg,#1A1F38 0%,#121629 100%);
+    }
+
+    /* ============================================================
+       BASE / REVEAL WIRING
+       ============================================================ */
+    html,body{ background:var(--blitzy-bg); }
+    .reveal-viewport{
+      background:
+        radial-gradient(1200px 600px at 12% -8%, rgba(79,107,255,.16), transparent 60%),
+        radial-gradient(1000px 700px at 100% 112%, rgba(124,92,255,.14), transparent 55%),
+        var(--blitzy-bg);
+    }
+    .reveal{
+      font-family:var(--blitzy-font-body);
+      font-size:36px;
+      font-weight:400;
+      color:var(--blitzy-text);
+    }
+    .reveal .slides{ text-align:left; }
+    .reveal .slides section{
+      padding:56px 92px;
+      box-sizing:border-box;
+    }
+
+    .reveal h1,.reveal h2,.reveal h3,.reveal h4{
+      font-family:var(--blitzy-font-heading);
+      color:var(--blitzy-text);
+      font-weight:700;
+      line-height:1.08;
+      margin:0 0 .35em;
+      text-transform:none;
+      letter-spacing:-.01em;
+    }
+    .reveal h1{ font-size:2.4em; }
+    .reveal h2{ font-size:1.5em; }
+    .reveal h3{ font-size:1.05em; }
+    .reveal p,.reveal li{
+      font-size:.7em;
+      line-height:1.5;
+      color:var(--blitzy-text-muted);
+    }
+    .reveal strong{ color:var(--blitzy-text); font-weight:600; }
+    .reveal em{ color:var(--blitzy-accent-3); font-style:normal; font-family:var(--blitzy-font-mono); }
+    .reveal a{ color:var(--blitzy-accent); text-decoration:none; }
+    .reveal code{
+      font-family:var(--blitzy-font-mono);
+      color:var(--blitzy-accent-3);
+      background:rgba(34,211,238,.08);
+      padding:1px 7px;
+      border-radius:5px;
+      font-size:.92em;
+    }
+    .reveal svg.lucide{ vertical-align:middle; }
+
+    /* reveal chrome */
+    .reveal .slide-number{ background:transparent; color:var(--blitzy-text-dim); font-family:var(--blitzy-font-mono); font-size:16px; }
+    .reveal .controls{ color:var(--blitzy-accent); }
+    .reveal .progress{ color:var(--blitzy-accent); height:5px; }
+    .reveal .progress span{ background:var(--grad-accent); }
+
+    /* Shared helpers */
+    .eyebrow{
+      display:inline-flex; align-items:center; gap:10px;
+      font-family:var(--blitzy-font-mono);
+      font-size:.44em; letter-spacing:.2em; text-transform:uppercase;
+      color:var(--blitzy-accent-3);
+      margin-bottom:14px;
+    }
+    .eyebrow svg{ width:20px; height:20px; }
+    .lead{ font-size:.8em; color:var(--blitzy-text-muted); max-width:26em; }
+    .mt-2{ margin-top:16px; } .mt-3{ margin-top:24px; } .mt-4{ margin-top:32px; }
+    .center{ text-align:center; }
+    .two-col{ display:grid; grid-template-columns:1.35fr 1fr; gap:44px; align-items:center; width:100%; }
+
+    /* ============================================================
+       SLIDE TYPE: TITLE
+       ============================================================ */
+    .reveal section.slide-title{ text-align:center; }
+    .slide-title .brand-lockup{
+      display:flex; align-items:center; justify-content:center; gap:22px; margin-bottom:34px;
+    }
+    .slide-title .brand-mark{
+      width:104px; height:104px; border-radius:26px;
+      background:var(--grad-accent);
+      display:flex; align-items:center; justify-content:center;
+      box-shadow:var(--glow-accent);
+    }
+    .slide-title .brand-mark svg{ width:58px; height:58px; color:#fff; }
+    .slide-title .wordmark{
+      font-family:var(--blitzy-font-heading); font-weight:700;
+      font-size:1.1em; letter-spacing:.02em; color:var(--blitzy-text);
+      display:flex; align-items:center; gap:14px;
+    }
+    .slide-title .wordmark svg{ width:38px; height:38px; color:var(--blitzy-accent-3); }
+    .slide-title h1{
+      font-size:3.25em; margin-bottom:.2em;
+      background:var(--grad-headline);
+      -webkit-background-clip:text; background-clip:text;
+      -webkit-text-fill-color:transparent; color:transparent;
+    }
+    .slide-title .subtitle{ font-size:1em; color:var(--blitzy-text); font-weight:500; }
+    .slide-title .subtitle .muted{ color:var(--blitzy-text-muted); }
+    .slide-title .meta-row{
+      display:flex; gap:18px; justify-content:center; margin-top:34px; flex-wrap:wrap;
+    }
+    .slide-title .meta-chip{
+      display:inline-flex; align-items:center; gap:10px;
+      background:var(--grad-panel); border:1px solid var(--blitzy-border);
+      border-radius:999px; padding:12px 22px;
+      font-family:var(--blitzy-font-mono); font-size:.5em; color:var(--blitzy-text-muted);
+    }
+    .slide-title .meta-chip svg{ width:20px; height:20px; color:var(--blitzy-accent); }
+
+    /* ============================================================
+       SLIDE TYPE: DIVIDER (full-bleed accent via data-background-gradient)
+       ============================================================ */
+    .reveal section.slide-divider{ text-align:center; }
+    .slide-divider .divider-ico{
+      width:132px; height:132px; border-radius:32px;
+      background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.3);
+      display:flex; align-items:center; justify-content:center; margin:0 auto 30px;
+      backdrop-filter:blur(2px);
+    }
+    .slide-divider .divider-ico svg{ width:70px; height:70px; color:#fff; }
+    .slide-divider .section-num{
+      font-family:var(--blitzy-font-mono); font-size:1.3em; font-weight:600;
+      color:rgba(255,255,255,.92); letter-spacing:.12em;
+    }
+    .slide-divider h2{ font-size:2.7em; color:#fff; margin-top:6px; }
+    .slide-divider p{ color:rgba(255,255,255,.9); font-size:.82em; max-width:24em; margin:12px auto 0; }
+
+    /* ============================================================
+       SLIDE TYPE: CLOSING
+       ============================================================ */
+    .reveal section.slide-closing{ text-align:center; }
+    .slide-closing .closing-mark{
+      width:128px; height:128px; border-radius:34px;
+      background:var(--grad-accent);
+      display:flex; align-items:center; justify-content:center;
+      box-shadow:var(--glow-accent); margin:0 auto 32px;
+    }
+    .slide-closing .closing-mark svg{ width:74px; height:74px; color:#fff; }
+    .slide-closing h1{
+      font-size:2.7em;
+      background:var(--grad-headline);
+      -webkit-background-clip:text; background-clip:text;
+      -webkit-text-fill-color:transparent; color:transparent;
+    }
+    .slide-closing .lead{ margin:0 auto; }
+
+    /* ============================================================
+       COMPONENT: KPI stat cards (headline summary)
+       ============================================================ */
+    .kpi-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:22px; width:100%; }
+    .kpi-card{
+      background:var(--grad-panel); border:1px solid var(--blitzy-border);
+      border-radius:var(--radius-md); padding:22px 24px;
+      box-shadow:var(--shadow-md); position:relative; overflow:hidden;
+    }
+    .kpi-card .accent-bar{ position:absolute; left:0; top:0; bottom:0; width:5px; background:var(--blitzy-success); }
+    .kpi-card.partial .accent-bar{ background:var(--blitzy-warn); }
+    .kpi-card .kpi-head{ display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+    .kpi-card .kpi-icon{
+      width:46px; height:46px; border-radius:12px; flex:none;
+      background:rgba(79,107,255,.14); color:var(--blitzy-accent);
+      display:flex; align-items:center; justify-content:center;
+    }
+    .kpi-card .kpi-icon svg{ width:24px; height:24px; }
+    .kpi-card .kpi-label{ font-size:.42em; color:var(--blitzy-text-muted); line-height:1.25; font-weight:500; }
+    .kpi-card .kpi-value{ font-family:var(--blitzy-font-heading); font-size:1.2em; font-weight:700; color:var(--blitzy-text); }
+    .kpi-card .kpi-delta{ font-family:var(--blitzy-font-mono); font-size:.44em; margin-top:8px; display:flex; gap:10px; align-items:center; color:var(--blitzy-text-muted); }
+    .kpi-card .kpi-pct{ font-weight:600; }
+    .kpi-card.met .kpi-pct{ color:var(--blitzy-success); }
+    .kpi-card.partial .kpi-pct{ color:var(--blitzy-warn); }
+
+    /* status badges */
+    .badge-row{ display:flex; gap:14px; flex-wrap:wrap; margin-top:22px; align-items:center; }
+    .status-badge{
+      display:inline-flex; align-items:center; gap:9px;
+      padding:9px 16px; border-radius:999px;
+      font-size:.46em; font-family:var(--blitzy-font-mono); border:1px solid transparent;
+    }
+    .status-badge svg{ width:18px; height:18px; }
+    .status-badge.met{ background:rgba(46,204,113,.12); color:var(--blitzy-success); border-color:rgba(46,204,113,.35); }
+    .status-badge.partial{ background:rgba(245,166,35,.12); color:var(--blitzy-warn); border-color:rgba(245,166,35,.4); }
+
+    /* ============================================================
+       COMPONENT: process row (mission)
+       ============================================================ */
+    .process-row{ display:flex; align-items:flex-start; width:100%; margin-top:26px; }
+    .process-step{ flex:1; display:flex; flex-direction:column; align-items:center; text-align:center; gap:14px; padding:0 6px; }
+    .process-step .step-ico{
+      width:96px; height:96px; border-radius:22px;
+      background:var(--grad-panel); border:1px solid var(--blitzy-border);
+      display:flex; align-items:center; justify-content:center;
+      color:var(--blitzy-accent); box-shadow:var(--shadow-sm);
+    }
+    .process-step .step-ico svg{ width:44px; height:44px; }
+    .process-step .step-name{ font-family:var(--blitzy-font-heading); font-size:.6em; color:var(--blitzy-text); font-weight:600; }
+    .process-step .step-desc{ font-size:.4em; color:var(--blitzy-text-muted); line-height:1.4; }
+    .process-arrow{ display:flex; align-items:center; padding-top:34px; color:var(--blitzy-accent-2); }
+    .process-arrow svg{ width:38px; height:38px; }
+
+    /* ============================================================
+       COMPONENT: icon cards (why it matters)
+       ============================================================ */
+    .icon-cards{ display:grid; grid-template-columns:repeat(4,1fr); gap:22px; width:100%; margin-top:16px; }
+    .icon-card{
+      background:var(--grad-panel); border:1px solid var(--blitzy-border);
+      border-radius:var(--radius-md); padding:28px 24px; box-shadow:var(--shadow-md);
+    }
+    .icon-card .ic{
+      width:64px; height:64px; border-radius:16px;
+      background:rgba(124,92,255,.15); color:var(--blitzy-accent-2);
+      display:flex; align-items:center; justify-content:center; margin-bottom:18px;
+    }
+    .icon-card .ic svg{ width:32px; height:32px; }
+    .icon-card h3{ font-size:.72em; margin-bottom:8px; }
+    .icon-card p{ font-size:.48em; margin:0; }
+
+    /* ============================================================
+       COMPONENT: KPI scorecard rows + attainment pie
+       ============================================================ */
+    .score-list{ display:flex; flex-direction:column; gap:11px; }
+    .score-row{
+      display:grid; grid-template-columns:46px 1fr auto auto; gap:16px; align-items:center;
+      background:var(--grad-panel); border:1px solid var(--blitzy-border);
+      border-left-width:4px; border-radius:11px; padding:12px 18px;
+    }
+    .score-row.met{ border-left-color:var(--blitzy-success); }
+    .score-row.partial{ border-left-color:var(--blitzy-warn); }
+    .score-row .s-ico{
+      width:42px; height:42px; border-radius:11px; flex:none;
+      background:rgba(79,107,255,.14); color:var(--blitzy-accent);
+      display:flex; align-items:center; justify-content:center;
+    }
+    .score-row .s-ico svg{ width:22px; height:22px; }
+    .score-row .s-label{ font-size:.46em; color:var(--blitzy-text); font-weight:500; line-height:1.25; }
+    .score-row .s-sub{ font-size:.38em; color:var(--blitzy-text-muted); font-family:var(--blitzy-font-mono); margin-top:3px; }
+    .score-row .s-pct{ font-family:var(--blitzy-font-mono); font-weight:600; font-size:.56em; text-align:right; }
+    .score-row.met .s-pct{ color:var(--blitzy-success); }
+    .score-row.partial .s-pct{ color:var(--blitzy-warn); }
+    .score-row .s-status{ display:flex; align-items:center; }
+    .score-row .s-status svg{ width:26px; height:26px; }
+    .score-row.met .s-status{ color:var(--blitzy-success); }
+    .score-row.partial .s-status{ color:var(--blitzy-warn); }
+
+    /* ============================================================
+       COMPONENT: before/after comparison bars
+       ============================================================ */
+    .bars{ display:flex; flex-direction:column; gap:26px; width:100%; margin-top:8px; }
+    .bar-group .bar-label{
+      display:flex; justify-content:space-between; align-items:center;
+      font-size:.5em; margin-bottom:10px; color:var(--blitzy-text);
+      font-family:var(--blitzy-font-heading); font-weight:600;
+    }
+    .bar-group .bar-label .pct{ font-family:var(--blitzy-font-mono); color:var(--blitzy-success); }
+    .bar-track{ position:relative; height:38px; margin-bottom:10px; }
+    .bar-fill{
+      position:absolute; left:0; top:0; bottom:0; border-radius:9px;
+      display:flex; align-items:center; padding:0 16px;
+      font-size:.42em; font-family:var(--blitzy-font-mono); color:#fff; white-space:nowrap;
+    }
+    .bar-fill.before{ background:linear-gradient(90deg,#3a4270,#4a5488); border:1px solid var(--blitzy-border); }
+    .bar-fill.after{ background:var(--grad-accent); box-shadow:var(--glow-accent); }
+    .bar-tag{ font-size:.4em; font-family:var(--blitzy-font-mono); color:var(--blitzy-text-muted); margin-bottom:4px; }
+
+    /* ============================================================
+       COMPONENT: diagram wrapper, title, legend
+       ============================================================ */
+    .diagram-title{
+      font-family:var(--blitzy-font-heading); font-size:.62em; color:var(--blitzy-text);
+      font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:12px;
+    }
+    .diagram-title svg{ width:26px; height:26px; color:var(--blitzy-accent); }
+    .diagram-wrap{
+      background:var(--grad-panel); border:1px solid var(--blitzy-border);
+      border-radius:var(--radius-md); padding:18px 22px; box-shadow:var(--shadow-md);
+    }
+    .diagram-wrap .mermaid{ display:flex; justify-content:center; }
+    .diagram-wrap .mermaid svg{ max-width:100%; height:auto; max-height:620px; }
+    /* Ensure Mermaid SVG node labels use the brand font and stay legible */
+    .diagram-wrap .mermaid .nodeLabel,
+    .diagram-wrap .mermaid text{ font-family:var(--blitzy-font-body) !important; }
+    .legend{ display:flex; gap:22px; flex-wrap:wrap; margin-top:16px; font-family:var(--blitzy-font-mono); font-size:.42em; color:var(--blitzy-text-muted); }
+    .legend .lg{ display:flex; align-items:center; gap:9px; }
+    .legend .dot{ width:15px; height:15px; border-radius:5px; flex:none; }
+    .legend .dot.node{ background:var(--blitzy-accent); }
+    .legend .dot.branch{ background:var(--blitzy-accent-2); border-radius:50%; }
+    .legend .dot.metric{ background:var(--blitzy-accent-3); }
+    .legend .dot.met{ background:var(--blitzy-success); }
+    .legend .dot.partial{ background:var(--blitzy-warn); }
+
+    /* ============================================================
+       COMPONENT: risk / mitigation table
+       ============================================================ */
+    .risk-table{ width:100%; border-collapse:separate; border-spacing:0; }
+    .risk-table th{
+      text-align:left; font-family:var(--blitzy-font-heading); color:var(--blitzy-text);
+      font-weight:600; padding:12px 16px; border-bottom:2px solid var(--blitzy-border); font-size:.5em;
+    }
+    .risk-table td{
+      padding:14px 16px; border-bottom:1px solid var(--blitzy-border-soft);
+      color:var(--blitzy-text-muted); vertical-align:top; font-size:.46em; line-height:1.45;
+    }
+    .risk-table .rk{ display:flex; align-items:center; gap:11px; color:var(--blitzy-text); font-weight:500; }
+    .risk-table .rk svg{ width:22px; height:22px; flex:none; color:var(--blitzy-accent); }
+    .risk-table .st{ font-family:var(--blitzy-font-mono); font-weight:600; white-space:nowrap; }
+    .risk-table .st.mit{ color:var(--blitzy-success); }
+    .risk-table .st.open{ color:var(--blitzy-warn); }
+    .gate-row{ display:flex; gap:14px; flex-wrap:wrap; margin-top:22px; }
+    .gate-chip{
+      display:inline-flex; align-items:center; gap:10px;
+      background:rgba(46,204,113,.1); border:1px solid rgba(46,204,113,.32);
+      color:var(--blitzy-success); border-radius:10px; padding:11px 16px;
+      font-family:var(--blitzy-font-mono); font-size:.44em;
+    }
+    .gate-chip svg{ width:19px; height:19px; }
+    .gate-chip.partial{ background:rgba(245,166,35,.1); border-color:rgba(245,166,35,.32); color:var(--blitzy-warn); }
+
+    /* ============================================================
+       COMPONENT: onboarding steps
+       ============================================================ */
+    .steps{ display:flex; flex-direction:column; gap:15px; width:100%; }
+    .step-item{
+      display:flex; align-items:center; gap:20px;
+      background:var(--grad-panel); border:1px solid var(--blitzy-border);
+      border-radius:var(--radius-md); padding:16px 24px;
+    }
+    .step-item .num{ font-family:var(--blitzy-font-heading); font-size:.85em; font-weight:700; color:var(--blitzy-accent); width:40px; flex:none; text-align:center; }
+    .step-item .sico{
+      width:54px; height:54px; border-radius:14px; flex:none;
+      background:rgba(79,107,255,.14); color:var(--blitzy-accent);
+      display:flex; align-items:center; justify-content:center;
+    }
+    .step-item .sico svg{ width:28px; height:28px; }
+    .step-item .stext{ font-size:.52em; color:var(--blitzy-text-muted); line-height:1.4; }
+    .step-item .stext strong{ display:block; color:var(--blitzy-text); font-family:var(--blitzy-font-heading); font-weight:600; margin-bottom:3px; font-size:1.05em; }
+
+    /* ============================================================
+       COMPONENT: next-step chips (closing)
+       ============================================================ */
+    .next-list{ display:flex; gap:18px; justify-content:center; margin-top:30px; flex-wrap:wrap; }
+    .next-chip{
+      display:flex; align-items:center; gap:12px;
+      background:var(--grad-panel); border:1px solid var(--blitzy-border);
+      border-radius:999px; padding:14px 24px; font-size:.5em; color:var(--blitzy-text);
+    }
+    .next-chip svg{ width:22px; height:22px; color:var(--blitzy-accent-2); }
+
+    /* Efficiency stat cards (deep dive) */
+    .stat-duo{ display:grid; grid-template-columns:1fr 1fr; gap:26px; width:100%; margin-top:12px; }
+    .stat-big{
+      background:var(--grad-panel); border:1px solid var(--blitzy-border);
+      border-radius:var(--radius-lg); padding:34px 32px; box-shadow:var(--shadow-md); position:relative; overflow:hidden;
+    }
+    .stat-big .sb-ico{
+      width:58px; height:58px; border-radius:15px; margin-bottom:18px;
+      background:rgba(34,211,238,.14); color:var(--blitzy-accent-3);
+      display:flex; align-items:center; justify-content:center;
+    }
+    .stat-big .sb-ico svg{ width:30px; height:30px; }
+    .stat-big .sb-label{ font-size:.5em; color:var(--blitzy-text-muted); font-weight:500; }
+    .stat-big .sb-flow{ display:flex; align-items:baseline; gap:16px; margin-top:10px; font-family:var(--blitzy-font-heading); }
+    .stat-big .sb-before{ font-size:1em; color:var(--blitzy-text-dim); text-decoration:line-through; }
+    .stat-big .sb-arrow{ color:var(--blitzy-accent); }
+    .stat-big .sb-arrow svg{ width:26px; height:26px; }
+    .stat-big .sb-after{ font-size:1.9em; font-weight:700; color:var(--blitzy-text); }
+    .stat-big .sb-pct{ margin-top:12px; font-family:var(--blitzy-font-mono); font-size:.5em; color:var(--blitzy-success); font-weight:600; display:inline-flex; align-items:center; gap:8px; }
+    .stat-big .sb-pct svg{ width:18px; height:18px; }
+
+    /* slide intro heading block */
+    .slide-head{ margin-bottom:6px; }
+    .slide-head h2 .accent{ color:var(--blitzy-accent-3); }
+  </style>
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+      <!-- ===== Slide 1 — Title ===== -->
+      <section class="slide-title">
+        <div class="brand-lockup">
+          <div class="brand-mark"><i data-lucide="gauge"></i></div>
+          <div class="wordmark"><i data-lucide="zap"></i> BLITZY</div>
+        </div>
+        <h1>WordPress 7.0 Performance Optimization</h1>
+        <div class="subtitle">Executive Briefing <span class="muted">— an evidence-first performance mission</span></div>
+        <div class="meta-row">
+          <span class="meta-chip"><i data-lucide="git-commit-horizontal"></i> WordPress Core v7.0.0-alpha</span>
+          <span class="meta-chip"><i data-lucide="target"></i> 6 measured KPI targets</span>
+          <span class="meta-chip"><i data-lucide="badge-check"></i> Zero test regressions</span>
+        </div>
+      </section>
+
+      <!-- ===== Slide 2 — The Mission ===== -->
+      <section>
+        <div class="slide-head">
+          <span class="eyebrow"><i data-lucide="compass"></i> The Method</span>
+          <h2>Faster by evidence, not by guesswork</h2>
+        </div>
+        <p class="lead">No speculative changes. Every bottleneck is measured before it is touched, and every improvement is proven with a repeatable measurement afterward — then written down.</p>
+        <div class="process-row">
+          <div class="process-step">
+            <div class="step-ico"><i data-lucide="search"></i></div>
+            <div class="step-name">Profile</div>
+            <div class="step-desc">Find the real hot path under load</div>
+          </div>
+          <div class="process-arrow"><i data-lucide="chevron-right"></i></div>
+          <div class="process-step">
+            <div class="step-ico"><i data-lucide="bar-chart-3"></i></div>
+            <div class="step-name">Quantify</div>
+            <div class="step-desc">Measure the baseline cost precisely</div>
+          </div>
+          <div class="process-arrow"><i data-lucide="chevron-right"></i></div>
+          <div class="process-step">
+            <div class="step-ico"><i data-lucide="wrench"></i></div>
+            <div class="step-name">Fix</div>
+            <div class="step-desc">Apply the smallest effective change</div>
+          </div>
+          <div class="process-arrow"><i data-lucide="chevron-right"></i></div>
+          <div class="process-step">
+            <div class="step-ico"><i data-lucide="check-check"></i></div>
+            <div class="step-name">Prove</div>
+            <div class="step-desc">Re-measure to confirm the gain</div>
+          </div>
+          <div class="process-arrow"><i data-lucide="chevron-right"></i></div>
+          <div class="process-step">
+            <div class="step-ico"><i data-lucide="file-text"></i></div>
+            <div class="step-name">Document</div>
+            <div class="step-desc">Record the decision and evidence</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Slide 3 — Executive Summary / Headline Result ===== -->
+      <section>
+        <div class="slide-head">
+          <span class="eyebrow"><i data-lucide="clipboard-check"></i> Executive Summary</span>
+          <h2>5 of 6 targets met &mdash; all tests green</h2>
+        </div>
+        <div class="kpi-grid">
+          <div class="kpi-card met">
+            <span class="accent-bar"></span>
+            <div class="kpi-head">
+              <div class="kpi-icon"><i data-lucide="files"></i></div>
+              <div class="kpi-label">PHP files loaded<br>per front-end request</div>
+            </div>
+            <div class="kpi-value">600 &rarr; 417</div>
+            <div class="kpi-delta"><span class="kpi-pct">-30.50%</span><span>largest single win</span></div>
+          </div>
+          <div class="kpi-card met">
+            <span class="accent-bar"></span>
+            <div class="kpi-head">
+              <div class="kpi-icon"><i data-lucide="rocket"></i></div>
+              <div class="kpi-label">Front-end time<br>to first byte</div>
+            </div>
+            <div class="kpi-value">53.72 &rarr; 41.90</div>
+            <div class="kpi-delta"><span class="kpi-pct">-22.00%</span><span>milliseconds</span></div>
+          </div>
+          <div class="kpi-card met">
+            <span class="accent-bar"></span>
+            <div class="kpi-head">
+              <div class="kpi-icon"><i data-lucide="database"></i></div>
+              <div class="kpi-label">Database queries<br>per front-end page</div>
+            </div>
+            <div class="kpi-value">24 &rarr; 20</div>
+            <div class="kpi-delta"><span class="kpi-pct">-16.67%</span><span>round-trips</span></div>
+          </div>
+        </div>
+        <div class="badge-row">
+          <span class="status-badge met"><i data-lucide="check-circle"></i> TTFB</span>
+          <span class="status-badge met"><i data-lucide="check-circle"></i> Admin DCL</span>
+          <span class="status-badge partial"><i data-lucide="alert-triangle"></i> Admin JS (partial)</span>
+          <span class="status-badge met"><i data-lucide="check-circle"></i> Memory</span>
+          <span class="status-badge met"><i data-lucide="check-circle"></i> DB queries</span>
+          <span class="status-badge met"><i data-lucide="check-circle"></i> Files loaded</span>
+        </div>
+      </section>
+
+      <!-- ===== Slide 4 — Divider: Business Value ===== -->
+      <section class="slide-divider" data-background-gradient="linear-gradient(135deg,#4F6BFF 0%,#7C5CFF 100%)">
+        <div class="divider-ico"><i data-lucide="trending-up"></i></div>
+        <div class="section-num">SECTION 01</div>
+        <h2>Business Value</h2>
+        <p>Faster pages, lower hosting cost, and stronger search &amp; user experience &mdash; the outcomes behind the numbers.</p>
+      </section>
+
+      <!-- ===== Slide 5 — Why It Matters ===== -->
+      <section>
+        <div class="slide-head">
+          <span class="eyebrow"><i data-lucide="heart-handshake"></i> Why It Matters</span>
+          <h2>What the numbers mean for the business</h2>
+        </div>
+        <div class="icon-cards">
+          <div class="icon-card">
+            <div class="ic"><i data-lucide="timer"></i></div>
+            <h3>Faster pages</h3>
+            <p>A 22% quicker first byte keeps visitors engaged and lifts conversion on every page view.</p>
+          </div>
+          <div class="icon-card">
+            <div class="ic"><i data-lucide="server"></i></div>
+            <h3>Lower cost</h3>
+            <p>Fewer files and queries per request means more traffic per server &mdash; and less infrastructure spend.</p>
+          </div>
+          <div class="icon-card">
+            <div class="ic"><i data-lucide="search"></i></div>
+            <h3>Better SEO</h3>
+            <p>Server response time and page speed are direct ranking and Core Web Vitals signals.</p>
+          </div>
+          <div class="icon-card">
+            <div class="ic"><i data-lucide="users"></i></div>
+            <h3>Better UX</h3>
+            <p>A snappier admin and front-end reduce friction for editors and readers alike.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Slide 6 — KPI Scorecard ===== -->
+      <section>
+        <div class="slide-head">
+          <span class="eyebrow"><i data-lucide="list-checks"></i> KPI Scorecard</span>
+          <h2>Six targets, measured before and after</h2>
+        </div>
+        <div class="two-col">
+          <div class="score-list">
+            <div class="score-row met">
+              <div class="s-ico"><i data-lucide="rocket"></i></div>
+              <div><div class="s-label">Front-end TTFB (uncached)</div><div class="s-sub">53.72 &rarr; 41.90 ms &middot; target &ge;20%</div></div>
+              <div class="s-pct">-22.00%</div>
+              <div class="s-status"><i data-lucide="check-circle"></i></div>
+            </div>
+            <div class="score-row met">
+              <div class="s-ico"><i data-lucide="monitor"></i></div>
+              <div><div class="s-label">Admin DOMContentLoaded</div><div class="s-sub">50.66 &rarr; 42.05 ms &middot; target &ge;15%</div></div>
+              <div class="s-pct">-17.00%</div>
+              <div class="s-status"><i data-lucide="check-circle"></i></div>
+            </div>
+            <div class="score-row partial">
+              <div class="s-ico"><i data-lucide="file-code-2"></i></div>
+              <div><div class="s-label">Admin JS transfer (gzipped)</div><div class="s-sub">512.00 &rarr; 420.00 KB &middot; target &ge;30%</div></div>
+              <div class="s-pct">-17.97%</div>
+              <div class="s-status"><i data-lucide="alert-triangle"></i></div>
+            </div>
+            <div class="score-row met">
+              <div class="s-ico"><i data-lucide="cpu"></i></div>
+              <div><div class="s-label">PHP memory per request</div><div class="s-sub">34.00 &rarr; 30.00 MB &middot; target &ge;10%</div></div>
+              <div class="s-pct">-11.76%</div>
+              <div class="s-status"><i data-lucide="check-circle"></i></div>
+            </div>
+            <div class="score-row met">
+              <div class="s-ico"><i data-lucide="database"></i></div>
+              <div><div class="s-label">DB queries per page</div><div class="s-sub">24 &rarr; 20 &middot; target &ge;15%</div></div>
+              <div class="s-pct">-16.67%</div>
+              <div class="s-status"><i data-lucide="check-circle"></i></div>
+            </div>
+            <div class="score-row met">
+              <div class="s-ico"><i data-lucide="files"></i></div>
+              <div><div class="s-label">PHP files loaded per request</div><div class="s-sub">600 &rarr; 417 &middot; target &ge;30%</div></div>
+              <div class="s-pct">-30.50%</div>
+              <div class="s-status"><i data-lucide="check-circle"></i></div>
+            </div>
+          </div>
+          <div>
+            <div class="diagram-title"><i data-lucide="pie-chart"></i> KPI Attainment</div>
+            <div class="diagram-wrap">
+              <div class="mermaid">
+pie title KPI Attainment (5 met / 1 partial)
+    "Targets met" : 5
+    "Partial (Admin JS)" : 1
+              </div>
+            </div>
+            <div class="legend">
+              <span class="lg"><span class="dot met"></span> Targets met (5)</span>
+              <span class="lg"><span class="dot partial"></span> Partial &mdash; Admin JS (1)</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Slide 7 — Deep Dive: Speed (TTFB &amp; Files) ===== -->
+      <section>
+        <div class="slide-head">
+          <span class="eyebrow"><i data-lucide="rocket"></i> Deep Dive &middot; Speed</span>
+          <h2>The front-end got faster by loading less</h2>
+        </div>
+        <p class="lead">Context-aware deferred loading cut the files parsed on every request, which drives both a faster first byte and lower memory.</p>
+        <div class="bars">
+          <div class="bar-group">
+            <div class="bar-label"><span>Front-end TTFB (uncached)</span><span class="pct">-22.00%</span></div>
+            <div class="bar-tag">Before</div>
+            <div class="bar-track"><div class="bar-fill before" style="width:100%">53.72 ms</div></div>
+            <div class="bar-tag">After</div>
+            <div class="bar-track"><div class="bar-fill after" style="width:78%">41.90 ms</div></div>
+          </div>
+          <div class="bar-group">
+            <div class="bar-label"><span>PHP files loaded per request</span><span class="pct">-30.50%</span></div>
+            <div class="bar-tag">Before</div>
+            <div class="bar-track"><div class="bar-fill before" style="width:100%">600 files</div></div>
+            <div class="bar-tag">After</div>
+            <div class="bar-track"><div class="bar-fill after" style="width:69.5%">417 files</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Slide 8 — Deep Dive: Efficiency (Memory &amp; Queries) ===== -->
+      <section>
+        <div class="slide-head">
+          <span class="eyebrow"><i data-lucide="activity"></i> Deep Dive &middot; Efficiency</span>
+          <h2>Fewer database queries, less memory per request</h2>
+        </div>
+        <p class="lead">Batch priming and N+1 elimination collapse repeated per-object lookups into single bulk reads served from the object cache.</p>
+        <div class="stat-duo">
+          <div class="stat-big">
+            <div class="sb-ico"><i data-lucide="cpu"></i></div>
+            <div class="sb-label">PHP memory per front-end request</div>
+            <div class="sb-flow">
+              <span class="sb-before">34.00 MB</span>
+              <span class="sb-arrow"><i data-lucide="arrow-right"></i></span>
+              <span class="sb-after">30.00 MB</span>
+            </div>
+            <div class="sb-pct"><i data-lucide="trending-down"></i> 11.76% lighter</div>
+          </div>
+          <div class="stat-big">
+            <div class="sb-ico"><i data-lucide="database"></i></div>
+            <div class="sb-label">Database queries per front-end page</div>
+            <div class="sb-flow">
+              <span class="sb-before">24</span>
+              <span class="sb-arrow"><i data-lucide="arrow-right"></i></span>
+              <span class="sb-after">20</span>
+            </div>
+            <div class="sb-pct"><i data-lucide="trending-down"></i> 16.67% fewer round-trips</div>
+          </div>
+        </div>
+      </section>
+      <!-- ===== Slide 9 — Divider: What Changed Architecturally ===== -->
+      <section class="slide-divider" data-background-gradient="linear-gradient(135deg,#4F6BFF 0%,#22D3EE 100%)">
+        <div class="divider-ico"><i data-lucide="layers"></i></div>
+        <div class="section-num">SECTION 02</div>
+        <h2>What Changed Architecturally</h2>
+        <p>From an eager, always-on runtime to a context-aware, deferred one &mdash; with every public contract preserved.</p>
+      </section>
+
+      <!-- ===== Slide 10 — Runtime: Before (Eager) ===== -->
+      <section>
+        <div class="slide-head">
+          <span class="eyebrow"><i data-lucide="history"></i> Before</span>
+          <h2>Every request paid the full cost</h2>
+        </div>
+        <div class="two-col">
+          <div>
+            <div class="diagram-title"><i data-lucide="git-fork"></i> Runtime Architecture &mdash; Before (Eager, Always-On)</div>
+            <div class="diagram-wrap">
+              <div class="mermaid">
+graph TD
+    R["HTTP Request"] --> S["wp-settings.php: 324 eager require/include"]
+    S --> A["All subsystems load: block editor, REST, new-7.0, admin (any context)"]
+    A --> F["default-filters.php: 465 hook registrations"]
+    F --> H["WP_Hook dispatch: always call_user_func_array()"]
+    H --> Q["WP_Query: per-object meta/term queries (N+1)"]
+    Q --> C["Object cache: coarse flush, single get/set"]
+    C --> Z["Response"]
+              </div>
+            </div>
+          </div>
+          <div>
+            <p>The <strong>Runtime Architecture &mdash; Before (Eager, Always-On)</strong> diagram shows how a single request always loaded every subsystem, registered all hooks, and dispatched them through the general-purpose call path &mdash; then re-queried metadata object by object.</p>
+            <div class="legend">
+              <span class="lg"><span class="dot node"></span> Boxes = runtime stages</span>
+              <span class="lg"><span class="dot metric"></span> Full path runs for every context</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Slide 11 — Runtime: After (Deferred) ===== -->
+      <section>
+        <div class="slide-head">
+          <span class="eyebrow"><i data-lucide="sparkles"></i> After</span>
+          <h2>Load only what the context needs</h2>
+        </div>
+        <div class="two-col">
+          <div>
+            <div class="diagram-title"><i data-lucide="git-branch"></i> Runtime Architecture &mdash; After (Context-Aware, Deferred)</div>
+            <div class="diagram-wrap">
+              <div class="mermaid">
+graph TD
+    R2["HTTP Request"] --> CTX{"Detect context: front-end / admin / REST / AJAX"}
+    CTX --> S2["wp-settings.php: load only files needed for context"]
+    S2 --> F2["default-filters.php: same 465 registrations preserved"]
+    F2 --> H2["WP_Hook: arity fast path, direct-call for 0-1 args"]
+    H2 --> Q2["WP_Query: batch prime meta/terms in bulk"]
+    Q2 --> C2["Object cache: multi-get/set, granular invalidation, hit/miss counters"]
+    C2 --> STx["Server-Timing: emit 7 metrics (test env only)"]
+    STx --> Z2["Response: identical output, fewer files/queries"]
+              </div>
+            </div>
+          </div>
+          <div>
+            <p>The <strong>Runtime Architecture &mdash; After (Context-Aware, Deferred)</strong> diagram adds a context branch so only relevant subsystems load, routes low-arity hooks through a direct fast path, and primes metadata in bulk &mdash; while the output stays byte-identical.</p>
+            <div class="legend">
+              <span class="lg"><span class="dot branch"></span> Diamond = context branch</span>
+              <span class="lg"><span class="dot node"></span> Only relevant subsystems load</span>
+              <span class="lg"><span class="dot metric"></span> Public contracts unchanged</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Slide 12 — How We Measured (Observability) ===== -->
+      <section>
+        <div class="slide-head">
+          <span class="eyebrow"><i data-lucide="activity"></i> How We Measured</span>
+          <h2>Proof from an isolated, repeatable harness</h2>
+        </div>
+        <div class="diagram-title"><i data-lucide="git-compare-arrows"></i> Measurement Harness Flow</div>
+        <div class="diagram-wrap">
+          <div class="mermaid">
+graph LR
+    E["docker-compose.benchmark.yml: pinned isolated env"] --> B["run-baseline.sh: baseline metrics"]
+    E --> O["run-optimized.sh: optimized metrics"]
+    B --> D["generate-diff-report.js: statistical diff"]
+    O --> D
+    D --> J["benchmark-report.json: 6 KPIs + 7 Server-Timing metrics"]
+    J --> P["performance-dashboard.md"]
+    J --> HT["executive-presentation.html"]
+          </div>
+        </div>
+        <p class="mt-2">The <strong>Measurement Harness Flow</strong> diagram traces baseline and optimized runs into a single statistical diff. Seven <em>Server-Timing</em> metrics &mdash; bootstrap, plugins, files-loaded, cache-hits, cache-misses, db-queries and memory-usage &mdash; are captured in the test environment only.</p>
+        <div class="legend">
+          <span class="lg"><span class="dot node"></span> Measurement scripts</span>
+          <span class="lg"><span class="dot metric"></span> Machine-readable report</span>
+          <span class="lg"><span class="dot branch"></span> Leadership &amp; team artifacts</span>
+        </div>
+      </section>
+
+      <!-- ===== Slide 13 — Divider: Risks &amp; Safeguards ===== -->
+      <section class="slide-divider" data-background-gradient="linear-gradient(135deg,#7C5CFF 0%,#4F6BFF 100%)">
+        <div class="divider-ico"><i data-lucide="shield-check"></i></div>
+        <div class="section-num">SECTION 03</div>
+        <h2>Risks &amp; Safeguards</h2>
+        <p>How we protected the sites running on WordPress from regressions while changing the runtime hot path.</p>
+      </section>
+
+      <!-- ===== Slide 14 — Risks &amp; Mitigations ===== -->
+      <section>
+        <div class="slide-head">
+          <span class="eyebrow"><i data-lucide="shield-alert"></i> Risks &amp; Mitigations</span>
+          <h2>Changed the engine, kept the contract</h2>
+        </div>
+        <table class="risk-table">
+          <thead>
+            <tr><th style="width:30%">Risk</th><th>Safeguard</th><th style="width:14%">Status</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="rk"><i data-lucide="shield"></i> Public API preservation</span></td>
+              <td>Method signatures, hook names and argument counts, REST routes/schemas and the <code>wp.*</code> surface are unchanged; 465 registrations, 546 do_action and 1,485 apply_filters sites remain intact.</td>
+              <td><span class="st mit">Mitigated</span></td>
+            </tr>
+            <tr>
+              <td><span class="rk"><i data-lucide="lock"></i> Security-order preservation</span></td>
+              <td>Authentication, nonce and capability gates stay in the non-deferred core bootstrap; deferred files contain only class definitions and registrations.</td>
+              <td><span class="st mit">Mitigated</span></td>
+            </tr>
+            <tr>
+              <td><span class="rk"><i data-lucide="alert-triangle"></i> Admin JS &ge;30% target</span></td>
+              <td>Conditional loading lands now at 17.97%; true webpack bundle splitting is the wired, prioritized next step to reach the target.</td>
+              <td><span class="st open">Partial</span></td>
+            </tr>
+            <tr>
+              <td><span class="rk"><i data-lucide="git-branch"></i> Minimal-diff discipline</span></td>
+              <td>The in-request query cache is read-only (SELECT only), keyed by exact SQL with a bounded 256-entry FIFO; no bundled refactors or style-only edits.</td>
+              <td><span class="st mit">Mitigated</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="gate-row">
+          <span class="gate-chip"><i data-lucide="check-circle"></i> PHPUnit 28,930 (28,923 pass)</span>
+          <span class="gate-chip"><i data-lucide="check-circle"></i> QUnit 456 / 456</span>
+          <span class="gate-chip"><i data-lucide="check-circle"></i> PHPStan: zero new errors</span>
+          <span class="gate-chip"><i data-lucide="check-circle"></i> PHPCS: zero violations</span>
+        </div>
+      </section>
+
+      <!-- ===== Slide 15 — Team Onboarding ===== -->
+      <section>
+        <div class="slide-head">
+          <span class="eyebrow"><i data-lucide="graduation-cap"></i> Team Onboarding</span>
+          <h2>Run the benchmarks and read the results</h2>
+        </div>
+        <div class="steps">
+          <div class="step-item">
+            <div class="num">1</div>
+            <div class="sico"><i data-lucide="download"></i></div>
+            <div class="stext"><strong>Start the benchmark environment</strong>The <code>docker-compose.benchmark.yml</code> stack brings up a pinned, isolated PHP and database environment so results are attributable to code, not host noise.</div>
+          </div>
+          <div class="step-item">
+            <div class="num">2</div>
+            <div class="sico"><i data-lucide="play"></i></div>
+            <div class="stext"><strong>Capture baseline, then optimized</strong>Run <code>run-baseline.sh</code> then <code>run-optimized.sh</code> &mdash; 20 iterations with 2 repetitions each for statistical stability.</div>
+          </div>
+          <div class="step-item">
+            <div class="num">3</div>
+            <div class="sico"><i data-lucide="bar-chart"></i></div>
+            <div class="stext"><strong>Generate the comparison</strong>Running <code>generate-diff-report.js</code> emits <code>benchmark-report.json</code> with all six KPIs and the seven Server-Timing metrics.</div>
+          </div>
+          <div class="step-item">
+            <div class="num">4</div>
+            <div class="sico"><i data-lucide="book-open"></i></div>
+            <div class="stext"><strong>Read the results</strong>Open <code>performance-dashboard.md</code> for the live scorecard and <code>decision-log-and-traceability.md</code> for the full rationale and traceability matrix.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Slide 16 — Closing ===== -->
+      <section class="slide-closing" data-background-gradient="radial-gradient(circle at 50% 38%, #1A1F38 0%, #070912 78%)">
+        <div class="closing-mark"><i data-lucide="check-circle"></i></div>
+        <h1>Faster by evidence</h1>
+        <p class="lead">5 of 6 targets met, with zero regressions across 28,930 PHPUnit and 456 QUnit tests. The measurement harness ships with the code, so every future gain is provable too.</p>
+        <div class="next-list">
+          <span class="next-chip"><i data-lucide="file-code-2"></i> Finish admin-JS webpack splitting</span>
+          <span class="next-chip"><i data-lucide="boxes"></i> Audit 35 remaining REST controllers</span>
+          <span class="next-chip"><i data-lucide="network"></i> Optimize multisite queries</span>
+        </div>
+      </section>
+
+    </div>
+  </div>
+  <!-- Pinned libraries (exact versions) -->
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+
+  <script>
+    // ----------------------------------------------------------------
+    // Mermaid — dark theme tuned to the Blitzy palette.
+    // startOnLoad is FALSE on purpose: diagrams are rendered on Reveal
+    // lifecycle events so slides that are hidden at load still render
+    // correctly once they become visible.
+    // ----------------------------------------------------------------
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'dark',
+      securityLevel: 'loose',
+      htmlLabels: false,
+      flowchart: { htmlLabels: false, useMaxWidth: true, nodeSpacing: 45, rankSpacing: 52, padding: 12 },
+      themeVariables: {
+        fontFamily: 'Inter, sans-serif',
+        fontSize: '18px',
+        background: '#121629',
+        primaryColor: '#1A1F38',
+        primaryBorderColor: '#4F6BFF',
+        primaryTextColor: '#E6E9F5',
+        secondaryColor: '#232a4d',
+        tertiaryColor: '#0B0E1A',
+        lineColor: '#7C5CFF',
+        textColor: '#E6E9F5',
+        clusterBkg: '#121629',
+        clusterBorder: '#2A3157',
+        pie1: '#2ecc71',
+        pie2: '#f5a623',
+        pieTitleTextColor: '#E6E9F5',
+        pieSectionTextColor: '#0B0E1A',
+        pieOuterStrokeColor: '#2A3157'
+      }
+    });
+
+    // Render Lucide icons across the deck (idempotent — already-converted
+    // icons are <svg> without a data-lucide attribute, so re-runs are safe)
+    // and render any not-yet-processed Mermaid diagrams inside the given slide.
+    function renderVisuals(slide) {
+      if (window.lucide && typeof lucide.createIcons === 'function') {
+        lucide.createIcons();
+      }
+      if (window.mermaid && slide) {
+        // Render diagrams only after web fonts are ready so Mermaid measures
+        // label widths with the real font (Inter) and sizes nodes correctly.
+        var ready = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
+        ready.then(function () {
+          var pending = slide.querySelectorAll('.mermaid:not([data-processed="true"])');
+          if (pending.length) {
+            try {
+              mermaid.run({ nodes: pending });
+            } catch (err) {
+              console.error('Mermaid render error:', err);
+            }
+          }
+        });
+      }
+    }
+
+    // ----------------------------------------------------------------
+    // Reveal — the four named settings (hash, transition, width, height)
+    // are verbatim per Rule 4; the rest are sensible presentation defaults.
+    // ----------------------------------------------------------------
+    Reveal.initialize({
+      hash: true,
+      transition: 'slide',
+      width: 1920,
+      height: 1080,
+      margin: 0.06,
+      minScale: 0.2,
+      maxScale: 2.0,
+      controls: true,
+      progress: true,
+      slideNumber: 'c/t',
+      center: true
+    }).then(function () {
+      renderVisuals(Reveal.getCurrentSlide());
+    });
+
+    // Render on ready AND slidechanged so icons/diagrams appear on every
+    // slide, including ones deep-linked via the URL hash.
+    Reveal.on('ready', function (event) {
+      renderVisuals(event.currentSlide || Reveal.getCurrentSlide());
+    });
+    Reveal.on('slidechanged', function (event) {
+      renderVisuals(event.currentSlide);
+    });
+  </script>
+
+</body>
+</html>

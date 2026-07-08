@@ -1138,78 +1138,95 @@ class WP_REST_Comments_Controller extends WP_REST_Controller {
 		}
 
 		$fields = $this->get_fields_for_response( $request );
-		$data   = array();
 
-		if ( in_array( 'id', $fields, true ) ) {
-			$data['id'] = (int) $comment->comment_ID;
-		}
+		/*
+		 * Serve the schema-shaped payload from the prepared-response cache when one is
+		 * available, recomputing it only on a miss. The comment group's last-changed
+		 * token is part of the cache key, so any change to the comment or its metadata
+		 * invalidates the entry. Additional fields, context filtering, links, and the
+		 * rest_prepare_comment filter are always applied below, on both cache hits and
+		 * misses.
+		 */
+		$last_changed = wp_cache_get_last_changed( 'comment' );
+		$data         = rest_get_cached_prepared_response( 'comment', $comment->comment_ID, $request, $last_changed );
 
-		if ( in_array( 'post', $fields, true ) ) {
-			$data['post'] = (int) $comment->comment_post_ID;
-		}
+		if ( false === $data ) {
+			$data = array();
 
-		if ( in_array( 'parent', $fields, true ) ) {
-			$data['parent'] = (int) $comment->comment_parent;
-		}
+			if ( in_array( 'id', $fields, true ) ) {
+				$data['id'] = (int) $comment->comment_ID;
+			}
 
-		if ( in_array( 'author', $fields, true ) ) {
-			$data['author'] = (int) $comment->user_id;
-		}
+			if ( in_array( 'post', $fields, true ) ) {
+				$data['post'] = (int) $comment->comment_post_ID;
+			}
 
-		if ( in_array( 'author_name', $fields, true ) ) {
-			$data['author_name'] = $comment->comment_author;
-		}
+			if ( in_array( 'parent', $fields, true ) ) {
+				$data['parent'] = (int) $comment->comment_parent;
+			}
 
-		if ( in_array( 'author_email', $fields, true ) ) {
-			$data['author_email'] = $comment->comment_author_email;
-		}
+			if ( in_array( 'author', $fields, true ) ) {
+				$data['author'] = (int) $comment->user_id;
+			}
 
-		if ( in_array( 'author_url', $fields, true ) ) {
-			$data['author_url'] = $comment->comment_author_url;
-		}
+			if ( in_array( 'author_name', $fields, true ) ) {
+				$data['author_name'] = $comment->comment_author;
+			}
 
-		if ( in_array( 'author_ip', $fields, true ) ) {
-			$data['author_ip'] = $comment->comment_author_IP;
-		}
+			if ( in_array( 'author_email', $fields, true ) ) {
+				$data['author_email'] = $comment->comment_author_email;
+			}
 
-		if ( in_array( 'author_user_agent', $fields, true ) ) {
-			$data['author_user_agent'] = $comment->comment_agent;
-		}
+			if ( in_array( 'author_url', $fields, true ) ) {
+				$data['author_url'] = $comment->comment_author_url;
+			}
 
-		if ( in_array( 'date', $fields, true ) ) {
-			$data['date'] = mysql_to_rfc3339( $comment->comment_date );
-		}
+			if ( in_array( 'author_ip', $fields, true ) ) {
+				$data['author_ip'] = $comment->comment_author_IP;
+			}
 
-		if ( in_array( 'date_gmt', $fields, true ) ) {
-			$data['date_gmt'] = mysql_to_rfc3339( $comment->comment_date_gmt );
-		}
+			if ( in_array( 'author_user_agent', $fields, true ) ) {
+				$data['author_user_agent'] = $comment->comment_agent;
+			}
 
-		if ( in_array( 'content', $fields, true ) ) {
-			$data['content'] = array(
-				/** This filter is documented in wp-includes/comment-template.php */
-				'rendered' => apply_filters( 'comment_text', $comment->comment_content, $comment, array() ),
-				'raw'      => $comment->comment_content,
-			);
-		}
+			if ( in_array( 'date', $fields, true ) ) {
+				$data['date'] = mysql_to_rfc3339( $comment->comment_date );
+			}
 
-		if ( in_array( 'link', $fields, true ) ) {
-			$data['link'] = get_comment_link( $comment );
-		}
+			if ( in_array( 'date_gmt', $fields, true ) ) {
+				$data['date_gmt'] = mysql_to_rfc3339( $comment->comment_date_gmt );
+			}
 
-		if ( in_array( 'status', $fields, true ) ) {
-			$data['status'] = $this->prepare_status_response( $comment->comment_approved );
-		}
+			if ( in_array( 'content', $fields, true ) ) {
+				$data['content'] = array(
+					/** This filter is documented in wp-includes/comment-template.php */
+					'rendered' => apply_filters( 'comment_text', $comment->comment_content, $comment, array() ),
+					'raw'      => $comment->comment_content,
+				);
+			}
 
-		if ( in_array( 'type', $fields, true ) ) {
-			$data['type'] = get_comment_type( $comment->comment_ID );
-		}
+			if ( in_array( 'link', $fields, true ) ) {
+				$data['link'] = get_comment_link( $comment );
+			}
 
-		if ( in_array( 'author_avatar_urls', $fields, true ) ) {
-			$data['author_avatar_urls'] = rest_get_avatar_urls( $comment );
-		}
+			if ( in_array( 'status', $fields, true ) ) {
+				$data['status'] = $this->prepare_status_response( $comment->comment_approved );
+			}
 
-		if ( in_array( 'meta', $fields, true ) ) {
-			$data['meta'] = $this->meta->get_value( $comment->comment_ID, $request );
+			if ( in_array( 'type', $fields, true ) ) {
+				$data['type'] = get_comment_type( $comment->comment_ID );
+			}
+
+			if ( in_array( 'author_avatar_urls', $fields, true ) ) {
+				$data['author_avatar_urls'] = rest_get_avatar_urls( $comment );
+			}
+
+			if ( in_array( 'meta', $fields, true ) ) {
+				$data['meta'] = $this->meta->get_value( $comment->comment_ID, $request );
+			}
+
+			// Cache only the deterministic, pre-filter payload, before dynamic fields are added.
+			rest_set_cached_prepared_response( 'comment', $comment->comment_ID, $data, $request, $last_changed );
 		}
 
 		$context = ! empty( $request['context'] ) ? $request['context'] : 'view';

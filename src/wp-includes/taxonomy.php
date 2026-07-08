@@ -3758,6 +3758,12 @@ function clean_taxonomy_cache( $taxonomy ) {
  * responsible for populating the object-term relationship cache. The current
  * function only fetches relationship data that is already in the cache.
  *
+ * When the object set has been primed in bulk upstream (WP_Query and
+ * _prime_post_caches() call update_object_term_cache() for the full set before
+ * the loop), the relationship IDs resolve from cache and the term objects are
+ * routed through _prime_term_caches(), so reads in a template loop are served
+ * without a per-object database query.
+ *
  * @since 2.3.0
  * @since 4.7.0 Returns a `WP_Error` object if there's an error with
  *              any of the matched terms.
@@ -3811,6 +3817,19 @@ function get_object_term_cache( $id, $taxonomy ) {
  * belong to.
  *
  * Caches will only be updated for terms not already cached.
+ *
+ * Object-term relationships and their term objects are primed in bulk: a single
+ * wp_get_object_terms() call resolves the relationships for every not-yet-cached
+ * object across all of the object type's taxonomies, and the resulting term ID
+ * lists are stored together with wp_cache_add_multiple(). This lets template
+ * loops that read terms for a primed object set resolve from cache instead of
+ * issuing a query per object.
+ *
+ * Term meta is intentionally not primed here. Batch loading of term meta is
+ * driven upstream by WP_Query through wp_queue_posts_for_term_meta_lazyload()
+ * and the 'lazy_load_term_meta' query argument, so that selective term-meta
+ * lazy-loading can be disabled on a per-query basis. Priming term meta in this
+ * function would defeat that control.
  *
  * @since 2.3.0
  *
@@ -4105,6 +4124,12 @@ function _pad_term_counts( &$terms, $taxonomy ) {
 
 /**
  * Adds any terms from the given IDs to the cache that do not already exist in cache.
+ *
+ * Term objects for all not-yet-cached IDs are fetched with a single JOIN query
+ * and stored via update_term_cache(). When `$update_meta_cache` is true, the
+ * full set of term IDs is added to the metadata lazy-load queue with
+ * wp_lazyload_term_meta() rather than queried immediately, so their term meta is
+ * primed in one query the first time get_term_meta() is called for the set.
  *
  * @since 4.6.0
  * @since 6.1.0 This function is no longer marked as "private".

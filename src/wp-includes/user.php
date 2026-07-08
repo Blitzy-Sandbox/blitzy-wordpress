@@ -885,6 +885,8 @@ function get_users( $args = array() ) {
  * Lists all the users of the site, with several options available.
  *
  * @since 5.9.0
+ * @since 7.0.0 User object and metadata caches are now primed in bulk to
+ *              avoid per-user queries when building the list.
  *
  * @param string|array $args {
  *     Optional. Array or string of default arguments.
@@ -945,6 +947,27 @@ function wp_list_users( $args = array() ) {
 	$query_args = apply_filters( 'wp_list_users_args', $query_args, $parsed_args );
 
 	$users = get_users( $query_args );
+
+	/*
+	 * Prime the user object and user meta caches for the whole set of user IDs
+	 * before the loop below. The query above requests only user IDs, so
+	 * WP_User_Query does not prime the caches itself; without this, each
+	 * get_userdata() call in the loop would issue its own database queries for
+	 * the user row and its metadata (an N+1 pattern), and accessing meta-backed
+	 * fields such as first_name and last_name would query user meta per user.
+	 *
+	 * cache_users() populates the 'users' cache and, via
+	 * update_meta_cache( 'user', ... ), the 'user_meta' cache in a single batch
+	 * each, so the loop reads entirely from cache. This changes performance
+	 * only; the data returned is byte-identical.
+	 *
+	 * cache_users() is a pluggable function and is not available until the
+	 * `plugins_loaded` hook has fired, so guard against its absence to avoid a
+	 * fatal error, mirroring update_post_author_caches().
+	 */
+	if ( function_exists( 'cache_users' ) ) {
+		cache_users( $users );
+	}
 
 	foreach ( $users as $user_id ) {
 		$user = get_userdata( $user_id );
