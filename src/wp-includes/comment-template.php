@@ -2194,6 +2194,8 @@ function _get_comment_reply_id( $post = null ) {
  * Used in the comments.php template to list comments for a particular post.
  *
  * @since 2.7.0
+ * @since 7.0.0 Comment metadata for the whole list is queued for lazy-loading in
+ *              a single batch to avoid per-comment meta queries.
  *
  * @see WP_Query::$comments
  *
@@ -2404,6 +2406,40 @@ function wp_list_comments( $args = array(), $comments = null ) {
 	if ( null === $parsed_args['reverse_top_level'] ) {
 		$parsed_args['reverse_top_level'] = ( 'desc' === get_option( 'comment_order' ) );
 	}
+
+	/*
+	 * Prime the comment meta cache for the whole set of comments about to be
+	 * walked, in a single batch, before the loop below.
+	 *
+	 * The comments passed to the walker may come from a direct $comments
+	 * argument, a dedicated get_comments() query for a specific page, or the
+	 * main query's $wp_query->comments (which the 'comments_array' filter may
+	 * have altered). In the direct-argument and filtered cases the set may not
+	 * have been queued for comment-meta lazy-loading yet, so without this each
+	 * get_comment_meta() call performed by a comment callback (for example in
+	 * Walker_Comment or a theme callback) would run its own query for that
+	 * comment's metadata - an N+1 pattern that grows with the number of comments.
+	 *
+	 * wp_lazyload_comment_meta() only queues the IDs with the metadata
+	 * lazy-loader, which primes the entire set with a single query the first
+	 * time comment meta is read, and fetches nothing if no meta is requested.
+	 * Queuing is idempotent, so re-queuing IDs a comment query already
+	 * registered is harmless. This affects performance only; the rendered
+	 * output is byte-identical.
+	 *
+	 * wp_list_pluck() is intentionally avoided here to prevent by-reference
+	 * manipulation of the comment objects.
+	 */
+	$comment_ids = array();
+	if ( ! empty( $_comments ) ) {
+		foreach ( $_comments as $_comment ) {
+			if ( $_comment instanceof WP_Comment ) {
+				$comment_ids[] = $_comment->comment_ID;
+			}
+		}
+	}
+
+	wp_lazyload_comment_meta( $comment_ids );
 
 	if ( empty( $parsed_args['walker'] ) ) {
 		$walker = new Walker_Comment();

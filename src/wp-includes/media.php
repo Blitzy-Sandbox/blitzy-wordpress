@@ -5247,6 +5247,9 @@ function get_media_embedded_in_content( $content, $types = null ) {
  * Retrieves galleries from the passed post's content.
  *
  * @since 3.6.0
+ * @since 7.0.0 Attachment post and meta caches are primed in bulk before the
+ *              per-image URL lookups, avoiding an N+1 query pattern when a
+ *              gallery references multiple attachments.
  *
  * @param int|WP_Post $post Post ID or object.
  * @param bool        $html Optional. Whether to return HTML or data in the array. Default true.
@@ -5333,6 +5336,26 @@ function get_post_galleries( $post, $html = true ) {
 				$attrs = wp_list_pluck( $block['innerBlocks'], 'attrs' );
 				$ids   = wp_list_pluck( $attrs, 'id' );
 
+				/*
+				 * Prime the post and meta caches for the whole set of attachment
+				 * IDs before the loop below. These IDs come from the parsed block
+				 * markup rather than a WP_Query, so nothing has primed their
+				 * caches yet; without this, each wp_get_attachment_url() call in
+				 * the loop would issue its own database queries for the attachment
+				 * row and its '_wp_attached_file' meta (an N+1 pattern).
+				 *
+				 * _prime_post_caches() loads the posts and their metadata in two
+				 * batched queries, so the loop resolves entirely from cache. The
+				 * term cache is not primed because attachment URLs do not depend
+				 * on it. Only performance changes; the collected URLs are
+				 * byte-identical. The original $ids are left untouched so the
+				 * 'ids' value built below is unchanged.
+				 */
+				$attachment_ids = array_filter( array_map( 'intval', $ids ) );
+				if ( count( $attachment_ids ) > 1 ) {
+					_prime_post_caches( $attachment_ids, false, true );
+				}
+
 				foreach ( $ids as $id ) {
 					$url = wp_get_attachment_url( $id );
 
@@ -5360,6 +5383,27 @@ function get_post_galleries( $post, $html = true ) {
 
 			// If present, use the image IDs from the JSON blob as canonical.
 			if ( ! empty( $ids ) ) {
+				/*
+				 * Prime the post and meta caches for the whole set of attachment
+				 * IDs before the loop below. These IDs come from the block's
+				 * JSON attributes rather than a WP_Query, so nothing has primed
+				 * their caches yet; without this, each wp_get_attachment_url()
+				 * call in the loop would issue its own database queries for the
+				 * attachment row and its '_wp_attached_file' meta (an N+1
+				 * pattern).
+				 *
+				 * _prime_post_caches() loads the posts and their metadata in two
+				 * batched queries, so the loop resolves entirely from cache. The
+				 * term cache is not primed because attachment URLs do not depend
+				 * on it. Only performance changes; the collected URLs are
+				 * byte-identical. The original $ids are left untouched so the
+				 * 'ids' value built below is unchanged.
+				 */
+				$attachment_ids = array_filter( array_map( 'intval', $ids ) );
+				if ( count( $attachment_ids ) > 1 ) {
+					_prime_post_caches( $attachment_ids, false, true );
+				}
+
 				foreach ( $ids as $id ) {
 					$url = wp_get_attachment_url( $id );
 

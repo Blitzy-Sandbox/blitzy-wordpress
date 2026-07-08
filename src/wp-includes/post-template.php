@@ -483,6 +483,16 @@ function post_class( $css_class = '', $post = null ) {
  * All class names are passed through the filter, {@see 'post_class'}, followed by
  * `$css_class` parameter value, with the post ID as the last parameter.
  *
+ * When this function runs inside The Loop for a post set that WP_Query primed
+ * in bulk, the per-post lookups it performs are served from the object cache
+ * rather than the database. The post-format and taxonomy term reads (through
+ * get_the_terms()) resolve from the object-term relationship cache, and the
+ * featured-image check (through has_post_thumbnail()) resolves from the
+ * post-meta cache. WP_Query populates both caches for the whole result set in a
+ * single batch each via its update_post_term_cache and update_post_meta_cache
+ * priming (both enabled by default), so the loop issues no per-post query for
+ * post classes.
+ *
  * @since 2.7.0
  * @since 4.2.0 Custom taxonomy class names were added.
  *
@@ -1099,6 +1109,12 @@ function _wp_link_page( $i ) {
 
 /**
  * Retrieves post custom meta data field.
+ *
+ * The value is read through get_post_custom(), which returns the current post's
+ * entry from the post-meta cache. When the post set has been primed in bulk by
+ * WP_Query (its update_post_meta_cache priming is enabled by default), that
+ * entry is already cached, so calling this in a template loop performs no
+ * per-post database query.
  *
  * @since 1.5.0
  *

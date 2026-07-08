@@ -54,7 +54,7 @@ pie title Project Completion Status
 | System/Resource | Type of Access | Issue Description | Resolution Status | Owner |
 |----------------|---------------|-------------------|-------------------|-------|
 | Docker environment | Local development | Docker Compose services (nginx, PHP-FPM, MySQL) must be running for runtime validation and performance testing | Resolved — services start via `npm run env:start` | Developer |
-| MariaDB 10.11.14 | Database | Test database configured and accessible at localhost | Resolved — wp-tests-config.php configured | Developer |
+| MySQL 8.4 | Database | Test database configured and accessible at localhost | Resolved — wp-tests-config.php configured | Developer |
 
 No additional access issues identified.
 
@@ -119,7 +119,7 @@ No additional access issues identified.
 
 | Test Category | Framework | Total Tests | Passed | Failed | Coverage % | Notes |
 |--------------|-----------|-------------|--------|--------|------------|-------|
-| Unit (PHP) | PHPUnit 9.6.34 | 28,930 | 28,923 | 4 | N/A | Identical to baseline; 4 failures are pre-existing PHP 8.3 timezone deprecations in out-of-scope test files |
+| Unit (PHP) | PHPUnit 9.6.35 | 28,930 | 28,923 | 4 | N/A | Identical to baseline — 28,923 passed + 4 failed + 3 errors = 28,930; all 7 failures/errors are pre-existing, out-of-scope PHP 8.3 timezone deprecations (America/Buenos_Aires, Canada/Newfoundland). 77 skipped + 86 warnings are separate pre-existing diagnostics (see below) |
 | Unit (JS) | QUnit 2.x | 456 | 456 | 0 | N/A | All QUnit tests pass with zero failures |
 | Hooks | PHPUnit | 159 | 159 | 0 | N/A | Hook system tests — 8 warnings (PHPUnit deprecation) |
 | Cache | PHPUnit | 87 | 87 | 0 | N/A | Object cache tests — all pass |
@@ -140,6 +140,9 @@ No additional access issues identified.
 | Grunt Build | Grunt 1.6.1 | N/A | Pass | 0 | N/A | `grunt build --dev` completes successfully |
 
 **Pre-existing Issues (NOT caused by this PR):**
+
+**Test-count reconciliation:** 28,923 passed + 4 failed + 3 errors = **28,930** total PHPUnit tests (identical to baseline). All 4 failures and 3 errors listed below are pre-existing and out-of-scope; the 77 skipped and 86 warnings are additional PHPUnit-reported diagnostics tracked separately (not part of the 28,930 pass/fail/error total).
+
 - 3 PHPUnit errors: DateInvalidTimeZoneException for deprecated timezone identifiers in PHP 8.3 (America/Buenos_Aires, Canada/Newfoundland) — out-of-scope test files
 - 4 PHPUnit failures: Same deprecated timezone strings in schema/dateI18n/wpTimezone/sanitizeOption tests — out-of-scope test files
 - 86 PHPUnit warnings: Pre-existing PHPUnit deprecation warnings
@@ -202,6 +205,7 @@ No additional access issues identified.
 | Benchmark Infrastructure | ✅ Complete | Docker-based benchmark harness with before/after comparison | docker-compose.benchmark.yml, run scripts, report generator |
 | Executive Presentation | ✅ Complete | reveal.js HTML artifact delivered | benchmarks/results/executive-presentation.html |
 | Decision Log & Traceability | ✅ Complete | Markdown decision log with traceability matrix | benchmarks/results/decision-log-and-traceability.md |
+| Performance Dashboard (Rule 1) | ✅ Complete | Markdown dashboard visualizing the 7 Server-Timing metrics and 6 KPI targets | benchmarks/results/performance-dashboard.md |
 | Admin JS ≥30% Bundle Reduction | ⚠️ Partial | Conditional loading at PHP level; webpack splitting prepared but not producing separate bundles | Requires completing webpack code splitting configuration |
 | Multisite Query Optimization | ❌ Not Started | WP_Site_Query and WP_Network_Query not modified | Low priority — multisite-specific |
 | script-modules.php Wrapper | ❌ Not Started | Wrapper file not modified (class file was) | Minimal impact — class-level optimization delivered |
@@ -494,6 +498,7 @@ npx grunt qunit
 | `benchmarks/results/benchmark-report.json` | Latest benchmark results |
 | `benchmarks/results/executive-presentation.html` | Executive summary (reveal.js) |
 | `benchmarks/results/decision-log-and-traceability.md` | Decision log with traceability matrix |
+| `benchmarks/results/performance-dashboard.md` | Performance dashboard — 7 Server-Timing metrics + 6 KPI targets |
 
 ### D. Technology Versions
 
@@ -502,9 +507,9 @@ npx grunt qunit
 | PHP | 8.3.6 (CI), ≥7.4 (supported) | Server-side runtime |
 | Node.js | 20.20.2 | Build tools, test runners |
 | npm | 11.1.0 | Package management |
-| Composer | 2.9.5 | PHP dependency management |
-| MariaDB | 10.11.14 | Database (CI) |
-| PHPUnit | 9.6.34 | PHP test framework |
+| Composer | 2.8.8 | PHP dependency management |
+| MySQL | 8.4 | Database (CI) |
+| PHPUnit | 9.6.35 | PHP test framework |
 | Playwright | 1.56.1 | Performance and E2E tests |
 | Grunt | 1.6.1 | Build orchestration |
 | TypeScript | 5.9.3 | Type checking |

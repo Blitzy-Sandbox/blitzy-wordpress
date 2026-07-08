@@ -781,12 +781,45 @@ function wp_get_nav_menu_items( $menu, $args = array() ) {
  * Updates post and term caches for all linked objects for a list of menu items.
  *
  * @since 6.1.0
+ * @since 7.0.0 The `nav_menu_item` post metadata for the whole set is primed in a
+ *              single batch, so the per-item `_menu_item_*` reads performed here
+ *              and in wp_setup_nav_menu_item() resolve from cache instead of
+ *              issuing a metadata query per item.
  *
  * @param WP_Post[] $menu_items Array of menu item post objects.
  */
 function update_menu_item_cache( $menu_items ) {
-	$post_ids = array();
-	$term_ids = array();
+	$post_ids      = array();
+	$term_ids      = array();
+	$menu_item_ids = array();
+
+	foreach ( $menu_items as $menu_item ) {
+		if ( 'nav_menu_item' === $menu_item->post_type ) {
+			$menu_item_ids[] = (int) $menu_item->ID;
+		}
+	}
+
+	/*
+	 * Prime the nav menu item metadata for the whole set in a single query before
+	 * the per-item reads below. Each menu item is a `nav_menu_item` post whose
+	 * `_menu_item_*` values are read here (to resolve the linked object) and again
+	 * by wp_setup_nav_menu_item(); loading them together lets those reads hit the
+	 * cache instead of running one metadata query per item, which removes an N+1
+	 * pattern when the items arrive without their metadata primed (for example a
+	 * query made with 'update_post_meta_cache' => false, or a direct call to this
+	 * function).
+	 *
+	 * Only the identifiers that are not already cached are fetched, so when the
+	 * metadata was primed upstream (the default WP_Query behavior) no additional
+	 * query runs and the primed values -- and therefore the resulting menu items
+	 * -- remain byte-identical.
+	 */
+	if ( $menu_item_ids ) {
+		$uncached_menu_item_ids = _get_non_cached_ids( $menu_item_ids, 'post_meta' );
+		if ( $uncached_menu_item_ids ) {
+			update_meta_cache( 'post', $uncached_menu_item_ids );
+		}
+	}
 
 	foreach ( $menu_items as $menu_item ) {
 		if ( 'nav_menu_item' !== $menu_item->post_type ) {
