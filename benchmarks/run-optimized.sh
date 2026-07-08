@@ -337,6 +337,36 @@ ensure_wordpress() {
 }
 
 # ---------------------------------------------------------------------------
+# install_mu_plugins — copy the test-only Server-Timing and cache-clearing
+# must-use plugins into the runtime WordPress tree (src/wp-content/mu-plugins,
+# mounted into the container at /var/www/src/wp-content/mu-plugins) so the
+# measured requests actually emit the seven Server-Timing metrics (Rule 1
+# observability) and perform the deterministic per-iteration object-cache reset.
+# Without this step the runtime mu-plugins directory is empty and the metrics
+# are silently absent from the run (the failure this wiring closes). The runtime
+# mu-plugins directory is gitignored, so the copy never dirties the tracked
+# tree; it is idempotent (re-running overwrites with identical bytes) and treats
+# the committed sources as read-only. "Off" remains the physical absence of
+# these files in any tree that has not run the benchmark.
+# ---------------------------------------------------------------------------
+install_mu_plugins() {
+	local src_dir="${repo_root}/tests/performance/wp-content/mu-plugins"
+	local dest_dir="${repo_root}/src/wp-content/mu-plugins"
+	local plugin
+
+	mkdir -p "${dest_dir}"
+	for plugin in server-timing.php clear-cache.php; do
+		if [[ ! -f "${src_dir}/${plugin}" ]]; then
+			printf '[run-optimized] ERROR: required mu-plugin not found: %s\n' \
+				"${src_dir}/${plugin}" >&2
+			exit 1
+		fi
+		cp -f "${src_dir}/${plugin}" "${dest_dir}/${plugin}"
+		printf '[run-optimized] Installed mu-plugin: %s\n' "${plugin}"
+	done
+}
+
+# ---------------------------------------------------------------------------
 # run_measurement — export the measurement environment and invoke the Node
 # orchestrator. The unchanged tests/performance/playwright.config.js derives its
 # base URL and web-server port from WP_BASE_URL, and inherits
@@ -414,5 +444,6 @@ fi
 # container), then wait for the installed site to serve, then measure.
 ensure_wordpress
 wait_for_http
+install_mu_plugins
 run_measurement
 print_summary

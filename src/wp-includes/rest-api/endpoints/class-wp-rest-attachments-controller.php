@@ -1066,12 +1066,12 @@ class WP_REST_Attachments_Controller extends WP_REST_Posts_Controller {
 		}
 
 		$last_changed        = wp_cache_get_last_changed( 'posts' );
-		$prepared_media_data = rest_get_cached_prepared_response( 'attachment', $post->ID, $request, $last_changed );
+		$prepared_media_data = rest_get_cached_prepared_response( 'attachment-media', $post->ID, $request, $last_changed );
 
 		if ( false === $prepared_media_data ) {
 			$prepared_media_data = $this->prepare_attachment_media_fields( $post, $fields );
 
-			rest_set_cached_prepared_response( 'attachment', $post->ID, $prepared_media_data, $request, $last_changed );
+			rest_set_cached_prepared_response( 'attachment-media', $post->ID, $prepared_media_data, $request, $last_changed );
 		}
 
 		foreach ( $prepared_media_data as $media_field => $media_value ) {

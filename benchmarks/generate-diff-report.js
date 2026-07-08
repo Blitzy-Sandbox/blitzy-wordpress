@@ -36,8 +36,13 @@
  *   - `performance-results.json`        : optimized raw results.
  *
  * Both are `Array<{ file: string, title: string, results: Array<Record<string, number[]>> }>`.
- * When the baseline file is missing, `parseFile` returns `[]`; the report is
- * still emitted with `N/A`/`null` in place of absent baseline values.
+ * When a declared input artifact is missing the generator FAILS LOUDLY (writes
+ * an error to stderr and exits non-zero) rather than emitting a partial report,
+ * so the committed report contract cannot silently regress to fabricated or
+ * empty numbers. The documented baseline-optional mode -- where the report is
+ * still emitted with `N/A`/`null` in place of absent baseline values -- remains
+ * available by explicitly passing `--allow-missing-baseline` (or setting
+ * `BENCHMARK_ALLOW_MISSING_BASELINE=1`).
  *
  * Outputs (written to `WP_ARTIFACTS_PATH`):
  *   - `benchmark-report.json`    : machine-readable KPI + per-suite report.
@@ -745,6 +750,26 @@ function buildSuites( afterStats, beforeStats ) {
 }
 
 /**
+ * Formats the "Significant" table cell for a per-metric or per-KPI significance result.
+ *
+ * Returns the supplied fallback string when no significance result is available
+ * ( `null` ), otherwise `'yes'` / `'no'` depending on whether the Welch t-test
+ * reached significance. Extracted into a helper so the calling table builders use
+ * a single, flat conditional rather than a nested ternary expression.
+ *
+ * @param {?{significant: boolean}} significance Significance result, or null when unavailable.
+ * @param {string}                  fallback     Value to use when significance is null.
+ * @return {string} The formatted cell value.
+ */
+function formatSignificantLabel( significance, fallback ) {
+	if ( null === significance ) {
+		return fallback;
+	}
+
+	return significance.significant ? 'yes' : 'no';
+}
+
+/**
  * Builds the KPI summary table rows for Markdown/console rendering.
  *
  * @param {Array<Object>} kpis KPI report entries.
@@ -766,12 +791,7 @@ function buildKpiRows( kpis ) {
 			kpi.significance !== null
 				? kpi.significance.pValue.toFixed( 4 )
 				: 'N/A',
-		Significant:
-			kpi.significance !== null
-				? kpi.significance.significant
-					? 'yes'
-					: 'no'
-				: 'N/A',
+		Significant: formatSignificantLabel( kpi.significance, 'N/A' ),
 	} ) );
 }
 
@@ -811,12 +831,7 @@ function buildSuiteRows( metrics ) {
 				entry.significance !== null
 					? entry.significance.pValue.toFixed( 4 )
 					: '',
-			Significant:
-				entry.significance !== null
-					? entry.significance.significant
-						? 'yes'
-						: 'no'
-					: '',
+			Significant: formatSignificantLabel( entry.significance, '' ),
 		};
 	} );
 }
@@ -897,12 +912,34 @@ function main() {
 
 	const hasBaseline = beforeStats.length > 0;
 
+	// Opt-out for the documented baseline-optional ("N/A") mode. By default the
+	// generator FAILS LOUDLY when a declared input artifact is missing, so the
+	// committed benchmark-report.json contract can never silently regress to
+	// fabricated or empty numbers (the review finding: declared inputs absent
+	// yet a full report emitted). Passing --allow-missing-baseline (or setting
+	// BENCHMARK_ALLOW_MISSING_BASELINE=1) re-enables the N/A degradation for the
+	// legitimate "optimized-only, no baseline captured yet" workflow.
+	const allowMissingBaseline =
+		process.argv.slice( 2 ).includes( '--allow-missing-baseline' ) ||
+		process.env.BENCHMARK_ALLOW_MISSING_BASELINE === '1';
+
 	if ( afterStats.length === 0 ) {
 		process.stderr.write(
 			`Error: no optimized results found at ${ join(
 				process.env.WP_ARTIFACTS_PATH,
 				OPTIMIZED_FILE
 			) }. Run the optimized benchmark before generating a report.\n`
+		);
+		process.exit( 1 );
+	}
+
+	if ( ! hasBaseline && ! allowMissingBaseline ) {
+		process.stderr.write(
+			`Error: no baseline results found at ${ join(
+				process.env.WP_ARTIFACTS_PATH,
+				BASELINE_FILE
+			) }. Commit/provide the baseline artifact (run benchmarks/run-baseline.sh), or ` +
+				`pass --allow-missing-baseline to emit an N/A report without a baseline.\n`
 		);
 		process.exit( 1 );
 	}
@@ -964,8 +1001,12 @@ function main() {
 	);
 	writeFileSync( markdownPath, markdown );
 
-	// Optional extra summary file, mirroring compare-results.js's argv[0].
-	const summaryFile = process.argv.slice( 2 )[ 0 ];
+	// Optional extra summary file, mirroring compare-results.js's argv[0]. Skip
+	// recognized option flags (e.g. --allow-missing-baseline) so they are never
+	// mistaken for the summary-file path.
+	const summaryFile = process.argv
+		.slice( 2 )
+		.find( ( arg ) => ! arg.startsWith( '--' ) );
 	if ( summaryFile ) {
 		writeFileSync( summaryFile, markdown );
 	}

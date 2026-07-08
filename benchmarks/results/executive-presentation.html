@@ -459,6 +459,43 @@
     /* slide intro heading block */
     .slide-head{ margin-bottom:6px; }
     .slide-head h2 .accent{ color:var(--blitzy-accent-3); }
+
+    /*
+     * Reduced-motion accommodation.
+     *
+     * Reveal is configured with transition:'slide' (verbatim per Rule 4), but
+     * viewers who request reduced motion at the OS/browser level should not be
+     * subjected to sliding/zooming slide transitions, fragment movement, or the
+     * decorative control-arrow bounce animations. When prefers-reduced-motion is
+     * "reduce", neutralize the motion (slides cut rather than slide, fragments
+     * appear without translation) while keeping all content fully visible and the
+     * deck fully navigable. Opacity-only changes are retained as they do not
+     * constitute vestibular motion.
+     */
+    @media (prefers-reduced-motion: reduce){
+      .reveal .slides section,
+      .reveal .slides section > section,
+      .reveal .slide-background,
+      .reveal.has-parallax-background .backgrounds,
+      .reveal .progress span,
+      .reveal .controls button{
+        transition:none !important;
+      }
+      .reveal .slides section[class*="past"],
+      .reveal .slides section[class*="future"]{
+        transform:none !important;
+      }
+      .reveal .fragment{
+        transition:none !important;
+        transform:none !important;
+      }
+      .reveal .controls .navigate-left.highlight,
+      .reveal .controls .navigate-right.highlight,
+      .reveal .controls .navigate-up.highlight,
+      .reveal .controls .navigate-down.highlight{
+        animation:none !important;
+      }
+    }
   </style>
 </head>
 <body>
@@ -475,7 +512,7 @@
         <div class="meta-row">
           <span class="meta-chip"><i data-lucide="git-commit-horizontal" aria-hidden="true"></i> WordPress Core v7.0.0-alpha</span>
           <span class="meta-chip"><i data-lucide="target" aria-hidden="true"></i> 6 measured KPI targets</span>
-          <span class="meta-chip"><i data-lucide="badge-check" aria-hidden="true"></i> Zero test regressions</span>
+          <span class="meta-chip"><i data-lucide="badge-check" aria-hidden="true"></i> Baseline test parity</span>
         </div>
       </section>
 
@@ -853,7 +890,7 @@ graph LR
             </tr>
             <tr>
               <td><span class="rk"><i data-lucide="alert-triangle" aria-hidden="true"></i> Admin JS &ge;30% target</span></td>
-              <td>Conditional loading lands now at 17.97%; true webpack bundle splitting is the wired, prioritized next step to reach the target.</td>
+              <td>Runtime conditional loading lands 17.97% now; webpack cannot split the Grunt-uglified admin JS, so reaching the target means relocating admin JS onto webpack entry points &mdash; the prioritized next step.</td>
               <td><span class="st open">Partial</span></td>
             </tr>
             <tr>
@@ -864,10 +901,10 @@ graph LR
           </tbody>
         </table>
         <div class="gate-row">
-          <span class="gate-chip"><i data-lucide="check-circle" aria-hidden="true"></i> PHPUnit 28,930 (28,923 pass)</span>
-          <span class="gate-chip"><i data-lucide="check-circle" aria-hidden="true"></i> QUnit 456 / 456</span>
+          <span class="gate-chip"><i data-lucide="check-circle" aria-hidden="true"></i> PHPUnit 28,930: baseline parity</span>
+          <span class="gate-chip"><i data-lucide="check-circle" aria-hidden="true"></i> QUnit 456: baseline parity</span>
           <span class="gate-chip"><i data-lucide="check-circle" aria-hidden="true"></i> PHPStan: zero new errors</span>
-          <span class="gate-chip"><i data-lucide="check-circle" aria-hidden="true"></i> PHPCS: zero violations</span>
+          <span class="gate-chip"><i data-lucide="check-circle" aria-hidden="true"></i> PHPCS: zero violations (modified files)</span>
         </div>
       </section>
 
@@ -905,9 +942,9 @@ graph LR
       <section class="slide-closing" data-background-gradient="radial-gradient(circle at 50% 38%, #1A1F38 0%, #070912 78%)">
         <div class="closing-mark"><i data-lucide="check-circle" aria-hidden="true"></i></div>
         <h1>Faster by evidence</h1>
-        <p class="lead">5 of 6 targets met, with zero regressions across 28,930 PHPUnit and 456 QUnit tests. The measurement harness ships with the code, so every future gain is provable too.</p>
+        <p class="lead">5 of 6 targets met, with baseline test parity preserved across the 28,930 PHPUnit and 456 QUnit suites. The measurement harness ships with the code, so every future gain is provable too.</p>
         <div class="next-list">
-          <span class="next-chip"><i data-lucide="file-code-2" aria-hidden="true"></i> Finish admin-JS webpack splitting</span>
+          <span class="next-chip"><i data-lucide="file-code-2" aria-hidden="true"></i> Move admin JS onto webpack entry points</span>
           <span class="next-chip"><i data-lucide="boxes" aria-hidden="true"></i> Audit 35 remaining REST controllers</span>
           <span class="next-chip"><i data-lucide="network" aria-hidden="true"></i> Optimize multisite queries</span>
         </div>

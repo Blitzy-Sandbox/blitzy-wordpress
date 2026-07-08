@@ -310,6 +310,10 @@ class Tests_Pluggable_Signatures extends WP_UnitTestCase {
 						'group' => '',
 						'force' => false,
 					),
+					'wp_cache_prime_multiple'            => array(
+						'keys',
+						'group' => '',
+					),
 					'wp_cache_delete'                    => array(
 						'key',
 						'group' => '',

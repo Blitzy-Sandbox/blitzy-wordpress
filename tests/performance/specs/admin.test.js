@@ -82,6 +82,19 @@ test.describe( 'Admin', () => {
 					} );
 					results.domContentLoaded.push( domContentLoaded );
 
+					// KPI #3 instrument -- "Admin JS transfer size (gzipped)":
+					// sum the over-the-wire transfer size the browser actually
+					// received for every admin `.js` resource, read from the
+					// Resource Timing API (PerformanceResourceTiming.transferSize).
+					// Because the benchmark origin serves responses
+					// gzip-compressed, transferSize IS the gzipped wire size. This
+					// is a RUNTIME measurement: it captures the F-007 conditional
+					// script-loading optimization (fewer scripts enqueued per admin
+					// screen), NOT a static build-output byte count. F-007 shrinks
+					// what each screen LOADS at runtime, not the compiled bundle
+					// sizes on disk, so a static build-output analysis would not
+					// reflect this optimization; reports therefore label the
+					// instrument as this browser-measured gzipped transfer.
 					const adminJsTransferSize = await page.evaluate( () => {
 						return performance
 							.getEntriesByType( 'resource' )

@@ -1898,246 +1898,259 @@ class WP_REST_Posts_Controller extends WP_REST_Controller {
 
 		$fields = $this->get_fields_for_response( $request );
 
-		// Base fields for every post.
-		$data = array();
+		/*
+		 * Serve the deterministic, schema-shaped payload from the object cache when
+		 * present, recomputing it only on a miss. The 'posts' last-changed token is
+		 * part of the cache key, so post and post-meta changes invalidate the entry.
+		 * Additional fields, context filtering, links, and the rest_prepare_{$post_type}
+		 * filter are always applied below, on both cache hits and misses.
+		 */
+		$last_changed = wp_cache_get_last_changed( 'posts' );
+		$data         = rest_get_cached_prepared_response( $this->post_type, $post->ID, $request, $last_changed );
 
-		if ( rest_is_field_included( 'id', $fields ) ) {
-			$data['id'] = $post->ID;
-		}
+		if ( false === $data ) {
+			// Base fields for every post.
+			$data = array();
 
-		if ( rest_is_field_included( 'date', $fields ) ) {
-			$data['date'] = $this->prepare_date_response( $post->post_date_gmt, $post->post_date );
-		}
-
-		if ( rest_is_field_included( 'date_gmt', $fields ) ) {
-			/*
-			 * For drafts, `post_date_gmt` may not be set, indicating that the date
-			 * of the draft should be updated each time it is saved (see #38883).
-			 * In this case, shim the value based on the `post_date` field
-			 * with the site's timezone offset applied.
-			 */
-			if ( '0000-00-00 00:00:00' === $post->post_date_gmt ) {
-				$post_date_gmt = get_gmt_from_date( $post->post_date );
-			} else {
-				$post_date_gmt = $post->post_date_gmt;
+			if ( rest_is_field_included( 'id', $fields ) ) {
+				$data['id'] = $post->ID;
 			}
-			$data['date_gmt'] = $this->prepare_date_response( $post_date_gmt );
-		}
 
-		if ( rest_is_field_included( 'guid', $fields ) ) {
-			$data['guid'] = array(
+			if ( rest_is_field_included( 'date', $fields ) ) {
+				$data['date'] = $this->prepare_date_response( $post->post_date_gmt, $post->post_date );
+			}
+
+			if ( rest_is_field_included( 'date_gmt', $fields ) ) {
+				/*
+				 * For drafts, `post_date_gmt` may not be set, indicating that the date
+				 * of the draft should be updated each time it is saved (see #38883).
+				 * In this case, shim the value based on the `post_date` field
+				 * with the site's timezone offset applied.
+				 */
+				if ( '0000-00-00 00:00:00' === $post->post_date_gmt ) {
+					$post_date_gmt = get_gmt_from_date( $post->post_date );
+				} else {
+					$post_date_gmt = $post->post_date_gmt;
+				}
+				$data['date_gmt'] = $this->prepare_date_response( $post_date_gmt );
+			}
+
+			if ( rest_is_field_included( 'guid', $fields ) ) {
+				$data['guid'] = array(
+					/** This filter is documented in wp-includes/post-template.php */
+					'rendered' => apply_filters( 'get_the_guid', $post->guid, $post->ID ),
+					'raw'      => $post->guid,
+				);
+			}
+
+			if ( rest_is_field_included( 'modified', $fields ) ) {
+				$data['modified'] = $this->prepare_date_response( $post->post_modified_gmt, $post->post_modified );
+			}
+
+			if ( rest_is_field_included( 'modified_gmt', $fields ) ) {
+				/*
+				 * For drafts, `post_modified_gmt` may not be set (see `post_date_gmt` comments
+				 * above). In this case, shim the value based on the `post_modified` field
+				 * with the site's timezone offset applied.
+				 */
+				if ( '0000-00-00 00:00:00' === $post->post_modified_gmt ) {
+					$post_modified_gmt = gmdate( 'Y-m-d H:i:s', strtotime( $post->post_modified ) - (int) ( (float) get_option( 'gmt_offset' ) * HOUR_IN_SECONDS ) );
+				} else {
+					$post_modified_gmt = $post->post_modified_gmt;
+				}
+				$data['modified_gmt'] = $this->prepare_date_response( $post_modified_gmt );
+			}
+
+			if ( rest_is_field_included( 'password', $fields ) ) {
+				$data['password'] = $post->post_password;
+			}
+
+			if ( rest_is_field_included( 'slug', $fields ) ) {
+				$data['slug'] = $post->post_name;
+			}
+
+			if ( rest_is_field_included( 'status', $fields ) ) {
+				$data['status'] = $post->post_status;
+			}
+
+			if ( rest_is_field_included( 'type', $fields ) ) {
+				$data['type'] = $post->post_type;
+			}
+
+			if ( rest_is_field_included( 'link', $fields ) ) {
+				$data['link'] = get_permalink( $post->ID );
+			}
+
+			if ( rest_is_field_included( 'title', $fields ) ) {
+				$data['title'] = array();
+			}
+			if ( rest_is_field_included( 'title.raw', $fields ) ) {
+				$data['title']['raw'] = $post->post_title;
+			}
+			if ( rest_is_field_included( 'title.rendered', $fields ) ) {
+				add_filter( 'protected_title_format', array( $this, 'protected_title_format' ) );
+				add_filter( 'private_title_format', array( $this, 'protected_title_format' ) );
+
+				$data['title']['rendered'] = get_the_title( $post->ID );
+
+				remove_filter( 'protected_title_format', array( $this, 'protected_title_format' ) );
+				remove_filter( 'private_title_format', array( $this, 'protected_title_format' ) );
+			}
+
+			$has_password_filter = false;
+
+			if ( $this->can_access_password_content( $post, $request ) ) {
+				$this->password_check_passed[ $post->ID ] = true;
+				// Allow access to the post, permissions already checked before.
+				add_filter( 'post_password_required', array( $this, 'check_password_required' ), 10, 2 );
+
+				$has_password_filter = true;
+			}
+
+			if ( rest_is_field_included( 'content', $fields ) ) {
+				$data['content'] = array();
+			}
+			if ( rest_is_field_included( 'content.raw', $fields ) ) {
+				$data['content']['raw'] = $post->post_content;
+			}
+			if ( rest_is_field_included( 'content.rendered', $fields ) ) {
 				/** This filter is documented in wp-includes/post-template.php */
-				'rendered' => apply_filters( 'get_the_guid', $post->guid, $post->ID ),
-				'raw'      => $post->guid,
-			);
-		}
-
-		if ( rest_is_field_included( 'modified', $fields ) ) {
-			$data['modified'] = $this->prepare_date_response( $post->post_modified_gmt, $post->post_modified );
-		}
-
-		if ( rest_is_field_included( 'modified_gmt', $fields ) ) {
-			/*
-			 * For drafts, `post_modified_gmt` may not be set (see `post_date_gmt` comments
-			 * above). In this case, shim the value based on the `post_modified` field
-			 * with the site's timezone offset applied.
-			 */
-			if ( '0000-00-00 00:00:00' === $post->post_modified_gmt ) {
-				$post_modified_gmt = gmdate( 'Y-m-d H:i:s', strtotime( $post->post_modified ) - (int) ( (float) get_option( 'gmt_offset' ) * HOUR_IN_SECONDS ) );
-			} else {
-				$post_modified_gmt = $post->post_modified_gmt;
+				$data['content']['rendered'] = post_password_required( $post ) ? '' : apply_filters( 'the_content', $post->post_content );
 			}
-			$data['modified_gmt'] = $this->prepare_date_response( $post_modified_gmt );
-		}
+			if ( rest_is_field_included( 'content.protected', $fields ) ) {
+				$data['content']['protected'] = (bool) $post->post_password;
+			}
+			if ( rest_is_field_included( 'content.block_version', $fields ) ) {
+				$data['content']['block_version'] = block_version( $post->post_content );
+			}
 
-		if ( rest_is_field_included( 'password', $fields ) ) {
-			$data['password'] = $post->post_password;
-		}
+			if ( rest_is_field_included( 'excerpt', $fields ) ) {
+				if ( isset( $request['excerpt_length'] ) ) {
+					$excerpt_length          = $request['excerpt_length'];
+					$override_excerpt_length = static function () use ( $excerpt_length ) {
+						return $excerpt_length;
+					};
 
-		if ( rest_is_field_included( 'slug', $fields ) ) {
-			$data['slug'] = $post->post_name;
-		}
+					add_filter(
+						'excerpt_length',
+						$override_excerpt_length,
+						PHP_INT_MAX
+					);
+				}
 
-		if ( rest_is_field_included( 'status', $fields ) ) {
-			$data['status'] = $post->post_status;
-		}
+				/** This filter is documented in wp-includes/post-template.php */
+				$excerpt = apply_filters( 'get_the_excerpt', $post->post_excerpt, $post );
 
-		if ( rest_is_field_included( 'type', $fields ) ) {
-			$data['type'] = $post->post_type;
-		}
+				/** This filter is documented in wp-includes/post-template.php */
+				$excerpt = apply_filters( 'the_excerpt', $excerpt );
 
-		if ( rest_is_field_included( 'link', $fields ) ) {
-			$data['link'] = get_permalink( $post->ID );
-		}
-
-		if ( rest_is_field_included( 'title', $fields ) ) {
-			$data['title'] = array();
-		}
-		if ( rest_is_field_included( 'title.raw', $fields ) ) {
-			$data['title']['raw'] = $post->post_title;
-		}
-		if ( rest_is_field_included( 'title.rendered', $fields ) ) {
-			add_filter( 'protected_title_format', array( $this, 'protected_title_format' ) );
-			add_filter( 'private_title_format', array( $this, 'protected_title_format' ) );
-
-			$data['title']['rendered'] = get_the_title( $post->ID );
-
-			remove_filter( 'protected_title_format', array( $this, 'protected_title_format' ) );
-			remove_filter( 'private_title_format', array( $this, 'protected_title_format' ) );
-		}
-
-		$has_password_filter = false;
-
-		if ( $this->can_access_password_content( $post, $request ) ) {
-			$this->password_check_passed[ $post->ID ] = true;
-			// Allow access to the post, permissions already checked before.
-			add_filter( 'post_password_required', array( $this, 'check_password_required' ), 10, 2 );
-
-			$has_password_filter = true;
-		}
-
-		if ( rest_is_field_included( 'content', $fields ) ) {
-			$data['content'] = array();
-		}
-		if ( rest_is_field_included( 'content.raw', $fields ) ) {
-			$data['content']['raw'] = $post->post_content;
-		}
-		if ( rest_is_field_included( 'content.rendered', $fields ) ) {
-			/** This filter is documented in wp-includes/post-template.php */
-			$data['content']['rendered'] = post_password_required( $post ) ? '' : apply_filters( 'the_content', $post->post_content );
-		}
-		if ( rest_is_field_included( 'content.protected', $fields ) ) {
-			$data['content']['protected'] = (bool) $post->post_password;
-		}
-		if ( rest_is_field_included( 'content.block_version', $fields ) ) {
-			$data['content']['block_version'] = block_version( $post->post_content );
-		}
-
-		if ( rest_is_field_included( 'excerpt', $fields ) ) {
-			if ( isset( $request['excerpt_length'] ) ) {
-				$excerpt_length          = $request['excerpt_length'];
-				$override_excerpt_length = static function () use ( $excerpt_length ) {
-					return $excerpt_length;
-				};
-
-				add_filter(
-					'excerpt_length',
-					$override_excerpt_length,
-					PHP_INT_MAX
+				$data['excerpt'] = array(
+					'raw'       => $post->post_excerpt,
+					'rendered'  => post_password_required( $post ) ? '' : $excerpt,
+					'protected' => (bool) $post->post_password,
 				);
-			}
 
-			/** This filter is documented in wp-includes/post-template.php */
-			$excerpt = apply_filters( 'get_the_excerpt', $post->post_excerpt, $post );
-
-			/** This filter is documented in wp-includes/post-template.php */
-			$excerpt = apply_filters( 'the_excerpt', $excerpt );
-
-			$data['excerpt'] = array(
-				'raw'       => $post->post_excerpt,
-				'rendered'  => post_password_required( $post ) ? '' : $excerpt,
-				'protected' => (bool) $post->post_password,
-			);
-
-			if ( isset( $override_excerpt_length ) ) {
-				remove_filter(
-					'excerpt_length',
-					$override_excerpt_length,
-					PHP_INT_MAX
-				);
-			}
-		}
-
-		if ( $has_password_filter ) {
-			// Reset filter.
-			remove_filter( 'post_password_required', array( $this, 'check_password_required' ) );
-		}
-
-		if ( rest_is_field_included( 'author', $fields ) ) {
-			$data['author'] = (int) $post->post_author;
-		}
-
-		if ( rest_is_field_included( 'featured_media', $fields ) ) {
-			$data['featured_media'] = (int) get_post_thumbnail_id( $post->ID );
-		}
-
-		if ( rest_is_field_included( 'parent', $fields ) ) {
-			$data['parent'] = (int) $post->post_parent;
-		}
-
-		if ( rest_is_field_included( 'menu_order', $fields ) ) {
-			$data['menu_order'] = (int) $post->menu_order;
-		}
-
-		if ( rest_is_field_included( 'comment_status', $fields ) ) {
-			$data['comment_status'] = $post->comment_status;
-		}
-
-		if ( rest_is_field_included( 'ping_status', $fields ) ) {
-			$data['ping_status'] = $post->ping_status;
-		}
-
-		if ( rest_is_field_included( 'sticky', $fields ) ) {
-			$data['sticky'] = is_sticky( $post->ID );
-		}
-
-		if ( rest_is_field_included( 'template', $fields ) ) {
-			$template = get_page_template_slug( $post->ID );
-			if ( $template ) {
-				$data['template'] = $template;
-			} else {
-				$data['template'] = '';
-			}
-		}
-
-		if ( rest_is_field_included( 'format', $fields ) ) {
-			$data['format'] = get_post_format( $post->ID );
-
-			// Fill in blank post format.
-			if ( empty( $data['format'] ) ) {
-				$data['format'] = 'standard';
-			}
-		}
-
-		if ( rest_is_field_included( 'meta', $fields ) ) {
-			$data['meta'] = $this->meta->get_value( $post->ID, $request );
-		}
-
-		$taxonomies = wp_list_filter( get_object_taxonomies( $this->post_type, 'objects' ), array( 'show_in_rest' => true ) );
-
-		foreach ( $taxonomies as $taxonomy ) {
-			$base = ! empty( $taxonomy->rest_base ) ? $taxonomy->rest_base : $taxonomy->name;
-
-			if ( rest_is_field_included( $base, $fields ) ) {
-				$terms         = get_the_terms( $post, $taxonomy->name );
-				$data[ $base ] = $terms ? array_values( wp_list_pluck( $terms, 'term_id' ) ) : array();
-			}
-		}
-
-		$post_type_obj = get_post_type_object( $post->post_type );
-		if ( is_post_type_viewable( $post_type_obj ) && $post_type_obj->public ) {
-			$permalink_template_requested = rest_is_field_included( 'permalink_template', $fields );
-			$generated_slug_requested     = rest_is_field_included( 'generated_slug', $fields );
-
-			if ( $permalink_template_requested || $generated_slug_requested ) {
-				if ( ! function_exists( 'get_sample_permalink' ) ) {
-					require_once ABSPATH . 'wp-admin/includes/post.php';
-				}
-
-				$sample_permalink = get_sample_permalink( $post->ID, $post->post_title, '' );
-
-				if ( $permalink_template_requested ) {
-					$data['permalink_template'] = $sample_permalink[0];
-				}
-
-				if ( $generated_slug_requested ) {
-					$data['generated_slug'] = $sample_permalink[1];
+				if ( isset( $override_excerpt_length ) ) {
+					remove_filter(
+						'excerpt_length',
+						$override_excerpt_length,
+						PHP_INT_MAX
+					);
 				}
 			}
 
-			if ( rest_is_field_included( 'class_list', $fields ) ) {
-				$data['class_list'] = get_post_class( array(), $post->ID );
+			if ( $has_password_filter ) {
+				// Reset filter.
+				remove_filter( 'post_password_required', array( $this, 'check_password_required' ) );
 			}
+
+			if ( rest_is_field_included( 'author', $fields ) ) {
+				$data['author'] = (int) $post->post_author;
+			}
+
+			if ( rest_is_field_included( 'featured_media', $fields ) ) {
+				$data['featured_media'] = (int) get_post_thumbnail_id( $post->ID );
+			}
+
+			if ( rest_is_field_included( 'parent', $fields ) ) {
+				$data['parent'] = (int) $post->post_parent;
+			}
+
+			if ( rest_is_field_included( 'menu_order', $fields ) ) {
+				$data['menu_order'] = (int) $post->menu_order;
+			}
+
+			if ( rest_is_field_included( 'comment_status', $fields ) ) {
+				$data['comment_status'] = $post->comment_status;
+			}
+
+			if ( rest_is_field_included( 'ping_status', $fields ) ) {
+				$data['ping_status'] = $post->ping_status;
+			}
+
+			if ( rest_is_field_included( 'sticky', $fields ) ) {
+				$data['sticky'] = is_sticky( $post->ID );
+			}
+
+			if ( rest_is_field_included( 'template', $fields ) ) {
+				$template = get_page_template_slug( $post->ID );
+				if ( $template ) {
+					$data['template'] = $template;
+				} else {
+					$data['template'] = '';
+				}
+			}
+
+			if ( rest_is_field_included( 'format', $fields ) ) {
+				$data['format'] = get_post_format( $post->ID );
+
+				// Fill in blank post format.
+				if ( empty( $data['format'] ) ) {
+					$data['format'] = 'standard';
+				}
+			}
+
+			if ( rest_is_field_included( 'meta', $fields ) ) {
+				$data['meta'] = $this->meta->get_value( $post->ID, $request );
+			}
+
+			$taxonomies = wp_list_filter( get_object_taxonomies( $this->post_type, 'objects' ), array( 'show_in_rest' => true ) );
+
+			foreach ( $taxonomies as $taxonomy ) {
+				$base = ! empty( $taxonomy->rest_base ) ? $taxonomy->rest_base : $taxonomy->name;
+
+				if ( rest_is_field_included( $base, $fields ) ) {
+					$terms         = get_the_terms( $post, $taxonomy->name );
+					$data[ $base ] = $terms ? array_values( wp_list_pluck( $terms, 'term_id' ) ) : array();
+				}
+			}
+
+			$post_type_obj = get_post_type_object( $post->post_type );
+			if ( is_post_type_viewable( $post_type_obj ) && $post_type_obj->public ) {
+				$permalink_template_requested = rest_is_field_included( 'permalink_template', $fields );
+				$generated_slug_requested     = rest_is_field_included( 'generated_slug', $fields );
+
+				if ( $permalink_template_requested || $generated_slug_requested ) {
+					if ( ! function_exists( 'get_sample_permalink' ) ) {
+						require_once ABSPATH . 'wp-admin/includes/post.php';
+					}
+
+					$sample_permalink = get_sample_permalink( $post->ID, $post->post_title, '' );
+
+					if ( $permalink_template_requested ) {
+						$data['permalink_template'] = $sample_permalink[0];
+					}
+
+					if ( $generated_slug_requested ) {
+						$data['generated_slug'] = $sample_permalink[1];
+					}
+				}
+
+				if ( rest_is_field_included( 'class_list', $fields ) ) {
+					$data['class_list'] = get_post_class( array(), $post->ID );
+				}
+			}
+			rest_set_cached_prepared_response( $this->post_type, $post->ID, $data, $request, $last_changed );
 		}
 
 		$context = ! empty( $request['context'] ) ? $request['context'] : 'view';

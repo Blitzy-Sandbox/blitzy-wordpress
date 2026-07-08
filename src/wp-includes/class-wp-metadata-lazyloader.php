@@ -65,6 +65,14 @@ class WP_Metadata_Lazyloader {
 				'filter'   => 'get_blog_metadata',
 				'callback' => array( $this, 'lazyload_meta_callback' ),
 			),
+			'post'    => array(
+				'filter'   => 'get_post_metadata',
+				'callback' => array( $this, 'lazyload_meta_callback' ),
+			),
+			'user'    => array(
+				'filter'   => 'get_user_metadata',
+				'callback' => array( $this, 'lazyload_meta_callback' ),
+			),
 		);
 	}
 
@@ -73,7 +81,8 @@ class WP_Metadata_Lazyloader {
 	 *
 	 * @since 4.5.0
 	 *
-	 * @param string $object_type Type of object whose meta is to be lazy-loaded. Accepts 'term' or 'comment'.
+	 * @param string $object_type Type of object whose meta is to be lazy-loaded. Accepts 'term',
+	 *                            'comment', 'blog', 'post', or 'user'.
 	 * @param array  $object_ids  Array of object IDs.
 	 * @return void|WP_Error WP_Error on failure.
 	 */
@@ -114,7 +123,7 @@ class WP_Metadata_Lazyloader {
 	 *
 	 * @since 4.5.0
 	 *
-	 * @param string $object_type Object type. Accepts 'comment' or 'term'.
+	 * @param string $object_type Object type. Accepts 'term', 'comment', 'blog', 'post', or 'user'.
 	 * @return void|WP_Error WP_Error on failure.
 	 */
 	public function reset_queue( $object_type ) {
