@@ -364,11 +364,37 @@ class WP_REST_Terms_Controller extends WP_REST_Controller {
 
 		if ( ! $is_head_request ) {
 			/*
-			 * Prime term meta for the entire result set in a single query. The
-			 * wp_get_object_terms() path does not prime it (its update_term_meta_cache
-			 * default is false), unlike the get_terms() path, which already primes it.
+			 * Prime term meta for the entire result set in a single query, but only
+			 * when the response will actually read it.
+			 *
+			 * Term meta is serialized exclusively through the `meta` field, and
+			 * WP_REST_Meta_Fields::get_value() only queries the metadata for keys
+			 * that have been registered for the object type/subtype. When no term
+			 * meta is registered (the common default), or the `meta` field is not
+			 * part of the requested field set, the primed cache is never consumed,
+			 * so priming issued a query whose result was thrown away. Under an
+			 * `_embed` request this was especially wasteful: each embedded term
+			 * collection is fetched in its own sub-request, so the unconditional
+			 * prime degenerated into a separate single-term metadata query per
+			 * embedded object (an N+1 pattern) that produced no output.
+			 *
+			 * Gating the prime on both conditions preserves the intended
+			 * optimization — a single batched metadata query for a multi-term
+			 * result set whose meta is registered and requested — while removing
+			 * the never-consumed query on every other path. The result set is
+			 * byte-identical either way because the primed data is only ever read
+			 * for registered meta keys.
+			 *
+			 * The wp_get_object_terms() path used for the `post` argument does not
+			 * prime term meta (its update_term_meta_cache default is false), unlike
+			 * the get_terms() path, which already primes it.
 			 */
-			if ( ! empty( $prepared_args['post'] ) && is_array( $query_result ) && ! empty( $query_result ) ) {
+			if ( ! empty( $prepared_args['post'] )
+				&& is_array( $query_result )
+				&& ! empty( $query_result )
+				&& ( get_registered_meta_keys( 'term' ) || get_registered_meta_keys( 'term', $this->taxonomy ) )
+				&& in_array( 'meta', $this->get_fields_for_response( $request ), true )
+			) {
 				update_meta_cache( 'term', wp_list_pluck( $query_result, 'term_id' ) );
 			}
 
