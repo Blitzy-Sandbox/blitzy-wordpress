@@ -565,7 +565,7 @@
       <section>
         <div class="slide-head">
           <span class="eyebrow"><i data-lucide="clipboard-check" aria-hidden="true"></i> Executive Summary</span>
-          <h2>Real gains, measured honestly &mdash; every test still green</h2>
+          <h2>Real gains, measured honestly &mdash; every test at baseline parity</h2>
         </div>
         <div class="kpi-grid">
           <div class="kpi-card partial">
@@ -695,8 +695,8 @@
             <div class="diagram-wrap">
               <div class="mermaid">
 pie title KPI outcomes (0 of 6 met target)
-    "Improved, below target" : 3
-    "Flat / no change" : 3
+    "Below target" : 3
+    "Flat" : 3
               </div>
             </div>
             <div class="legend">
@@ -907,11 +907,12 @@ graph LR
           </tbody>
         </table>
         <div class="gate-row">
-          <span class="gate-chip"><i data-lucide="check-circle" aria-hidden="true"></i> PHPUnit 28,930: baseline parity</span>
+          <span class="gate-chip"><i data-lucide="check-circle" aria-hidden="true"></i> PHPUnit: baseline parity</span>
           <span class="gate-chip"><i data-lucide="check-circle" aria-hidden="true"></i> QUnit 456: baseline parity</span>
           <span class="gate-chip"><i data-lucide="check-circle" aria-hidden="true"></i> PHPStan: zero new errors</span>
-          <span class="gate-chip"><i data-lucide="check-circle" aria-hidden="true"></i> PHPCS: zero violations (modified files)</span>
+          <span class="gate-chip"><i data-lucide="check-circle" aria-hidden="true"></i> PHPCS: zero new violations</span>
         </div>
+        <p style="margin-top:14px; font-family:var(--blitzy-font-mono); font-size:.34em; color:var(--blitzy-text-muted); line-height:1.55;">The full PHPUnit suite matches baseline on the documented PHP 8.3 CI toolchain. On the PHP 8.4.11 measurement host, eight deprecated-timezone tests fail identically to a clean baseline checkout &mdash; an environmental timezone-database delta, not a regression.</p>
       </section>
 
       <!-- ===== Slide 15 — Team Onboarding ===== -->

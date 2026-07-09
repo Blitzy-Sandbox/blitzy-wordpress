@@ -50,7 +50,10 @@
  *   - optional `argv[0]`         : an extra copy of the Markdown summary.
  *
  * Usage:
- *   node benchmarks/generate-diff-report.js [ summary-file ]
+ *   node benchmarks/generate-diff-report.js [ --allow-missing-baseline ] [ summary-file ]
+ *   node benchmarks/generate-diff-report.js --help
+ *
+ * Unrecognized flags are rejected with a non-zero exit (see `validateArgs`).
  *
  * This is a test/development-only tool; it never runs in production.
  */
@@ -206,16 +209,63 @@ const TARGETS_TOTAL = KPI_DEFINITIONS.length;
 const SIGNIFICANCE_ALPHA = 0.05;
 
 /**
- * Deterministic fallback report timestamp (the Unix epoch) used only when
- * neither `BENCHMARK_GENERATED_AT` nor `SOURCE_DATE_EPOCH` is set. Using a fixed
- * sentinel instead of the wall-clock time keeps the emitted artifacts
- * byte-for-byte identical for identical inputs, so committed representative
- * reports preserve `git diff --exit-code` semantics. Real runs are expected to
- * export one of the two overrides to record an accurate time.
+ * Deterministic fallback report timestamp used only when neither
+ * `BENCHMARK_GENERATED_AT` nor `SOURCE_DATE_EPOCH` is set. This is pinned to the
+ * timestamp of the committed representative benchmark run so that regenerating
+ * the report from the committed inputs with no overrides reproduces the
+ * committed artifacts byte-for-byte and preserves `git diff --exit-code`
+ * semantics -- a plain re-run must never dirty the tracked
+ * `benchmark-report.json` / `benchmark-diff-report.md`. Using a fixed sentinel
+ * instead of the wall-clock time keeps the emitted artifacts byte-for-byte
+ * identical for identical inputs. Real runs are expected to export one of the
+ * two overrides (for example the source commit time) to record an accurate,
+ * still-deterministic time.
  *
  * @type {string}
  */
-const DEFAULT_GENERATED_AT = '1970-01-01T00:00:00.000Z';
+const DEFAULT_GENERATED_AT = '2026-07-08T12:45:16.000Z';
+
+/**
+ * Recognized command-line option flags.
+ *
+ * Any other `-`/`--`-prefixed argument is rejected by `validateArgs` so a
+ * mistyped or unsupported flag fails loudly with a non-zero exit instead of
+ * being silently ignored (the review finding: an unknown flag such as
+ * `--definitely-invalid` previously produced a full report and exit 0).
+ *
+ * @type {Set<string>}
+ */
+const KNOWN_FLAGS = new Set( [ '--allow-missing-baseline', '--help', '-h' ] );
+
+/**
+ * Human-readable usage/help text, printed for `--help`/`-h` and prepended to
+ * the error message when argument validation fails.
+ *
+ * @type {string}
+ */
+const USAGE = [
+	'Usage: node benchmarks/generate-diff-report.js [options] [summary-file]',
+	'',
+	'Generates the benchmark diff + KPI report artifacts',
+	'(benchmark-report.json and benchmark-diff-report.md) from the baseline and',
+	'optimized measurement runs. This is a test/development-only tool.',
+	'',
+	'Options:',
+	'  --allow-missing-baseline  Emit an N/A report when no baseline artifact is',
+	'                            present (optimized-only workflow).',
+	'  --help, -h                Show this help and exit.',
+	'',
+	'Environment overrides:',
+	'  BENCHMARK_GENERATED_AT              Explicit ISO-8601 report timestamp.',
+	'  SOURCE_DATE_EPOCH                   Unix-seconds report timestamp',
+	'                                      (reproducible-builds convention).',
+	'  BENCHMARK_ALLOW_MISSING_BASELINE=1  Same as --allow-missing-baseline.',
+	'  WP_ARTIFACTS_PATH                   Directory for inputs/outputs',
+	'                                      (default: <cwd>/benchmarks/results).',
+	'',
+	'A single non-flag positional argument is treated as an extra path to also',
+	'write the Markdown summary to.',
+].join( '\n' );
 
 /**
  * Lanczos series coefficients (g = 7, n = 9) for the log-gamma approximation.
@@ -540,6 +590,50 @@ function resolveGeneratedAt() {
 	}
 
 	return DEFAULT_GENERATED_AT;
+}
+
+/**
+ * Validates the command-line arguments before any report work runs.
+ *
+ * Prints the usage text and exits 0 for `--help`/`-h`; rejects any
+ * unrecognized `-`/`--`-prefixed flag (and more than one non-flag positional)
+ * with the usage text on stderr and a non-zero exit, so a mistyped flag fails
+ * loudly instead of being silently ignored. Recognized flags are listed in
+ * `KNOWN_FLAGS`; the single permitted positional is the optional extra
+ * summary-file path consumed in `main`.
+ *
+ * @param {string[]} argv Arguments after the node executable and script
+ *                        (i.e. `process.argv.slice( 2 )`).
+ * @return {void}
+ */
+function validateArgs( argv ) {
+	if ( argv.includes( '--help' ) || argv.includes( '-h' ) ) {
+		process.stdout.write( `${ USAGE }\n` );
+		process.exit( 0 );
+	}
+
+	const unknownFlags = argv.filter(
+		( arg ) => arg.startsWith( '-' ) && ! KNOWN_FLAGS.has( arg )
+	);
+	if ( unknownFlags.length > 0 ) {
+		const plural = unknownFlags.length > 1 ? 's' : '';
+		process.stderr.write(
+			`Error: unrecognized option${ plural }: ${ unknownFlags.join(
+				', '
+			) }\n\n${ USAGE }\n`
+		);
+		process.exit( 1 );
+	}
+
+	const positionals = argv.filter( ( arg ) => ! arg.startsWith( '-' ) );
+	if ( positionals.length > 1 ) {
+		process.stderr.write(
+			`Error: too many arguments; expected at most one summary-file path but received: ${ positionals.join(
+				', '
+			) }\n\n${ USAGE }\n`
+		);
+		process.exit( 1 );
+	}
 }
 
 /**
@@ -937,6 +1031,10 @@ function buildMarkdown( report ) {
  * @return {void}
  */
 function main() {
+	// Fail loudly on mistyped/unsupported flags (and handle --help) before doing
+	// any file IO, so an unknown option never silently produces a full report.
+	validateArgs( process.argv.slice( 2 ) );
+
 	const beforeStats = parseFile( BASELINE_FILE );
 	const afterStats = parseFile( OPTIMIZED_FILE );
 
