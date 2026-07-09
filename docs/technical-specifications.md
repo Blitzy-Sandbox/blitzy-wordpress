@@ -564,7 +564,7 @@ graph LR
     subgraph Internal["Internal optimizations added — inside the seams"]
         HOOKO["Arity-aware direct invocation<br/>+ empty-callback fast path"]
         WPDBO["256-entry FIFO<br/>prepared-statement cache"]
-        CACHEO["Per-group hit/miss counters<br/>multi-get/set + wp_cache_prime_* helpers"]
+        CACHEO["Per-group hit/miss counters<br/>multi-get/set + wp_cache_prime_multiple() helper"]
         LAZYO["Expanded post / user<br/>meta lazyload queue"]
     end
 
@@ -596,7 +596,7 @@ graph LR
 
 ### 0.4.6 Data Flow Architecture
 
-The central data-layer optimization shifts metadata and term retrieval from per-object lazy queries to a single bulk prime-then-read from the object cache. **Diagram 6 — "Metadata/Term Data Flow: N+1 vs Bulk Prime-then-Read"** contrasts the two flows: the *before* flow issues one query per object inside the template/serialization loop (the N+1 pattern), while the *after* flow issues a single batch `WHERE ... IN (...)` prime before the loop (via `wp_prime_meta_caches()` / `update_meta_cache()` and `wp_cache_get_multiple()`) so the loop then reads from cache, augmented by in-request SQL result memoization.
+The central data-layer optimization shifts metadata and term retrieval from per-object lazy queries to a single bulk prime-then-read from the object cache. **Diagram 6 — "Metadata/Term Data Flow: N+1 vs Bulk Prime-then-Read"** contrasts the two flows: the *before* flow issues one query per object inside the template/serialization loop (the N+1 pattern), while the *after* flow issues a single batch `WHERE ... IN (...)` prime before the loop (via `update_meta_cache()` / `_prime_post_caches()` and `wp_cache_get_multiple()`) so the loop then reads from cache, augmented by in-request SQL result memoization.
 
 **Diagram 6 — Metadata/Term Data Flow: N+1 vs Bulk Prime-then-Read (Before → After).**
 
@@ -614,7 +614,7 @@ graph TD
     end
 
     subgraph After["After — Bulk Prime-then-Read Data Flow"]
-        AP["Before the loop:<br/>wp_prime_meta_caches /<br/>update_meta_cache"] --> AB["Single batch query<br/>WHERE object_id IN (...)"]
+        AP["Before the loop:<br/>_prime_post_caches /<br/>update_meta_cache"] --> AB["Single batch query<br/>WHERE object_id IN (...)"]
         AB --> AC[("Object cache<br/>wp_cache_get_multiple")]
         AL["Template / serialization loop<br/>(N objects)"] --> AC
         AC --> AR["In-request reads = cache hits<br/>+ in-request SQL result memoization"]

@@ -74,8 +74,8 @@ Each optimization follows the user's fixed template — **Bottleneck → Root Ca
 
 - **Bottleneck:** coarse cache flushing and single-key get/set force redundant cross-request work; the lazyloader queued only a subset of object types.
 - **Root Cause:** no per-group accounting, no granular invalidation, no multi-key API; a narrow lazyloader `$settings` map.
-- **Change:** per-group hit/miss counters, granular key-level invalidation, `get_multiple`/`set_multiple` and `wp_cache_prime_*` helpers; lazyloader `$settings` expanded to include `post` and `user` object types (additive — reachable via the public `queue_objects()` API, no auto-queue).
-- **Measurement:** hit/miss counters surfaced through Server-Timing (`cache-hits`, `cache-misses`), which instrument the query/cache behavior that KPI 5 is measured against. These counters and the multi-key/`wp_cache_prime_*` helpers provide the observability and priming seam that the query and template-tag layers build on; they do **not** themselves reduce the front-end query count, which remains at the already-batched WordPress 6.1+ floor (KPI 5 = 0.00% — DEV-11).
+- **Change:** per-group hit/miss counters, granular key-level invalidation, `get_multiple`/`set_multiple` and the `wp_cache_prime_multiple()` helper; lazyloader `$settings` expanded to include `post` and `user` object types (additive — reachable via the public `queue_objects()` API, no auto-queue).
+- **Measurement:** hit/miss counters surfaced through Server-Timing (`cache-hits`, `cache-misses`), which instrument the query/cache behavior that KPI 5 is measured against. These counters and the multi-key `wp_cache_prime_multiple()` helper provide the observability and priming seam that the query and template-tag layers build on; they do **not** themselves reduce the front-end query count, which remains at the already-batched WordPress 6.1+ floor (KPI 5 = 0.00% — DEV-11).
 - **Value:** the cache layer that every priming path writes into; graceful no-backend degradation preserved (D-05).
 
 ### 3.4 F-004 — Template-tag N+1 elimination
@@ -255,8 +255,9 @@ graph TD
         F --> G["Object cache:<br/>coarse flush, single get/set"]
         G --> H["Response"]
     end
-    %% Legend: boxes = runtime stages; this path runs in full for every request context
 ```
+
+*Legend — Runtime bootstrap, current state ("Eager, Always-On Runtime"): boxes are runtime stages; this path runs in full for every request context.*
 
 ```mermaid
 graph TD
@@ -270,8 +271,9 @@ graph TD
         G2 --> ST["Server-Timing:<br/>emit 7 metrics (test env only)"]
         ST --> H2["Response (identical output, fewer files/queries)"]
     end
-    %% Legend: diamond = context branch; only context-relevant subsystems load; contracts unchanged
 ```
+
+*Legend — Runtime bootstrap, target state ("Context-Aware, Deferred Runtime"): the diamond is the context branch; only context-relevant subsystems load; public contracts are unchanged.*
 
 ### 8.2 Cache-to-query priming data flow (after)
 
@@ -282,5 +284,6 @@ graph LR
     C --> R1["Template tags<br/>read from cache (no N+1)"]
     C --> R2["REST controllers<br/>cache-first serialization"]
     C --> CNT["Per-group hit/miss counters<br/>-> Server-Timing"]
-    %% Legend: one bulk prime feeds every downstream reader; arrows = data flow, not call order
 ```
+
+*Legend — Cache-to-query priming data flow (after): one bulk prime feeds every downstream reader; arrows show data flow, not call order.*
