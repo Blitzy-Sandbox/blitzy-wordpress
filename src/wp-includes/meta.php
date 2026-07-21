@@ -1197,39 +1197,67 @@ function update_meta_cache( $meta_type, $object_ids ) {
 		return $cache;
 	}
 
-	// Get meta info.
-	$id_list   = implode( ',', $non_cached_ids );
 	$id_column = ( 'user' === $meta_type ) ? 'umeta_id' : 'meta_id';
 
-	$meta_list = $wpdb->get_results( "SELECT $column, meta_key, meta_value FROM $table WHERE $column IN ($id_list) ORDER BY $id_column ASC", ARRAY_A );
-
-	if ( ! empty( $meta_list ) ) {
-		foreach ( $meta_list as $metarow ) {
-			$mpid = (int) $metarow[ $column ];
-			$mkey = $metarow['meta_key'];
-			$mval = $metarow['meta_value'];
-
-			// Force subkeys to be array type.
-			if ( ! isset( $cache[ $mpid ] ) || ! is_array( $cache[ $mpid ] ) ) {
-				$cache[ $mpid ] = array();
-			}
-			if ( ! isset( $cache[ $mpid ][ $mkey ] ) || ! is_array( $cache[ $mpid ][ $mkey ] ) ) {
-				$cache[ $mpid ][ $mkey ] = array();
-			}
-
-			// Add a value to the current pid/key.
-			$cache[ $mpid ][ $mkey ][] = $mval;
-		}
+	/**
+	 * Filters the number of objects whose metadata is fetched per database query
+	 * when priming the meta cache.
+	 *
+	 * The uncached object IDs are split into chunks of this size so that a single
+	 * `IN (...)` query, and the result set it loads into memory, stays bounded no
+	 * matter how many objects are primed at once. When the number of uncached IDs
+	 * is at or below this batch size (the common case), the IDs form a single chunk
+	 * and the behavior is identical to one batched query. Only larger sets incur
+	 * more than one query, trading a few extra round-trips for a bounded memory
+	 * footprint. A value below 1 disables chunking (all IDs primed in one query).
+	 *
+	 * @since 7.0.0
+	 *
+	 * @param int    $batch_size Number of objects to fetch per query. Default 2000.
+	 * @param string $meta_type  Type of object metadata is for.
+	 */
+	$batch_size = (int) apply_filters( 'update_meta_cache_batch_size', 2000, $meta_type );
+	if ( $batch_size < 1 ) {
+		$batch_size = count( $non_cached_ids );
 	}
 
-	$data = array();
-	foreach ( $non_cached_ids as $id ) {
-		if ( ! isset( $cache[ $id ] ) ) {
-			$cache[ $id ] = array();
+	foreach ( array_chunk( $non_cached_ids, $batch_size ) as $id_chunk ) {
+		// Get meta info.
+		$id_list = implode( ',', $id_chunk );
+
+		$meta_list = $wpdb->get_results( "SELECT $column, meta_key, meta_value FROM $table WHERE $column IN ($id_list) ORDER BY $id_column ASC", ARRAY_A );
+
+		if ( ! empty( $meta_list ) ) {
+			foreach ( $meta_list as $metarow ) {
+				$mpid = (int) $metarow[ $column ];
+				$mkey = $metarow['meta_key'];
+				$mval = $metarow['meta_value'];
+
+				// Force subkeys to be array type.
+				if ( ! isset( $cache[ $mpid ] ) || ! is_array( $cache[ $mpid ] ) ) {
+					$cache[ $mpid ] = array();
+				}
+				if ( ! isset( $cache[ $mpid ][ $mkey ] ) || ! is_array( $cache[ $mpid ][ $mkey ] ) ) {
+					$cache[ $mpid ][ $mkey ] = array();
+				}
+
+				// Add a value to the current pid/key.
+				$cache[ $mpid ][ $mkey ][] = $mval;
+			}
 		}
-		$data[ $id ] = $cache[ $id ];
+
+		$data = array();
+		foreach ( $id_chunk as $id ) {
+			if ( ! isset( $cache[ $id ] ) ) {
+				$cache[ $id ] = array();
+			}
+			$data[ $id ] = $cache[ $id ];
+		}
+		wp_cache_add_multiple( $data, $cache_group );
+
+		// Release the chunk's result set before the next iteration to keep peak memory bounded.
+		unset( $meta_list, $data );
 	}
-	wp_cache_add_multiple( $data, $cache_group );
 
 	return $cache;
 }

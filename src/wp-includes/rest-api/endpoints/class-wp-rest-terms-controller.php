@@ -363,6 +363,41 @@ class WP_REST_Terms_Controller extends WP_REST_Controller {
 		}
 
 		if ( ! $is_head_request ) {
+			/*
+			 * Prime term meta for the entire result set in a single query, but only
+			 * when the response will actually read it.
+			 *
+			 * Term meta is serialized exclusively through the `meta` field, and
+			 * WP_REST_Meta_Fields::get_value() only queries the metadata for keys
+			 * that have been registered for the object type/subtype. When no term
+			 * meta is registered (the common default), or the `meta` field is not
+			 * part of the requested field set, the primed cache is never consumed,
+			 * so priming issued a query whose result was thrown away. Under an
+			 * `_embed` request this was especially wasteful: each embedded term
+			 * collection is fetched in its own sub-request, so the unconditional
+			 * prime degenerated into a separate single-term metadata query per
+			 * embedded object (an N+1 pattern) that produced no output.
+			 *
+			 * Gating the prime on both conditions preserves the intended
+			 * optimization — a single batched metadata query for a multi-term
+			 * result set whose meta is registered and requested — while removing
+			 * the never-consumed query on every other path. The result set is
+			 * byte-identical either way because the primed data is only ever read
+			 * for registered meta keys.
+			 *
+			 * The wp_get_object_terms() path used for the `post` argument does not
+			 * prime term meta (its update_term_meta_cache default is false), unlike
+			 * the get_terms() path, which already primes it.
+			 */
+			if ( ! empty( $prepared_args['post'] )
+				&& is_array( $query_result )
+				&& ! empty( $query_result )
+				&& ( get_registered_meta_keys( 'term' ) || get_registered_meta_keys( 'term', $this->taxonomy ) )
+				&& in_array( 'meta', $this->get_fields_for_response( $request ), true )
+			) {
+				update_meta_cache( 'term', wp_list_pluck( $query_result, 'term_id' ) );
+			}
+
 			$response = array();
 			foreach ( $query_result as $term ) {
 				if ( 'edit' === $request['context'] && ! current_user_can( 'edit_term', $term->term_id ) ) {
@@ -906,48 +941,63 @@ class WP_REST_Terms_Controller extends WP_REST_Controller {
 			return apply_filters( "rest_prepare_{$this->taxonomy}", new WP_REST_Response( array() ), $item, $request );
 		}
 
-		$fields = $this->get_fields_for_response( $request );
-		$data   = array();
-
-		if ( in_array( 'id', $fields, true ) ) {
-			$data['id'] = (int) $item->term_id;
-		}
-
-		if ( in_array( 'count', $fields, true ) ) {
-			$data['count'] = (int) $item->count;
-		}
-
-		if ( in_array( 'description', $fields, true ) ) {
-			$data['description'] = $item->description;
-		}
-
-		if ( in_array( 'link', $fields, true ) ) {
-			$data['link'] = get_term_link( $item );
-		}
-
-		if ( in_array( 'name', $fields, true ) ) {
-			$data['name'] = $item->name;
-		}
-
-		if ( in_array( 'slug', $fields, true ) ) {
-			$data['slug'] = $item->slug;
-		}
-
-		if ( in_array( 'taxonomy', $fields, true ) ) {
-			$data['taxonomy'] = $item->taxonomy;
-		}
-
-		if ( in_array( 'parent', $fields, true ) ) {
-			$data['parent'] = (int) $item->parent;
-		}
-
-		if ( in_array( 'meta', $fields, true ) ) {
-			$data['meta'] = $this->meta->get_value( $item->term_id, $request );
-		}
-
+		$fields  = $this->get_fields_for_response( $request );
 		$context = ! empty( $request['context'] ) ? $request['context'] : 'view';
-		$data    = $this->add_additional_fields_to_object( $data, $request );
-		$data    = $this->filter_response_by_context( $data, $context );
+
+		/*
+		 * Serve the schema-shaped payload from the prepared-response cache when one is
+		 * available. The cache key includes the request context, the resolved field
+		 * set, and the terms group's last-changed token, so the entry is invalidated
+		 * automatically whenever the term or any of its metadata changes.
+		 */
+		$last_changed = wp_cache_get_last_changed( 'terms' );
+		$data         = rest_get_cached_prepared_response( 'term', $item->term_id, $request, $last_changed );
+
+		if ( false === $data ) {
+			$data = array();
+
+			if ( in_array( 'id', $fields, true ) ) {
+				$data['id'] = (int) $item->term_id;
+			}
+
+			if ( in_array( 'count', $fields, true ) ) {
+				$data['count'] = (int) $item->count;
+			}
+
+			if ( in_array( 'description', $fields, true ) ) {
+				$data['description'] = $item->description;
+			}
+
+			if ( in_array( 'link', $fields, true ) ) {
+				$data['link'] = get_term_link( $item );
+			}
+
+			if ( in_array( 'name', $fields, true ) ) {
+				$data['name'] = $item->name;
+			}
+
+			if ( in_array( 'slug', $fields, true ) ) {
+				$data['slug'] = $item->slug;
+			}
+
+			if ( in_array( 'taxonomy', $fields, true ) ) {
+				$data['taxonomy'] = $item->taxonomy;
+			}
+
+			if ( in_array( 'parent', $fields, true ) ) {
+				$data['parent'] = (int) $item->parent;
+			}
+
+			if ( in_array( 'meta', $fields, true ) ) {
+				$data['meta'] = $this->meta->get_value( $item->term_id, $request );
+			}
+
+			// Cache only the deterministic, pre-filter payload, before dynamic fields are added.
+			rest_set_cached_prepared_response( 'term', $item->term_id, $data, $request, $last_changed );
+		}
+
+		$data = $this->add_additional_fields_to_object( $data, $request );
+		$data = $this->filter_response_by_context( $data, $context );
 
 		$response = rest_ensure_response( $data );
 

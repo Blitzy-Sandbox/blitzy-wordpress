@@ -334,9 +334,25 @@ final class WP_Hook implements Iterator, ArrayAccess {
 					$args[0] = $value;
 				}
 
-				// Avoid the array_slice() if possible.
+				// Avoid calling call_user_func_array() (and array_slice()) when possible.
 				if ( 0 === $the_['accepted_args'] ) {
 					$value = call_user_func( $the_['function'] );
+				} elseif (
+					1 === $the_['accepted_args']
+					&& $num_args >= 1
+					&& ( is_string( $the_['function'] ) || $the_['function'] instanceof Closure )
+				) {
+					/*
+					 * Fast path for the common single-argument hook: invoke string-function and
+					 * Closure callbacks directly to avoid the call_user_func_array() dispatch cost.
+					 * Array callables such as array( $object, 'method' ) and invokable objects are
+					 * intentionally left to call_user_func_array() below, because the ( $callable )()
+					 * variable-invocation syntax is not reliably identical for them across the
+					 * supported PHP 7.4 to 8.5 range. $args[0] is the single argument (equivalent to
+					 * array_slice( $args, 0, 1 )), and the $num_args >= 1 guard preserves the
+					 * zero-argument behavior when no arguments were supplied.
+					 */
+					$value = ( $the_['function'] )( $args[0] );
 				} elseif ( $the_['accepted_args'] >= $num_args ) {
 					$value = call_user_func_array( $the_['function'], $args );
 				} else {

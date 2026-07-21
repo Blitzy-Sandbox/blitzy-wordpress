@@ -43,6 +43,43 @@
  * @return string[] Primitive capabilities required of the user.
  */
 function map_meta_cap( $cap, $user_id, ...$args ) {
+	/*
+	 * Request-scoped memoization of the leaf primitive-capability mapping.
+	 * $sequence bumps on every entry, so a frame that leaves it unchanged across
+	 * the switch made no nested map_meta_cap() call and is a "leaf" whose result
+	 * depends only on its arguments and on post/term/comment/option data covered
+	 * by the invalidation hooks. Only leaves are cached, which keeps every
+	 * authority-dependent branch (they re-enter via has_cap()/is_super_admin())
+	 * out of the cache. Enabled on single-site only, where those authority checks
+	 * always recurse; multisite maps capabilities directly, as before.
+	 */
+	static $sequence = 0;
+	static $memo     = array();
+	static $memo_gen = 0;
+
+	++$sequence;
+	$entry_sequence = $sequence;
+
+	$memo_enabled = ! is_multisite();
+	$memo_key     = null;
+
+	if ( $memo_enabled ) {
+		$current_gen = _wp_map_meta_cap_memo_generation();
+		if ( $current_gen !== $memo_gen ) {
+			$memo     = array();
+			$memo_gen = $current_gen;
+		}
+
+		$memo_key = _wp_map_meta_cap_memo_key( $cap, $user_id, $args );
+
+		if ( null !== $memo_key && isset( $memo[ $memo_key ] ) ) {
+			$caps = $memo[ $memo_key ];
+
+			/** This filter is documented in wp-includes/capabilities.php */
+			return apply_filters( 'map_meta_cap', $caps, $cap, $user_id, $args );
+		}
+	}
+
 	$caps = array();
 
 	switch ( $cap ) {
@@ -864,6 +901,14 @@ function map_meta_cap( $cap, $user_id, ...$args ) {
 			$caps[] = $cap;
 	}
 
+	// Cache leaf results only: an unchanged $sequence means no nested
+	// map_meta_cap() call occurred, so $caps derives solely from the arguments
+	// and from data the invalidation hooks below account for.
+	if ( $memo_enabled && null !== $memo_key && $sequence === $entry_sequence ) {
+		_wp_map_meta_cap_register_memo_invalidation();
+		$memo[ $memo_key ] = $caps;
+	}
+
 	/**
 	 * Filters the primitive capabilities required of the given user to satisfy the
 	 * capability being checked.
@@ -877,6 +922,158 @@ function map_meta_cap( $cap, $user_id, ...$args ) {
 	 *                          starting with an object ID.
 	 */
 	return apply_filters( 'map_meta_cap', $caps, $cap, $user_id, $args );
+}
+
+/**
+ * Reads, and optionally advances, the request-scoped map_meta_cap() memo generation.
+ *
+ * The generation is a lightweight invalidation token: advancing it causes
+ * map_meta_cap() to discard its cached leaf results on the next call.
+ *
+ * @since 7.0.0
+ * @access private
+ *
+ * @param bool $advance Whether to advance the generation. Default false.
+ * @return int The current generation value.
+ */
+function _wp_map_meta_cap_memo_generation( $advance = false ) {
+	static $generation = 0;
+
+	if ( $advance ) {
+		++$generation;
+	}
+
+	return $generation;
+}
+
+/**
+ * Builds a request-scoped memo key for map_meta_cap().
+ *
+ * Returns null when any argument is non-scalar (and not null) so that only
+ * stable, reproducible keys are ever cached. Values are type-tagged so that,
+ * for example, the integer 1 and the string '1' never collide.
+ *
+ * @since 7.0.0
+ * @access private
+ *
+ * @param string $cap     Capability being checked.
+ * @param int    $user_id User ID.
+ * @param array  $args    Additional context arguments passed to map_meta_cap().
+ * @return string|null The memo key, or null when the arguments cannot be keyed.
+ */
+function _wp_map_meta_cap_memo_key( $cap, $user_id, $args ) {
+	$parts = array();
+
+	foreach ( $args as $arg ) {
+		if ( null === $arg ) {
+			$parts[] = 'null';
+			continue;
+		}
+
+		if ( ! is_scalar( $arg ) ) {
+			return null;
+		}
+
+		if ( is_bool( $arg ) ) {
+			$parts[] = 'bool:' . ( $arg ? '1' : '0' );
+		} else {
+			$parts[] = gettype( $arg ) . ':' . $arg;
+		}
+	}
+
+	return $user_id . '|' . $cap . '|' . implode( '~', $parts );
+}
+
+/**
+ * Registers the map_meta_cap() memo invalidation hooks a single time.
+ *
+ * Registration is deferred until the memo is first populated so that requests
+ * which never benefit from memoization add no hooks.
+ *
+ * @since 7.0.0
+ * @access private
+ */
+function _wp_map_meta_cap_register_memo_invalidation() {
+	static $registered = false;
+
+	if ( $registered ) {
+		return;
+	}
+
+	$registered = true;
+
+	add_action( 'clean_post_cache', '_wp_map_meta_cap_invalidate_memo' );
+	add_action( 'clean_term_cache', '_wp_map_meta_cap_invalidate_memo' );
+	add_action( 'clean_comment_cache', '_wp_map_meta_cap_invalidate_memo' );
+	// Post-type (un)registration changes the cap map that post meta-capability
+	// leaves resolve internally (e.g. $post_type->cap->edit_others_posts), so the
+	// memo must drop when the set of registered post types changes.
+	add_action( 'registered_post_type', '_wp_map_meta_cap_invalidate_memo' );
+	add_action( 'unregistered_post_type', '_wp_map_meta_cap_invalidate_memo' );
+	add_action( 'added_option', '_wp_map_meta_cap_invalidate_memo_on_option' );
+	add_action( 'updated_option', '_wp_map_meta_cap_invalidate_memo_on_option' );
+	add_action( 'deleted_option', '_wp_map_meta_cap_invalidate_memo_on_option' );
+	add_action( 'added_user_meta', '_wp_map_meta_cap_invalidate_memo_on_user_meta', 10, 3 );
+	add_action( 'updated_user_meta', '_wp_map_meta_cap_invalidate_memo_on_user_meta', 10, 3 );
+	add_action( 'deleted_user_meta', '_wp_map_meta_cap_invalidate_memo_on_user_meta', 10, 3 );
+}
+
+/**
+ * Discards all cached map_meta_cap() leaf results.
+ *
+ * @since 7.0.0
+ * @access private
+ */
+function _wp_map_meta_cap_invalidate_memo() {
+	_wp_map_meta_cap_memo_generation( true );
+}
+
+/**
+ * Invalidates the map_meta_cap() memo when a non-transient option changes.
+ *
+ * Leaf mappings such as `manage_links` and `delete_term` read options, and the
+ * role definitions live in the `{$prefix}user_roles` option, so any real option
+ * write must drop the cache. Transient writes are ignored because no capability
+ * mapping depends on them.
+ *
+ * @since 7.0.0
+ * @access private
+ *
+ * @param string $option Name of the option that changed.
+ */
+function _wp_map_meta_cap_invalidate_memo_on_option( $option ) {
+	if ( ! is_string( $option ) ) {
+		return;
+	}
+
+	if ( str_starts_with( $option, '_transient_' ) || str_starts_with( $option, '_site_transient_' ) ) {
+		return;
+	}
+
+	_wp_map_meta_cap_memo_generation( true );
+}
+
+/**
+ * Invalidates the map_meta_cap() memo when a user's capability metadata changes.
+ *
+ * Matches the per-blog `capabilities` and `user_level` meta keys through which
+ * WP_User persists role and capability changes.
+ *
+ * @since 7.0.0
+ * @access private
+ *
+ * @param int    $meta_id   ID of the metadata row. Unused.
+ * @param int    $object_id ID of the user the metadata belongs to. Unused.
+ * @param string $meta_key  Metadata key that changed.
+ */
+function _wp_map_meta_cap_invalidate_memo_on_user_meta( $meta_id, $object_id, $meta_key ) {
+	if ( ! is_string( $meta_key ) ) {
+		return;
+	}
+
+	if ( str_contains( $meta_key, 'capabilities' ) || str_contains( $meta_key, 'user_level' ) ) {
+		_wp_map_meta_cap_memo_generation( true );
+	}
 }
 
 /**

@@ -2206,10 +2206,57 @@
 	 * Init Customizer for widgets.
 	 */
 	api.bind( 'ready', function() {
-		// Set up the widgets panel.
-		api.Widgets.availableWidgetsPanel = new api.Widgets.AvailableWidgetsPanelView({
-			collection: api.Widgets.availableWidgets
-		});
+		var setUpAvailableWidgetsPanel, deferAvailableWidgetsPanel;
+
+		/*
+		 * Set up the available widgets panel.
+		 *
+		 * Constructing the AvailableWidgetsPanelView is expensive: its
+		 * initialize() performs DOM lookups, renders the full list of available
+		 * widgets, and binds several event listeners. The panel is only ever
+		 * opened from a SidebarControl (the "Add a Widget" flow) within an
+		 * expanded widget area (sidebar) section, so this work is wasted on
+		 * Customizer loads where no widget area is opened. Constructing it
+		 * lazily therefore reduces admin DOMContentLoaded and main-thread work.
+		 *
+		 * The construction runs at most once; the assigned
+		 * api.Widgets.availableWidgetsPanel property doubles as the guard flag.
+		 */
+		setUpAvailableWidgetsPanel = function() {
+			if ( api.Widgets.availableWidgetsPanel ) {
+				return;
+			}
+			api.Widgets.availableWidgetsPanel = new api.Widgets.AvailableWidgetsPanelView({
+				collection: api.Widgets.availableWidgets
+			});
+		};
+
+		/*
+		 * Defer constructing the available widgets panel until the first time a
+		 * widget area (sidebar) section is expanded, reusing the one-shot
+		 * `expanded` idiom used by WidgetControl.ready(). Because the panel is
+		 * only opened from within an expanded sidebar section, it is guaranteed
+		 * to be constructed before availableWidgetsPanel.open()/close() can run.
+		 */
+		deferAvailableWidgetsPanel = function( section ) {
+			var onExpanded;
+			if ( 'sidebar' !== section.params.type ) {
+				return;
+			}
+			onExpanded = function( isExpanded ) {
+				if ( isExpanded ) {
+					setUpAvailableWidgetsPanel();
+					section.expanded.unbind( onExpanded );
+				}
+			};
+			if ( section.expanded() ) {
+				onExpanded( true );
+			} else {
+				section.expanded.bind( onExpanded );
+			}
+		};
+		api.section.each( deferAvailableWidgetsPanel );
+		api.section.bind( 'add', deferAvailableWidgetsPanel );
 
 		// Highlight widget control.
 		api.previewer.bind( 'highlight-widget-control', api.Widgets.highlightWidgetFormControl );

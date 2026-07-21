@@ -191,8 +191,18 @@ if ( $current_screen->taxonomy ) {
 	$admin_body_class .= ' taxonomy-' . $current_screen->taxonomy;
 }
 
-$admin_body_class .= ' branch-' . str_replace( array( '.', ',' ), '-', (float) get_bloginfo( 'version' ) );
-$admin_body_class .= ' version-' . str_replace( '.', '-', preg_replace( '/^([.0-9]+).*/', '$1', get_bloginfo( 'version' ) ) );
+/*
+ * Resolve the core version once and reuse it for both the `branch-*` and
+ * `version-*` admin body classes below. In 'raw' mode get_bloginfo( 'version' )
+ * simply returns the $wp_version global and runs no filters, so reading it a
+ * single time emits byte-identical class names while avoiding duplicate work.
+ *
+ * @since 7.0.0
+ */
+$wp_version_raw = get_bloginfo( 'version' );
+
+$admin_body_class .= ' branch-' . str_replace( array( '.', ',' ), '-', (float) $wp_version_raw );
+$admin_body_class .= ' version-' . str_replace( '.', '-', preg_replace( '/^([.0-9]+).*/', '$1', $wp_version_raw ) );
 $admin_body_class .= ' admin-color-' . sanitize_html_class( get_user_option( 'admin_color' ), 'modern' );
 $admin_body_class .= ' locale-' . sanitize_html_class( strtolower( str_replace( '_', '-', get_user_locale() ) ) );
 

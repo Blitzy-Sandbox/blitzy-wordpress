@@ -146,6 +146,8 @@ class WP_REST_Search_Controller extends WP_REST_Controller {
 		if ( ! $is_head_request ) {
 			$results = array();
 
+			$this->prime_search_result_caches( $handler, $ids );
+
 			foreach ( $ids as $id ) {
 				$data      = $this->prepare_item_for_response( $id, $request );
 				$results[] = $this->prepare_response_for_collection( $data );
@@ -204,13 +206,13 @@ class WP_REST_Search_Controller extends WP_REST_Controller {
 			return new WP_REST_Response();
 		}
 
-		$fields = $this->get_fields_for_response( $request );
+		$fields  = $this->get_fields_for_response( $request );
+		$context = ! empty( $request['context'] ) ? $request['context'] : 'view';
 
-		$data = $handler->prepare_item( $item_id, $fields );
+		$data = $this->get_prepared_search_item( $handler, $item_id, $fields, $request );
 		$data = $this->add_additional_fields_to_object( $data, $request );
 
-		$context = ! empty( $request['context'] ) ? $request['context'] : 'view';
-		$data    = $this->filter_response_by_context( $data, $context );
+		$data = $this->filter_response_by_context( $data, $context );
 
 		$response = rest_ensure_response( $data );
 
@@ -407,5 +409,93 @@ class WP_REST_Search_Controller extends WP_REST_Controller {
 		}
 
 		return $this->search_handlers[ $type ];
+	}
+
+	/**
+	 * Primes the object caches for an entire set of search result IDs in bulk.
+	 *
+	 * The priming path is chosen from the handler's object type: post results prime
+	 * the post, post-meta, and object-term caches, while term results prime the term
+	 * and term-meta caches. Handler types whose results are not backed by primeable
+	 * database objects, such as post formats identified by string slugs, are skipped.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @param WP_REST_Search_Handler $handler The search handler for the current request.
+	 * @param array                  $ids     Full list of result IDs returned by the handler.
+	 */
+	protected function prime_search_result_caches( $handler, $ids ) {
+		if ( empty( $ids ) ) {
+			return;
+		}
+
+		switch ( $handler->get_type() ) {
+			case 'post':
+				$post_ids = array_filter( array_map( 'intval', $ids ) );
+				if ( ! empty( $post_ids ) ) {
+					_prime_post_caches( $post_ids, true, true );
+				}
+				break;
+			case 'term':
+				$term_ids = array_filter( array_map( 'intval', $ids ) );
+				if ( ! empty( $term_ids ) ) {
+					_prime_term_caches( $term_ids, true );
+				}
+				break;
+		}
+	}
+
+	/**
+	 * Prepares a single search result, reusing a cached representation when available.
+	 *
+	 * Only the array returned by the handler's `prepare_item()` method is cached. The
+	 * cache entry is keyed by the handler type, item ID, request context, requested
+	 * fields, and the object group's last-changed token, so a mutation of the
+	 * underlying object invalidates the entry. Handler types without a mapped
+	 * last-changed cache group are prepared directly without caching.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @param WP_REST_Search_Handler $handler The search handler for the current request.
+	 * @param int|string             $item_id ID of the item to prepare.
+	 * @param array                  $fields  Fields to include for the item.
+	 * @param WP_REST_Request         $request Full details about the request.
+	 * @return array Associative array of prepared item data.
+	 */
+	protected function get_prepared_search_item( $handler, $item_id, $fields, $request ) {
+		$type = $handler->get_type();
+
+		switch ( $type ) {
+			case 'post':
+				$cache_group = 'posts';
+				break;
+			case 'term':
+				$cache_group = 'terms';
+				break;
+			default:
+				$cache_group = '';
+				break;
+		}
+
+		if ( '' === $cache_group ) {
+			return $handler->prepare_item( $item_id, $fields );
+		}
+
+		$last_changed = wp_cache_get_last_changed( $cache_group );
+
+		// Namespace the cached object type so the search representation occupies a
+		// key space disjoint from the posts and terms controllers, which prepare the
+		// same IDs under the bare 'post'/'term' types in the shared 'rest' group.
+		$cache_object_type = 'search:' . $type;
+
+		$data = rest_get_cached_prepared_response( $cache_object_type, $item_id, $request, $last_changed );
+
+		if ( false === $data ) {
+			$data = $handler->prepare_item( $item_id, $fields );
+
+			rest_set_cached_prepared_response( $cache_object_type, $item_id, $data, $request, $last_changed );
+		}
+
+		return $data;
 	}
 }

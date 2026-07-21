@@ -1065,6 +1065,67 @@ class WP_REST_Attachments_Controller extends WP_REST_Posts_Controller {
 			);
 		}
 
+		$last_changed        = wp_cache_get_last_changed( 'posts' );
+		$prepared_media_data = rest_get_cached_prepared_response( 'attachment-media', $post->ID, $request, $last_changed );
+
+		if ( false === $prepared_media_data ) {
+			$prepared_media_data = $this->prepare_attachment_media_fields( $post, $fields );
+
+			rest_set_cached_prepared_response( 'attachment-media', $post->ID, $prepared_media_data, $request, $last_changed );
+		}
+
+		foreach ( $prepared_media_data as $media_field => $media_value ) {
+			$data[ $media_field ] = $media_value;
+		}
+
+		$context = ! empty( $request['context'] ) ? $request['context'] : 'view';
+
+		$data = $this->filter_response_by_context( $data, $context );
+
+		$links = $response->get_links();
+
+		// Wrap the data in a response object.
+		$response = rest_ensure_response( $data );
+
+		foreach ( $links as $rel => $rel_links ) {
+			foreach ( $rel_links as $link ) {
+				$response->add_link( $rel, $link['href'], $link['attributes'] );
+			}
+		}
+
+		/**
+		 * Filters an attachment returned from the REST API.
+		 *
+		 * Allows modification of the attachment right before it is returned.
+		 *
+		 * @since 4.7.0
+		 *
+		 * @param WP_REST_Response $response The response object.
+		 * @param WP_Post          $post     The original attachment post.
+		 * @param WP_REST_Request  $request  Request used to generate the response.
+		 */
+		return apply_filters( 'rest_prepare_attachment', $response, $post, $request );
+	}
+
+	/**
+	 * Assembles the deterministic, schema-shaped attachment media fields.
+	 *
+	 * Builds the attachment-specific portion of the response that is fully
+	 * determined by the attachment's stored data: alt text, media type, MIME
+	 * type, media details (including image-size source URLs), parent, source URL,
+	 * missing image sizes, filename, filesize, and EXIF orientation. Only the
+	 * fields present in $fields are included. The returned array is the value the
+	 * caller stores in and reads back from the prepared-response cache.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @param WP_Post  $post   Attachment object.
+	 * @param string[] $fields Field names resolved for the response.
+	 * @return array Attachment media fields keyed by field name.
+	 */
+	protected function prepare_attachment_media_fields( $post, $fields ) {
+		$data = array();
+
 		if ( in_array( 'alt_text', $fields, true ) ) {
 			$data['alt_text'] = get_post_meta( $post->ID, '_wp_attachment_image_alt', true );
 		}
@@ -1183,33 +1244,7 @@ class WP_REST_Attachments_Controller extends WP_REST_Posts_Controller {
 			$data['exif_orientation'] = $orientation;
 		}
 
-		$context = ! empty( $request['context'] ) ? $request['context'] : 'view';
-
-		$data = $this->filter_response_by_context( $data, $context );
-
-		$links = $response->get_links();
-
-		// Wrap the data in a response object.
-		$response = rest_ensure_response( $data );
-
-		foreach ( $links as $rel => $rel_links ) {
-			foreach ( $rel_links as $link ) {
-				$response->add_link( $rel, $link['href'], $link['attributes'] );
-			}
-		}
-
-		/**
-		 * Filters an attachment returned from the REST API.
-		 *
-		 * Allows modification of the attachment right before it is returned.
-		 *
-		 * @since 4.7.0
-		 *
-		 * @param WP_REST_Response $response The response object.
-		 * @param WP_Post          $post     The original attachment post.
-		 * @param WP_REST_Request  $request  Request used to generate the response.
-		 */
-		return apply_filters( 'rest_prepare_attachment', $response, $post, $request );
+		return $data;
 	}
 
 	/**

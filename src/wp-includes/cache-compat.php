@@ -97,6 +97,29 @@ if ( ! function_exists( 'wp_cache_get_multiple' ) ) :
 	}
 endif;
 
+if ( ! function_exists( 'wp_cache_prime_multiple' ) ) :
+	/**
+	 * Primes the cache with a set of keys in a single call.
+	 *
+	 * Compat function to mimic wp_cache_prime_multiple().
+	 *
+	 * @ignore
+	 * @since 7.0.0
+	 *
+	 * @see wp_cache_prime_multiple()
+	 *
+	 * @param array  $keys  Array of keys under which the cache contents are stored.
+	 * @param string $group Optional. Where the cache contents are grouped. Default empty.
+	 * @return array Array of return values, grouped by key. Each value is either
+	 *               the cache contents on success, or false on failure.
+	 */
+	function wp_cache_prime_multiple( $keys, $group = '' ) {
+		// Fallback delegating to wp_cache_get_multiple(), so drop-ins that predate
+		// the prime API still function; priming becomes a batched, cached get.
+		return wp_cache_get_multiple( $keys, $group );
+	}
+endif;
+
 if ( ! function_exists( 'wp_cache_delete_multiple' ) ) :
 	/**
 	 * Deletes multiple values from the cache in one call.

@@ -203,6 +203,75 @@ function get_permalink( $post = 0, $leavename = false ) {
 
 	$permalink = get_option( 'permalink_structure' );
 
+	/*
+	 * Request-scoped memoization of the fully resolved, pre-`post_link`
+	 * permalink for the common post-type='post' case, so a post linked many
+	 * times in a single render (the loop body, comment links, edit links,
+	 * adjacent-post links) is resolved once. The `post_link` filter below is
+	 * always applied on both cache hits and misses, so its firing is unchanged.
+	 *
+	 * The memo is only consulted when reusing a stored URL is provably
+	 * byte-identical: on single site; for a non-private post status (so the
+	 * pretty-vs-plain decision in wp_force_plain_post_permalink() never depends
+	 * on the current user through current_user_can( 'read_post' )); for
+	 * permalink structures without %category%/%author% tokens (whose resolution
+	 * runs additional term/user filter chains that a cache hit would skip); and
+	 * only when no plugin has hooked a filter that resolution would otherwise
+	 * run and a hit would bypass (pre_post_link, home_url, user_trailingslashit,
+	 * is_post_status_viewable).
+	 *
+	 * The memo is scoped to an epoch built from the permalink structure and the
+	 * 'posts' cache last_changed token, so it is discarded automatically
+	 * whenever the permalink structure changes or any post cache is cleaned via
+	 * clean_post_cache() - which also covers ancestor slug/parent changes and
+	 * full cache flushes. This is the same coherency signal get_post() and
+	 * WP_Query rely on, so no separate invalidation hooks are required and the
+	 * memo can never serve a URL that is stale relative to the post cache.
+	 */
+	static $memo       = array();
+	static $memo_epoch = null;
+
+	$memo_key = null;
+	$use_memo = ! is_multisite()
+		&& $permalink
+		&& ! str_contains( $permalink, '%category%' )
+		&& ! str_contains( $permalink, '%author%' )
+		&& ! has_filter( 'pre_post_link' )
+		&& ! has_filter( 'home_url' )
+		&& ! has_filter( 'user_trailingslashit' )
+		&& ! has_filter( 'is_post_status_viewable' );
+
+	if ( $use_memo ) {
+		$post_status_obj = get_post_status_object( $post->post_status );
+		// Private statuses route the pretty-permalink decision through a
+		// current-user capability check, so only memoize statuses whose
+		// resolved permalink form is independent of the current user.
+		$use_memo = $post_status_obj && ! $post_status_obj->private;
+	}
+
+	if ( $use_memo ) {
+		$current_epoch = $permalink . '|' . (string) wp_cache_get_last_changed( 'posts' );
+
+		if ( $current_epoch !== $memo_epoch ) {
+			$memo       = array();
+			$memo_epoch = $current_epoch;
+		}
+
+		/*
+		 * The sample state is part of the key: for a protected (non-private)
+		 * post status wp_force_plain_post_permalink() returns a pretty URL only
+		 * when generating a sample link ( protected && $sample ) and a plain
+		 * ?p= URL otherwise, so a sample and a non-sample request for the same
+		 * post resolve to different URLs and must not share a memo entry.
+		 */
+		$memo_key = $post->ID . '|' . ( $leavename ? '1' : '0' ) . '|' . ( $sample ? '1' : '0' );
+
+		if ( isset( $memo[ $memo_key ] ) ) {
+			/** This filter is documented in wp-includes/link-template.php */
+			return apply_filters( 'post_link', $memo[ $memo_key ], $post, $leavename );
+		}
+	}
+
 	/**
 	 * Filters the permalink structure for a post before token replacement occurs.
 	 *
@@ -292,6 +361,10 @@ function get_permalink( $post = 0, $leavename = false ) {
 
 	} else { // If they're not using the fancy permalink option.
 		$permalink = home_url( '?p=' . $post->ID );
+	}
+
+	if ( null !== $memo_key ) {
+		$memo[ $memo_key ] = $permalink;
 	}
 
 	/**
@@ -434,6 +507,65 @@ function _get_page_link( $post = 0, $leavename = false, $sample = false ) {
 
 	$link = $wp_rewrite->get_page_permastruct();
 
+	/*
+	 * Request-scoped memoization of the pre-`_get_page_link` URL. Building a
+	 * page URI walks the ancestor chain (get_page_uri() issues a cache read per
+	 * ancestor), so a page linked repeatedly in one render (menus, breadcrumbs,
+	 * sitemaps) otherwise repeats that walk on every call. The `_get_page_link`
+	 * filter below is always applied on both cache hits and misses, so its
+	 * firing is unchanged.
+	 *
+	 * The memo is only consulted when reusing a stored URL is provably
+	 * byte-identical: on single site; for a valid, non-private page status (so
+	 * wp_force_plain_post_permalink() is independent of the current user); with
+	 * a pretty page permastruct actually in use ($force_plain_link false); and
+	 * only when no plugin has hooked a filter that resolution would otherwise
+	 * run and a hit would bypass (get_page_uri, home_url, user_trailingslashit,
+	 * is_post_status_viewable).
+	 *
+	 * The memo is scoped to an epoch built from the page permastruct and the
+	 * 'posts' cache last_changed token, so it is discarded automatically
+	 * whenever the permastruct changes or any post cache is cleaned via
+	 * clean_post_cache(). A changed ancestor surfaces as its own
+	 * clean_post_cache and bumps that token, invalidating the descendant URIs
+	 * that depend on it, and a full cache flush regenerates the token as well.
+	 * This is the same coherency signal get_post() relies on, so no separate
+	 * invalidation hooks are required.
+	 */
+	static $memo       = array();
+	static $memo_epoch = null;
+
+	$memo_key = null;
+	$use_memo = ! is_multisite()
+		&& ! empty( $link )
+		&& ! $force_plain_link
+		&& $post instanceof WP_Post
+		&& ! has_filter( 'get_page_uri' )
+		&& ! has_filter( 'home_url' )
+		&& ! has_filter( 'user_trailingslashit' )
+		&& ! has_filter( 'is_post_status_viewable' );
+
+	if ( $use_memo ) {
+		$post_status_obj = get_post_status_object( $post->post_status );
+		$use_memo        = $post_status_obj && ! $post_status_obj->private;
+	}
+
+	if ( $use_memo ) {
+		$current_epoch = $link . '|' . (string) wp_cache_get_last_changed( 'posts' );
+
+		if ( $current_epoch !== $memo_epoch ) {
+			$memo       = array();
+			$memo_epoch = $current_epoch;
+		}
+
+		$memo_key = $post->ID . '|' . ( $leavename ? '1' : '0' ) . '|' . ( $sample ? '1' : '0' );
+
+		if ( isset( $memo[ $memo_key ] ) ) {
+			/** This filter is documented in wp-includes/link-template.php */
+			return apply_filters( '_get_page_link', $memo[ $memo_key ], $post->ID );
+		}
+	}
+
 	if ( ! empty( $link ) && ( ( isset( $post->post_status ) && ! $force_plain_link ) || $sample ) ) {
 		if ( ! $leavename ) {
 			$link = str_replace( '%pagename%', get_page_uri( $post ), $link );
@@ -443,6 +575,10 @@ function _get_page_link( $post = 0, $leavename = false, $sample = false ) {
 		$link = user_trailingslashit( $link, 'page' );
 	} else {
 		$link = home_url( '?page_id=' . $post->ID );
+	}
+
+	if ( null !== $memo_key ) {
+		$memo[ $memo_key ] = $link;
 	}
 
 	/**

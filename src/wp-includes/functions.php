@@ -4961,15 +4961,17 @@ function smilies_init() {
  * @return array Merged user defined values with defaults.
  */
 function wp_parse_args( $args, $defaults = array() ) {
-	if ( is_object( $args ) ) {
-		$parsed_args = get_object_vars( $args );
-	} elseif ( is_array( $args ) ) {
+	// The array case is by far the most common on the hot path, so check it first.
+	if ( is_array( $args ) ) {
 		$parsed_args =& $args;
+	} elseif ( is_object( $args ) ) {
+		$parsed_args = get_object_vars( $args );
 	} else {
 		wp_parse_str( $args, $parsed_args );
 	}
 
-	if ( is_array( $defaults ) && $defaults ) {
+	// A falsy $defaults (such as the default empty array) short-circuits before is_array().
+	if ( $defaults && is_array( $defaults ) ) {
 		return array_merge( $defaults, $parsed_args );
 	}
 	return $parsed_args;

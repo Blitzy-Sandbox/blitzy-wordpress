@@ -492,6 +492,19 @@ function wp_list_authors( $args = '' ) {
 	$authors     = get_users( $query_args );
 	$post_counts = array();
 
+	/*
+	 * Prime the user and user meta caches for the entire author list in a
+	 * single pair of bulk queries. get_users() is called above with
+	 * 'fields' => 'ids', which does not prime these caches, so without this
+	 * each get_userdata() call and user meta read (such as first and last
+	 * name) inside the loop below would trigger a separate query (an N+1
+	 * pattern). Priming keeps the rendered output byte-identical while
+	 * turning those per-author reads into object cache hits.
+	 */
+	if ( $authors ) {
+		cache_users( $authors );
+	}
+
 	/**
 	 * Filters whether to short-circuit performing the query for author post counts.
 	 *

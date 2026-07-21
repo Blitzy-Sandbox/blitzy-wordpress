@@ -17,6 +17,19 @@
 class WP_REST_Post_Types_Controller extends WP_REST_Controller {
 
 	/**
+	 * Request-level memo of prepared, schema-shaped post type data arrays.
+	 *
+	 * Maps the prepared-response cache key returned by
+	 * rest_get_prepared_response_cache_key() to the deterministic, pre-filter data
+	 * array assembled for a post type object. The key incorporates the post type's
+	 * response-feeding signature, the request context, and the resolved fields.
+	 *
+	 * @since 7.0.0
+	 * @var array
+	 */
+	private $prepared_item_memo = array();
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 4.7.0
@@ -195,79 +208,120 @@ class WP_REST_Post_Types_Controller extends WP_REST_Controller {
 		$namespace  = ! empty( $post_type->rest_namespace ) ? $post_type->rest_namespace : 'wp/v2';
 		$supports   = get_all_post_type_supports( $post_type->name );
 
-		$fields = $this->get_fields_for_response( $request );
-		$data   = array();
-
-		if ( rest_is_field_included( 'capabilities', $fields ) ) {
-			$data['capabilities'] = $post_type->cap;
-		}
-
-		if ( rest_is_field_included( 'description', $fields ) ) {
-			$data['description'] = $post_type->description;
-		}
-
-		if ( rest_is_field_included( 'hierarchical', $fields ) ) {
-			$data['hierarchical'] = $post_type->hierarchical;
-		}
-
-		if ( rest_is_field_included( 'has_archive', $fields ) ) {
-			$data['has_archive'] = $post_type->has_archive;
-		}
-
-		if ( rest_is_field_included( 'visibility', $fields ) ) {
-			$data['visibility'] = array(
-				'show_in_nav_menus' => (bool) $post_type->show_in_nav_menus,
-				'show_ui'           => (bool) $post_type->show_ui,
-			);
-		}
-
-		if ( rest_is_field_included( 'viewable', $fields ) ) {
-			$data['viewable'] = is_post_type_viewable( $post_type );
-		}
-
-		if ( rest_is_field_included( 'labels', $fields ) ) {
-			$data['labels'] = $post_type->labels;
-		}
-
-		if ( rest_is_field_included( 'name', $fields ) ) {
-			$data['name'] = $post_type->label;
-		}
-
-		if ( rest_is_field_included( 'slug', $fields ) ) {
-			$data['slug'] = $post_type->name;
-		}
-
-		if ( rest_is_field_included( 'icon', $fields ) ) {
-			$data['icon'] = $post_type->menu_icon;
-		}
-
-		if ( rest_is_field_included( 'supports', $fields ) ) {
-			$data['supports'] = $supports;
-		}
-
-		if ( rest_is_field_included( 'taxonomies', $fields ) ) {
-			$data['taxonomies'] = array_values( $taxonomies );
-		}
-
-		if ( rest_is_field_included( 'rest_base', $fields ) ) {
-			$data['rest_base'] = $base;
-		}
-
-		if ( rest_is_field_included( 'rest_namespace', $fields ) ) {
-			$data['rest_namespace'] = $namespace;
-		}
-
-		if ( rest_is_field_included( 'template', $fields ) ) {
-			$data['template'] = $post_type->template ?? array();
-		}
-
-		if ( rest_is_field_included( 'template_lock', $fields ) ) {
-			$data['template_lock'] = ! empty( $post_type->template_lock ) ? $post_type->template_lock : false;
-		}
-
+		$fields  = $this->get_fields_for_response( $request );
 		$context = ! empty( $request['context'] ) ? $request['context'] : 'view';
-		$data    = $this->add_additional_fields_to_object( $data, $request );
-		$data    = $this->filter_response_by_context( $data, $context );
+
+		$cache_key = null;
+
+		/** This filter is documented in wp-includes/rest-api.php */
+		if ( apply_filters( 'rest_prepared_response_cache_enabled', true, 'post_type' ) ) {
+			$signature = wp_json_encode(
+				array(
+					$post_type->cap,
+					$post_type->description,
+					$post_type->hierarchical,
+					$post_type->has_archive,
+					$post_type->show_in_nav_menus,
+					$post_type->show_ui,
+					$post_type->publicly_queryable,
+					$post_type->public,
+					$post_type->_builtin,
+					$post_type->labels,
+					$post_type->label,
+					$post_type->menu_icon,
+					$post_type->template ?? array(),
+					$post_type->template_lock ?? false,
+					$supports,
+					array_values( $taxonomies ),
+					$base,
+					$namespace,
+				)
+			);
+
+			if ( false !== $signature ) {
+				$cache_key = rest_get_prepared_response_cache_key( 'post_type', $post_type->name, $request, md5( $signature ) );
+			}
+		}
+
+		if ( null !== $cache_key && isset( $this->prepared_item_memo[ $cache_key ] ) ) {
+			$data = $this->prepared_item_memo[ $cache_key ];
+		} else {
+			$data = array();
+
+			if ( rest_is_field_included( 'capabilities', $fields ) ) {
+				$data['capabilities'] = $post_type->cap;
+			}
+
+			if ( rest_is_field_included( 'description', $fields ) ) {
+				$data['description'] = $post_type->description;
+			}
+
+			if ( rest_is_field_included( 'hierarchical', $fields ) ) {
+				$data['hierarchical'] = $post_type->hierarchical;
+			}
+
+			if ( rest_is_field_included( 'has_archive', $fields ) ) {
+				$data['has_archive'] = $post_type->has_archive;
+			}
+
+			if ( rest_is_field_included( 'visibility', $fields ) ) {
+				$data['visibility'] = array(
+					'show_in_nav_menus' => (bool) $post_type->show_in_nav_menus,
+					'show_ui'           => (bool) $post_type->show_ui,
+				);
+			}
+
+			if ( rest_is_field_included( 'viewable', $fields ) ) {
+				$data['viewable'] = is_post_type_viewable( $post_type );
+			}
+
+			if ( rest_is_field_included( 'labels', $fields ) ) {
+				$data['labels'] = $post_type->labels;
+			}
+
+			if ( rest_is_field_included( 'name', $fields ) ) {
+				$data['name'] = $post_type->label;
+			}
+
+			if ( rest_is_field_included( 'slug', $fields ) ) {
+				$data['slug'] = $post_type->name;
+			}
+
+			if ( rest_is_field_included( 'icon', $fields ) ) {
+				$data['icon'] = $post_type->menu_icon;
+			}
+
+			if ( rest_is_field_included( 'supports', $fields ) ) {
+				$data['supports'] = $supports;
+			}
+
+			if ( rest_is_field_included( 'taxonomies', $fields ) ) {
+				$data['taxonomies'] = array_values( $taxonomies );
+			}
+
+			if ( rest_is_field_included( 'rest_base', $fields ) ) {
+				$data['rest_base'] = $base;
+			}
+
+			if ( rest_is_field_included( 'rest_namespace', $fields ) ) {
+				$data['rest_namespace'] = $namespace;
+			}
+
+			if ( rest_is_field_included( 'template', $fields ) ) {
+				$data['template'] = $post_type->template ?? array();
+			}
+
+			if ( rest_is_field_included( 'template_lock', $fields ) ) {
+				$data['template_lock'] = ! empty( $post_type->template_lock ) ? $post_type->template_lock : false;
+			}
+
+			if ( null !== $cache_key ) {
+				$this->prepared_item_memo[ $cache_key ] = $data;
+			}
+		}
+
+		$data = $this->add_additional_fields_to_object( $data, $request );
+		$data = $this->filter_response_by_context( $data, $context );
 
 		// Wrap the data in a response object.
 		$response = rest_ensure_response( $data );

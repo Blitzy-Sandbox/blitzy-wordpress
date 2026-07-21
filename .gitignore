@@ -48,6 +48,14 @@ wp-tests-config.php
 /setup.log
 /coverage
 
+# Transient Playwright artifacts produced by the benchmark harness (F-011) when
+# WP_ARTIFACTS_PATH points at benchmarks/results. The tracked benchmark
+# deliverables (the *.json results, *.md reports, and executive-presentation.html)
+# live directly under benchmarks/results/; these run-generated subdirectories are
+# regenerated on every run and must never be committed.
+/benchmarks/results/storage-states
+/benchmarks/results/test-results
+
 # Files and folders that get created in wp-content
 /src/wp-content/blogs.dir
 /src/wp-content/database

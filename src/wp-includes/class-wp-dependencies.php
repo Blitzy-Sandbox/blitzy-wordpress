@@ -118,6 +118,39 @@ class WP_Dependencies {
 	private $dependencies_with_missing_dependencies = array();
 
 	/**
+	 * Memoized list of registered handles, i.e. the keys of {@see WP_Dependencies::$registered}.
+	 *
+	 * During dependency graph traversal ({@see WP_Dependencies::all_deps()}) the full set
+	 * of registered handles is consulted for every item that declares dependencies, in
+	 * order to detect declared dependencies that were never registered. That lookup is
+	 * derived solely from the current registration table, so its result is memoized here
+	 * and reused across the many visits made during a single traversal instead of
+	 * rebuilding `array_keys( $this->registered )` each time. Because `$registered` is a
+	 * public property that callers may grow or shrink at any time, the memoized list is a
+	 * cache that is validated on every access against the current registration count (see
+	 * {@see WP_Dependencies::$registered_handles_count}); a stale list can therefore never
+	 * be returned once the table has changed size. Initialized to null so the cache builds
+	 * lazily on first use.
+	 *
+	 * @since 7.0.0
+	 * @var string[]|null
+	 */
+	private $registered_handles_cache = null;
+
+	/**
+	 * The registered-handle count that {@see WP_Dependencies::$registered_handles_cache} is aligned to.
+	 *
+	 * Snapshots `count( $this->registered )` at the time the memoized handle list was last
+	 * built. Every registration and removal changes this count, so comparing it against the
+	 * live count on each access reveals when the memoized list must be rebuilt. Initialized
+	 * to -1 (an impossible count) so the cache is treated as invalid before its first build.
+	 *
+	 * @since 7.0.0
+	 * @var int
+	 */
+	private $registered_handles_count = -1;
+
+	/**
 	 * Processes the items and dependencies.
 	 *
 	 * Processes the items passed to it or the queue, and their dependencies.
@@ -174,6 +207,34 @@ class WP_Dependencies {
 	}
 
 	/**
+	 * Retrieves the list of registered dependency handles, memoized until the
+	 * registration table changes size.
+	 *
+	 * This returns the same value as `array_keys( $this->registered )` but reuses a
+	 * cached copy while the number of registered handles is unchanged, rebuilding it
+	 * lazily otherwise. It exists to avoid rebuilding that list on every visit made
+	 * during recursive dependency graph traversal in {@see WP_Dependencies::all_deps()},
+	 * where it is used to detect declared dependencies that were never registered. The
+	 * returned list is only ever consumed as the second operand of an array_diff()
+	 * against a handle's declared dependencies, so its element order is irrelevant to
+	 * the result and the output is identical to calling array_keys() directly.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @return string[] Handles of all currently registered dependencies.
+	 */
+	protected function get_registered_handles() {
+		$count = count( $this->registered );
+
+		if ( null === $this->registered_handles_cache || $count !== $this->registered_handles_count ) {
+			$this->registered_handles_cache = array_keys( $this->registered );
+			$this->registered_handles_count = $count;
+		}
+
+		return $this->registered_handles_cache;
+	}
+
+	/**
 	 * Determines dependencies.
 	 *
 	 * Recursively builds an array of items to process taking
@@ -215,7 +276,7 @@ class WP_Dependencies {
 			$keep_going           = true;
 			$missing_dependencies = array();
 			if ( isset( $this->registered[ $handle ] ) && count( $this->registered[ $handle ]->deps ) > 0 ) {
-				$missing_dependencies = array_diff( $this->registered[ $handle ]->deps, array_keys( $this->registered ) );
+				$missing_dependencies = array_diff( $this->registered[ $handle ]->deps, $this->get_registered_handles() );
 			}
 			if ( ! isset( $this->registered[ $handle ] ) ) {
 				$keep_going = false; // Item doesn't exist.

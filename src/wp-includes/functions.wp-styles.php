@@ -65,6 +65,15 @@ function wp_print_styles( $handles = false ) {
 		}
 	}
 
+	/*
+	 * Delegate to WP_Styles::do_items(), which carries the F-006 dependency
+	 * resolution optimization for style output: WP_Styles::in_default_dir()
+	 * memoizes its per-source result and reuses it until the public $default_dirs
+	 * property changes, so the default-directory check is not recomputed for every
+	 * handle on each print pass. This wrapper is intentionally kept thin: the
+	 * wp_print_styles action, the _wp_scripts_maybe_doing_it_wrong() guard, and the
+	 * empty-queue short-circuit above are established contract and left unchanged.
+	 */
 	return wp_styles()->do_items( $handles );
 }
 
@@ -173,6 +182,15 @@ function wp_deregister_style( $handle ) {
 function wp_enqueue_style( $handle, $src = '', $deps = array(), $ver = false, $media = 'all' ) {
 	_wp_scripts_maybe_doing_it_wrong( __FUNCTION__, $handle );
 
+	/*
+	 * Register (when $src is provided) and enqueue by delegating to the WP_Styles
+	 * singleton. WP_Styles now memoizes its default-directory resolution (see
+	 * WP_Styles::in_default_dir()), so the dependency graph built from these enqueue
+	 * calls resolves without repeated directory re-scanning when styles are printed.
+	 * This wrapper is intentionally kept thin: the public signature, the optional
+	 * inline registration when $src is set, the _wp_scripts_maybe_doing_it_wrong()
+	 * guard, and the enqueue dependency-resolution behavior are left byte-identical.
+	 */
 	$wp_styles = wp_styles();
 
 	if ( $src ) {

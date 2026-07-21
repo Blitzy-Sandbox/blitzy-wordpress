@@ -395,9 +395,21 @@ new Promise( ( resolve ) => {
 		} catch ( e ) {}
 	}
 
-	supportTests = testEmojiSupports( tests, browserSupportsEmoji, emojiSetsRenderIdentically, emojiRendersEmptyCenterPoint );
-	setSessionSupportTests( supportTests );
-	resolve( supportTests );
+	// Defer the synchronous, main-thread canvas detection to idle time so it does
+	// not block initial rendering / DOMContentLoaded. Reached only when Worker
+	// offloading is unavailable and there is no cached result. The polyfill is
+	// still loaded (in the .then() below) once detection resolves.
+	const detectEmojiSupport = () => {
+		supportTests = testEmojiSupports( tests, browserSupportsEmoji, emojiSetsRenderIdentically, emojiRendersEmptyCenterPoint );
+		setSessionSupportTests( supportTests );
+		resolve( supportTests );
+	};
+
+	if ( typeof window.requestIdleCallback === 'function' ) {
+		window.requestIdleCallback( detectEmojiSupport );
+	} else {
+		window.setTimeout( detectEmojiSupport );
+	}
 } )
 	// Once the browser emoji support has been obtained from the session, finalize the settings.
 	.then( ( supportTests ) => {

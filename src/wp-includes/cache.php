@@ -176,6 +176,37 @@ function wp_cache_get_multiple( $keys, $group = '', $force = false ) {
 }
 
 /**
+ * Primes the cache with a set of keys in a single call.
+ *
+ * Force-loads the given keys into the in-memory object cache for a group in one
+ * operation by delegating to WP_Object_Cache::get_multiple(). When a persistent
+ * object cache backend is present, the values are fetched in a single round-trip
+ * and stored in the local runtime cache, so subsequent individual wp_cache_get()
+ * calls for those keys resolve as cache hits rather than repeating per-key lookups.
+ *
+ * This provides a generic priming seam for batch-loading callers, such as the
+ * metadata, term, and query priming routines. It is safe to call when no
+ * persistent backend is configured: the default in-memory cache simply returns
+ * the values already loaded for the request, so priming degrades gracefully to a
+ * no-op-style operation and never triggers additional work.
+ *
+ * @since 7.0.0
+ *
+ * @see WP_Object_Cache::get_multiple()
+ * @global WP_Object_Cache $wp_object_cache Object cache global instance.
+ *
+ * @param array  $keys  Array of keys under which the cache contents are stored.
+ * @param string $group Optional. Where the cache contents are grouped. Default empty.
+ * @return array Array of return values, grouped by key. Each value is either
+ *               the cache contents on success, or false on failure.
+ */
+function wp_cache_prime_multiple( $keys, $group = '' ) {
+	global $wp_object_cache;
+
+	return $wp_object_cache->get_multiple( $keys, $group );
+}
+
+/**
  * Removes the cache contents matching key and group.
  *
  * @since 2.0.0

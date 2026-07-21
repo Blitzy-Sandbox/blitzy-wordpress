@@ -690,6 +690,33 @@ class wpdb {
 	private $allow_unsafe_unquoted_parameters = true;
 
 	/**
+	 * Maximum number of entries retained in the prepared-statement string cache.
+	 *
+	 * Once the cache reaches this bound, the oldest entry is evicted first (FIFO)
+	 * before a new one is stored, keeping memory usage bounded over long-running
+	 * requests and CLI processes.
+	 *
+	 * @since 7.0.0
+	 * @var int
+	 */
+	private const PREPARED_STATEMENT_CACHE_LIMIT = 256;
+
+	/**
+	 * Cache of prepared query strings for repeated identical prepare() patterns.
+	 *
+	 * Keyed by a hash of the query template, its arguments, and the
+	 * allow_unsafe_unquoted_parameters flag (the exact inputs that determine
+	 * wpdb::prepare()'s output). This memoizes the generated SQL string only; it
+	 * never skips, dedupes, or memoizes an actual database query, so
+	 * wpdb::$num_queries, wpdb::$last_query, wpdb::$last_result, and the
+	 * SAVEQUERIES log ($queries) are byte-identical to an uncached run.
+	 *
+	 * @since 7.0.0
+	 * @var string[]
+	 */
+	private $prepared_statement_cache = array();
+
+	/**
 	 * Whether to use the mysqli extension over mysql. This is no longer used as the mysql
 	 * extension is no longer supported.
 	 *
@@ -1461,6 +1488,48 @@ class wpdb {
 		}
 
 		/*
+		 * Bounded FIFO prepared-statement string cache (performance).
+		 *
+		 * Building a prepared query runs several regular-expression passes,
+		 * per-argument escaping, and a vsprintf() call. For repeated identical
+		 * prepare() patterns within a request this work is redundant, so the
+		 * final prepared string is memoized here.
+		 *
+		 * The key is derived from the exact inputs that determine the output
+		 * (query template, arguments, and the allow_unsafe_unquoted_parameters
+		 * flag). An empty key means the input is not safely cacheable (see
+		 * wpdb::get_prepared_statement_cache_key()); such inputs are always
+		 * recomputed. Only warning-free preparations are ever stored (see the
+		 * store logic near the return below), so a cache hit can never suppress
+		 * a _doing_it_wrong() notice that an uncached run would have emitted.
+		 *
+		 * This caches the generated string only. It never skips a database
+		 * query, so num_queries, last_query, last_result, and the SAVEQUERIES
+		 * log remain byte-identical to an uncached run.
+		 */
+		$cache_key = $this->get_prepared_statement_cache_key( $query, $args );
+
+		if ( '' !== $cache_key && isset( $this->prepared_statement_cache[ $cache_key ] ) ) {
+			/*
+			 * A full (uncached) preparation ends by calling add_placeholder_escape(),
+			 * which in turn calls placeholder_escape(). Besides returning the escape
+			 * token, placeholder_escape() has an observable side effect: it
+			 * (re)registers the 'query' filter (remove_placeholder_escape) at
+			 * priority 0 whenever that filter is not currently attached. If a plugin
+			 * or test removes that filter between prepare() calls, an uncached run
+			 * restores it on the next call; the cache-hit path must do the same, or
+			 * placeholder-escape tokens could leak into later SQL. The cached string
+			 * is already escaped, so placeholder_escape() is invoked here solely for
+			 * that filter-registration side effect and its return value is
+			 * intentionally discarded, keeping behavior byte-identical to an
+			 * uncached run.
+			 */
+			$this->placeholder_escape();
+
+			return $this->prepared_statement_cache[ $cache_key ];
+		}
+
+		/*
 		 * This is not meant to be foolproof -- but it will catch obviously incorrect usage.
 		 *
 		 * Note: str_contains() is not used here, as this file can be included
@@ -1756,7 +1825,98 @@ class wpdb {
 
 		$query = vsprintf( $query, $args_escaped );
 
-		return $this->add_placeholder_escape( $query );
+		$prepared_query = $this->add_placeholder_escape( $query );
+
+		/*
+		 * Store warning-free preparations in the bounded FIFO cache.
+		 *
+		 * A non-empty $cache_key already guarantees a string query containing a
+		 * placeholder and exclusively scalar/null arguments, so the "must have a
+		 * placeholder" and "unsupported value type" notices did not fire.
+		 * Requiring the argument count to match the placeholder count here
+		 * additionally excludes the "incorrect number of placeholders" notice,
+		 * which can otherwise reach this point when more arguments than
+		 * placeholders are passed. Notice-producing inputs are therefore never
+		 * stored, so _doing_it_wrong() keeps firing for them on every call
+		 * exactly as it would in an uncached run.
+		 */
+		if ( '' !== $cache_key && $args_count === $placeholder_count ) {
+			// When at capacity, evict the oldest entry first (FIFO) to bound memory usage.
+			if ( count( $this->prepared_statement_cache ) >= self::PREPARED_STATEMENT_CACHE_LIMIT ) {
+				array_shift( $this->prepared_statement_cache );
+			}
+
+			$this->prepared_statement_cache[ $cache_key ] = $prepared_query;
+		}
+
+		return $prepared_query;
+	}
+
+	/**
+	 * Computes the cache key for a prepared statement, or an empty string when
+	 * the given input must not be cached.
+	 *
+	 * The key incorporates every input that determines the output of
+	 * wpdb::prepare(): the raw query template, the arguments, and the
+	 * allow_unsafe_unquoted_parameters flag (which changes how string and
+	 * identifier placeholders are quoted).
+	 *
+	 * An empty string is returned for inputs that are either not safely
+	 * cacheable or that would emit a _doing_it_wrong() notice during
+	 * preparation, ensuring such notices are never suppressed by a cache hit:
+	 *
+	 * - A non-string query (nothing to key on deterministically).
+	 * - A query with no placeholder (emits the "must have a placeholder" notice).
+	 * - Any argument that is neither scalar nor null (emits the "unsupported
+	 *   value type" notice, and is not reliably serializable for the key).
+	 *
+	 * Arguments are inspected using the same array-vs-variadic handling as
+	 * wpdb::prepare() itself, without mutating the caller's arguments.
+	 *
+	 * @since 7.0.0
+	 *
+	 * @param string $query The query template passed to wpdb::prepare().
+	 * @param array  $args  The variadic arguments collected by wpdb::prepare().
+	 * @return string A non-empty cache key, or an empty string if the input must not be cached.
+	 */
+	private function get_prepared_statement_cache_key( $query, $args ) {
+		/*
+		 * Only cache when a database connection is available. Without one,
+		 * string arguments are escaped via wpdb::_real_escape(), which emits its
+		 * own "must set a database connection" _doing_it_wrong() notice and falls
+		 * back to addslashes(); leaving those inputs uncached keeps that notice
+		 * firing and avoids serving connection-escaped output in a disconnected
+		 * state.
+		 *
+		 * Only string queries that contain a placeholder are cacheable. Queries
+		 * without a placeholder trigger a _doing_it_wrong() notice that must keep
+		 * firing on every call, so they are deliberately excluded here.
+		 *
+		 * Note: str_contains() is not used here, as this file can be included
+		 * directly outside of WordPress core, e.g. by HyperDB, in which case
+		 * the polyfills from wp-includes/compat.php are not loaded.
+		 */
+		if ( ! $this->dbh || ! is_string( $query ) || false === strpos( $query, '%' ) ) {
+			return '';
+		}
+
+		// Mirror prepare()'s array-vs-variadic handling to inspect the effective arguments.
+		if ( isset( $args[0] ) && is_array( $args[0] ) && 1 === count( $args ) ) {
+			$args = $args[0];
+		}
+
+		foreach ( $args as $arg ) {
+			/*
+			 * Non-scalar, non-null values trigger the "unsupported value type"
+			 * notice during preparation and are not reliably serializable, so
+			 * such inputs are never cached.
+			 */
+			if ( ! is_scalar( $arg ) && ! is_null( $arg ) ) {
+				return '';
+			}
+		}
+
+		return md5( $query . '|' . serialize( $args ) . '|' . (int) $this->allow_unsafe_unquoted_parameters );
 	}
 
 	/**

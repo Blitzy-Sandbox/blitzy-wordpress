@@ -3232,9 +3232,20 @@
 	api.bind( 'ready', function() {
 
 		// Set up the menu items panel.
-		api.Menus.availableMenuItemsPanel = new api.Menus.AvailableMenuItemsPanelView({
-			collection: api.Menus.availableMenuItems
-		});
+		//
+		// Performance (F-007): defer constructing the available-menu-items drawer
+		// view until the `nav_menus` panel is actually registered. The
+		// `api.panel( id, callback )` deferred-lookup form resolves synchronously
+		// when the panel already exists -- which it does whenever the nav-menus UI
+		// is in use, since panels are registered before `ready` fires -- so the
+		// construction timing, ordering, and behavior remain identical. When no
+		// `nav_menus` panel is present, the view (whose `initialize()` already
+		// early-returns without the panel) is never built, avoiding wasted work.
+		api.panel( 'nav_menus', function() {
+			api.Menus.availableMenuItemsPanel = new api.Menus.AvailableMenuItemsPanelView({
+				collection: api.Menus.availableMenuItems
+			});
+		} );
 
 		api.bind( 'saved', function( data ) {
 			if ( data.nav_menu_updates || data.nav_menu_item_updates ) {

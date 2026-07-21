@@ -1,0 +1,207 @@
+##
+# Docker Compose environment for performance BENCHMARKING (Feature F-011).
+#
+# This file provisions a PINNED, ISOLATED, and REPRODUCIBLE environment used by the
+# benchmark harness (benchmarks/run-baseline.sh and benchmarks/run-optimized.sh) to
+# capture before/after measurements. Its purpose is to guarantee that any measured
+# delta between the baseline and optimized runs is attributable to CODE changes and
+# not to environment noise.
+#
+# It is modelled on the repository's development environment (docker-compose.yml) but
+# hardened for deterministic measurement:
+#   * Every image tag is pinned to a concrete version (no `latest`, no variable tags).
+#   * A dedicated project name, network, and named volume isolate it from the dev
+#     environment, so both stacks can run side by side without port/volume/network
+#     collisions.
+#   * Xdebug is disabled unconditionally (it adds large, variable timing overhead).
+#   * OPcache is left at the image's production-like FPM default (enabled).
+#   * The object-cache backend is held constant (no Memcached), so the baseline and
+#     optimized runs exercise the identical no-persistent-backend / graceful-degradation
+#     path, keeping the cache configuration byte-for-byte comparable between runs.
+#
+# This is a TEST/BENCHMARK-ONLY artifact and is never part of a production deployment;
+# its "off" state is simply not running it. The production/dev docker-compose.yml is
+# intentionally left untouched.
+#
+# Usage:
+#   docker compose -f docker-compose.benchmark.yml up -d
+#   docker compose -f docker-compose.benchmark.yml down -v
+##
+
+##
+# Explicit project name so benchmark containers, networks, and volumes are clearly
+# namespaced and never clash with the dev environment. Override with the
+# COMPOSE_PROJECT_NAME environment variable (or the `-p` flag) when running multiple
+# isolated benchmark stacks in parallel.
+##
+name: blitzy-wp-benchmark
+
+services:
+
+  ##
+  # The web server container.
+  #
+  # Pinned to a fixed nginx tag and published on port 8890 (the dev environment uses
+  # 8889) so the benchmark stack can coexist with the dev stack.
+  ##
+  wordpress-develop:
+    image: nginx:1.27-alpine
+
+    networks:
+      - wpbenchnet
+
+    ports:
+      - "8890:80"
+
+    environment:
+      # Serve WordPress from `src` (the project convention for measurements).
+      LOCAL_DIR: src
+
+    volumes:
+      - ./tools/local-env/default.template:/etc/nginx/conf.d/default.template
+      - ./:/var/www
+
+    # Load our config file, substituting environment variables into the config.
+    command: /bin/sh -c "envsubst '$$LOCAL_DIR' < /etc/nginx/conf.d/default.template > /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'"
+
+    depends_on:
+      php:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+
+  ##
+  # The PHP container.
+  #
+  # Pinned to a fixed, production-representative PHP version. Xdebug is forced OFF so its
+  # overhead cannot distort timing measurements; OPcache stays at the image's FPM default
+  # (enabled), which is production-like. The object-cache dropin is removed so the run
+  # deterministically uses the non-persistent cache path.
+  ##
+  php:
+    image: wordpressdevelop/php:8.3-fpm
+
+    networks:
+      - wpbenchnet
+
+    environment:
+      # Force Xdebug off — it adds large, variable overhead that would corrupt timings.
+      LOCAL_PHP_XDEBUG: "false"
+      XDEBUG_MODE: "off"
+      # Keep the cache backend constant: no persistent Memcached backend, so both the
+      # baseline and optimized runs exercise the identical graceful-degradation path.
+      LOCAL_PHP_MEMCACHED: "false"
+      PHP_FPM_UID: ${PHP_FPM_UID-1000}
+      PHP_FPM_GID: ${PHP_FPM_GID-1000}
+      HOST_PATH: ${PWD-}/src
+
+    volumes:
+      - ./tools/local-env/php-config.ini:/usr/local/etc/php/conf.d/php-config.ini
+      - ./:/var/www
+
+    # Ensure the Memcached object-cache dropin is absent so the runtime uses the
+    # non-persistent cache path deterministically, then start PHP-FPM. The condition
+    # reads the container environment (LOCAL_PHP_MEMCACHED) at runtime; it is pinned to
+    # "false" above, so the dropin is always removed for a consistent benchmark baseline.
+    command: /bin/sh -c "if [ $$LOCAL_PHP_MEMCACHED = true ]; then cp -n /var/www/tests/phpunit/includes/object-cache.php /var/www/src/wp-content/object-cache.php; else rm -f /var/www/src/wp-content/object-cache.php; fi && exec php-fpm"
+
+    # The init directive ensures the command runs with a PID > 1, so Ctrl+C works correctly.
+    init: true
+
+    extra_hosts:
+      - localhost:host-gateway
+
+  ##
+  # The MySQL container.
+  #
+  # Pinned to mysql:8.4 (the repository default and within the WP 7.0 support matrix).
+  # The host port is intentionally NOT published: the benchmark database must not collide
+  # with, or be perturbed by, the dev environment. Dependent services reach it privately
+  # over the `wpbenchnet` network by service name.
+  ##
+  mysql:
+    image: mysql:8.4
+
+    networks:
+      - wpbenchnet
+
+    environment:
+      # Root password for the throwaway, fully-isolated benchmark database.
+      #
+      # This is NOT a hardcoded secret: it is read from the BENCHMARK_MYSQL_ROOT_PASSWORD
+      # environment variable, falling back to a well-known throwaway default only when that
+      # variable is unset or empty. The default is acceptable here because this database is
+      # ephemeral (its state lives in the dedicated `mysql-benchmark` volume and is wiped by
+      # `down -v`) and is never exposed off-host — the MySQL port is deliberately NOT
+      # published (see the service comment above), so the database is reachable only by the
+      # other benchmark containers over the private `wpbenchnet` network.
+      #
+      # To run against a non-default password, export BENCHMARK_MYSQL_ROOT_PASSWORD before
+      # invoking Compose and set a matching DB_PASSWORD in the WordPress config used by the
+      # benchmark run.
+      MYSQL_ROOT_PASSWORD: ${BENCHMARK_MYSQL_ROOT_PASSWORD:-password}
+
+    volumes:
+      - ./tools/local-env/mysql-init.sql:/docker-entrypoint-initdb.d/mysql-init.sql
+      - mysql-benchmark:/var/lib/mysql
+
+    # Dependent services only start once the database is ready (deterministic ordering).
+    healthcheck:
+      test: ['CMD-SHELL', 'mysqladmin ping -h localhost || exit $$?']
+      timeout: 5s
+      interval: 5s
+      retries: 10
+
+  ##
+  # The WP CLI container.
+  #
+  # Pinned to the same fixed PHP version as the php service, with Xdebug forced off, so
+  # any CLI-driven setup or measurement step runs under identical, deterministic settings.
+  ##
+  cli:
+    image: wordpressdevelop/cli:8.3-fpm
+
+    networks:
+      - wpbenchnet
+
+    environment:
+      LOCAL_PHP_XDEBUG: "false"
+      XDEBUG_MODE: "off"
+      LOCAL_PHP_MEMCACHED: "false"
+      PHP_FPM_UID: ${PHP_FPM_UID-1000}
+      PHP_FPM_GID: ${PHP_FPM_GID-1000}
+      HOST_PATH: ${PWD-}/src
+      WP_CONFIG_PATH: /var/www/wp-config.php
+
+    volumes:
+      - ./:/var/www
+
+    # Keeps the service alive.
+    command: 'sleep infinity'
+
+    # The init directive ensures the command runs with a PID > 1, so Ctrl+C works correctly.
+    init: true
+
+    extra_hosts:
+      - localhost:host-gateway
+
+    depends_on:
+      php:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+
+volumes:
+  ##
+  # Dedicated benchmark volume, isolated from the dev environment's `mysql` volume so the
+  # benchmark database state can be reset with `down -v` without touching dev data.
+  ##
+  mysql-benchmark: {}
+
+networks:
+  ##
+  # Dedicated bridge network so benchmark containers resolve each other by service name
+  # while staying isolated from the dev environment's `wpdevnet`.
+  ##
+  wpbenchnet:
+    driver: bridge

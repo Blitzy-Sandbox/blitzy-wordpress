@@ -277,7 +277,13 @@
 			return twemoji.parse( object, params );
 		}
 
-		load();
+		// Only start the DOM-replacement machinery (MutationObserver setup and the
+		// up-to-30s twemoji polling loop) when emoji replacement is actually
+		// required. When the browser natively supports all emoji, parse() already
+		// early-returns, so setting up the observer and polling would be wasted work.
+		if ( ! settings.supports.everything ) {
+			load();
+		}
 
 		return {
 			parse: parse,

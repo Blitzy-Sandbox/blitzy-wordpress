@@ -222,63 +222,115 @@ class WP_REST_Taxonomies_Controller extends WP_REST_Controller {
 
 		$base = ! empty( $taxonomy->rest_base ) ? $taxonomy->rest_base : $taxonomy->name;
 
-		$fields = $this->get_fields_for_response( $request );
-		$data   = array();
-
-		if ( in_array( 'name', $fields, true ) ) {
-			$data['name'] = $taxonomy->label;
-		}
-
-		if ( in_array( 'slug', $fields, true ) ) {
-			$data['slug'] = $taxonomy->name;
-		}
-
-		if ( in_array( 'capabilities', $fields, true ) ) {
-			$data['capabilities'] = $taxonomy->cap;
-		}
-
-		if ( in_array( 'description', $fields, true ) ) {
-			$data['description'] = $taxonomy->description;
-		}
-
-		if ( in_array( 'labels', $fields, true ) ) {
-			$data['labels'] = $taxonomy->labels;
-		}
-
-		if ( in_array( 'types', $fields, true ) ) {
-			$data['types'] = array_values( $taxonomy->object_type );
-		}
-
-		if ( in_array( 'show_cloud', $fields, true ) ) {
-			$data['show_cloud'] = $taxonomy->show_tagcloud;
-		}
-
-		if ( in_array( 'hierarchical', $fields, true ) ) {
-			$data['hierarchical'] = $taxonomy->hierarchical;
-		}
-
-		if ( in_array( 'rest_base', $fields, true ) ) {
-			$data['rest_base'] = $base;
-		}
-
-		if ( in_array( 'rest_namespace', $fields, true ) ) {
-			$data['rest_namespace'] = $taxonomy->rest_namespace;
-		}
-
-		if ( in_array( 'visibility', $fields, true ) ) {
-			$data['visibility'] = array(
-				'public'             => (bool) $taxonomy->public,
-				'publicly_queryable' => (bool) $taxonomy->publicly_queryable,
-				'show_admin_column'  => (bool) $taxonomy->show_admin_column,
-				'show_in_nav_menus'  => (bool) $taxonomy->show_in_nav_menus,
-				'show_in_quick_edit' => (bool) $taxonomy->show_in_quick_edit,
-				'show_ui'            => (bool) $taxonomy->show_ui,
-			);
-		}
-
+		$fields  = $this->get_fields_for_response( $request );
 		$context = ! empty( $request['context'] ) ? $request['context'] : 'view';
-		$data    = $this->add_additional_fields_to_object( $data, $request );
-		$data    = $this->filter_response_by_context( $data, $context );
+
+		// Memoize the schema-shaped payload per request, keyed by the taxonomy signature, context, and requested fields.
+		static $prepared_item_memo = array();
+
+		/** This filter is documented in wp-includes/rest-api.php */
+		$use_memo = (bool) apply_filters( 'rest_prepared_response_cache_enabled', true, 'taxonomy' );
+		$memo_key = '';
+
+		if ( $use_memo ) {
+			$signature = md5(
+				serialize(
+					array(
+						$taxonomy->label,
+						$taxonomy->name,
+						$taxonomy->cap,
+						$taxonomy->description,
+						$taxonomy->labels,
+						$taxonomy->object_type,
+						$taxonomy->show_tagcloud,
+						$taxonomy->hierarchical,
+						$base,
+						$taxonomy->rest_namespace,
+						$taxonomy->public,
+						$taxonomy->publicly_queryable,
+						$taxonomy->show_admin_column,
+						$taxonomy->show_in_nav_menus,
+						$taxonomy->show_in_quick_edit,
+						$taxonomy->show_ui,
+					)
+				)
+			);
+
+			$memo_key = rest_get_prepared_response_cache_key( 'taxonomy', $taxonomy->name, $request, $signature );
+		}
+
+		if ( $use_memo && isset( $prepared_item_memo[ $memo_key ] ) ) {
+			$data = $prepared_item_memo[ $memo_key ];
+
+			// Bind the object-typed fields to the current taxonomy instance.
+			if ( in_array( 'capabilities', $fields, true ) ) {
+				$data['capabilities'] = $taxonomy->cap;
+			}
+
+			if ( in_array( 'labels', $fields, true ) ) {
+				$data['labels'] = $taxonomy->labels;
+			}
+		} else {
+			$data = array();
+
+			if ( in_array( 'name', $fields, true ) ) {
+				$data['name'] = $taxonomy->label;
+			}
+
+			if ( in_array( 'slug', $fields, true ) ) {
+				$data['slug'] = $taxonomy->name;
+			}
+
+			if ( in_array( 'capabilities', $fields, true ) ) {
+				$data['capabilities'] = $taxonomy->cap;
+			}
+
+			if ( in_array( 'description', $fields, true ) ) {
+				$data['description'] = $taxonomy->description;
+			}
+
+			if ( in_array( 'labels', $fields, true ) ) {
+				$data['labels'] = $taxonomy->labels;
+			}
+
+			if ( in_array( 'types', $fields, true ) ) {
+				$data['types'] = array_values( $taxonomy->object_type );
+			}
+
+			if ( in_array( 'show_cloud', $fields, true ) ) {
+				$data['show_cloud'] = $taxonomy->show_tagcloud;
+			}
+
+			if ( in_array( 'hierarchical', $fields, true ) ) {
+				$data['hierarchical'] = $taxonomy->hierarchical;
+			}
+
+			if ( in_array( 'rest_base', $fields, true ) ) {
+				$data['rest_base'] = $base;
+			}
+
+			if ( in_array( 'rest_namespace', $fields, true ) ) {
+				$data['rest_namespace'] = $taxonomy->rest_namespace;
+			}
+
+			if ( in_array( 'visibility', $fields, true ) ) {
+				$data['visibility'] = array(
+					'public'             => (bool) $taxonomy->public,
+					'publicly_queryable' => (bool) $taxonomy->publicly_queryable,
+					'show_admin_column'  => (bool) $taxonomy->show_admin_column,
+					'show_in_nav_menus'  => (bool) $taxonomy->show_in_nav_menus,
+					'show_in_quick_edit' => (bool) $taxonomy->show_in_quick_edit,
+					'show_ui'            => (bool) $taxonomy->show_ui,
+				);
+			}
+
+			if ( $use_memo ) {
+				$prepared_item_memo[ $memo_key ] = $data;
+			}
+		}
+
+		$data = $this->add_additional_fields_to_object( $data, $request );
+		$data = $this->filter_response_by_context( $data, $context );
 
 		// Wrap the data in a response object.
 		$response = rest_ensure_response( $data );

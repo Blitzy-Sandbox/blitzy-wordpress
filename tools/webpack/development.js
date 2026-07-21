@@ -40,6 +40,13 @@ module.exports = function( env = { buildTarget: 'src/', watch: false } ) {
 		optimization: {
 			minimize: true,
 			moduleIds: 'deterministic',
+			// The react-refresh runtime/entry bundles must each stay a single,
+			// self-contained file. Disable runtime and chunk splitting so the
+			// `window.ReactRefreshRuntime` global exposure and the single shared
+			// runtime instance are preserved, and so the composed root split
+			// policy cannot fracture these library bundles.
+			runtimeChunk: false,
+			splitChunks: false,
 			minimizer: [
 				new TerserPlugin( {
 					include: /\.min\.js$/,

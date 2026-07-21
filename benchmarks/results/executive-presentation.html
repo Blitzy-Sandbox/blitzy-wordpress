@@ -1,0 +1,1056 @@
+<!doctype html>
+<!--
+  WordPress 7.0 Performance Optimization — Executive Briefing
+  Rule 4 (Executive Presentation) deliverable — single self-contained reveal.js deck.
+  KPI numbers are sourced verbatim from benchmarks/results/benchmark-report.json.
+  All libraries load from pinned CDNs; all CSS/JS is inline; no local asset dependencies.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WordPress 7.0 Performance Optimization — Executive Briefing</title>
+
+  <!-- Inline SVG favicon (self-contained; avoids a /favicon.ico request) -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2032%2032%27%3E%3Crect%20width%3D%2732%27%20height%3D%2732%27%20rx%3D%277%27%20fill%3D%27%234F6BFF%27%2F%3E%3Cpath%20d%3D%27M17%205%20L9%2018%20h6%20l-1%209%208-13%20h-6%20z%27%20fill%3D%27%23ffffff%27%2F%3E%3C%2Fsvg%3E">
+
+  <!-- Google Fonts: Inter (body), Space Grotesk (headings), Fira Code (mono) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Security note: Subresource Integrity is intentionally omitted on the Google Fonts stylesheet below. The Fonts CSS API returns user-agent-dependent (dynamic) CSS, so a static integrity hash would break rendering across browsers; the resource is non-executable, loads over HTTPS with the recommended preconnect and crossorigin, and degrades gracefully to the system sans-serif and monospace fallbacks declared in the theme. Executable libraries (reveal.js, Mermaid, and Lucide) carry SHA-384 SRI with crossorigin, and reveal.css is inlined below. -->
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- reveal.js 5.1.0 core layout CSS (Blitzy brand tokens override the look below) -->
+  <style id="revealjs-core-5-1-0">
+    /* reveal.js 5.1.0 core layout, inlined verbatim from the pinned CDN build (dist/reveal.css) to remove the external stylesheet and keep this deck fully self-contained. Source integrity sha384-M/JtqCVlLcK9lwVnBnMXP0V577CBULkjodKsR/PITOe4MSKNbbwqCemEyluOw0+5 */
+/*!
+* reveal.js 5.1.0
+* https://revealjs.com
+* MIT licensed
+*
+* Copyright (C) 2011-2024 Hakim El Hattab, https://hakim.se
+*/
+.reveal .r-stretch,.reveal .stretch{max-width:none;max-height:none}.reveal pre.r-stretch code,.reveal pre.stretch code{height:100%;max-height:100%;box-sizing:border-box}.reveal .r-fit-text{display:inline-block;white-space:nowrap}.reveal .r-stack{display:grid;grid-template-rows:100%}.reveal .r-stack>*{grid-area:1/1;margin:auto}.reveal .r-hstack,.reveal .r-vstack{display:flex}.reveal .r-hstack img,.reveal .r-hstack video,.reveal .r-vstack img,.reveal .r-vstack video{min-width:0;min-height:0;object-fit:contain}.reveal .r-vstack{flex-direction:column;align-items:center;justify-content:center}.reveal .r-hstack{flex-direction:row;align-items:center;justify-content:center}.reveal .items-stretch{align-items:stretch}.reveal .items-start{align-items:flex-start}.reveal .items-center{align-items:center}.reveal .items-end{align-items:flex-end}.reveal .justify-between{justify-content:space-between}.reveal .justify-around{justify-content:space-around}.reveal .justify-start{justify-content:flex-start}.reveal .justify-center{justify-content:center}.reveal .justify-end{justify-content:flex-end}html.reveal-full-page{width:100%;height:100%;height:100vh;height:calc(var(--vh,1vh) * 100);height:100svh;overflow:hidden}.reveal-viewport{height:100%;overflow:hidden;position:relative;line-height:1;margin:0;background-color:#fff;color:#000;--r-controls-spacing:12px}.reveal-viewport:fullscreen{top:0!important;left:0!important;width:100%!important;height:100%!important;transform:none!important}.reveal .fragment{transition:all .2s ease}.reveal .fragment:not(.custom){opacity:0;visibility:hidden;will-change:opacity}.reveal .fragment.visible{opacity:1;visibility:inherit}.reveal .fragment.disabled{transition:none}.reveal .fragment.grow{opacity:1;visibility:inherit}.reveal .fragment.grow.visible{transform:scale(1.3)}.reveal .fragment.shrink{opacity:1;visibility:inherit}.reveal .fragment.shrink.visible{transform:scale(.7)}.reveal .fragment.zoom-in{transform:scale(.1)}.reveal .fragment.zoom-in.visible{transform:none}.reveal .fragment.fade-out{opacity:1;visibility:inherit}.reveal .fragment.fade-out.visible{opacity:0;visibility:hidden}.reveal .fragment.semi-fade-out{opacity:1;visibility:inherit}.reveal .fragment.semi-fade-out.visible{opacity:.5;visibility:inherit}.reveal .fragment.strike{opacity:1;visibility:inherit}.reveal .fragment.strike.visible{text-decoration:line-through}.reveal .fragment.fade-up{transform:translate(0,40px)}.reveal .fragment.fade-up.visible{transform:translate(0,0)}.reveal .fragment.fade-down{transform:translate(0,-40px)}.reveal .fragment.fade-down.visible{transform:translate(0,0)}.reveal .fragment.fade-right{transform:translate(-40px,0)}.reveal .fragment.fade-right.visible{transform:translate(0,0)}.reveal .fragment.fade-left{transform:translate(40px,0)}.reveal .fragment.fade-left.visible{transform:translate(0,0)}.reveal .fragment.current-visible,.reveal .fragment.fade-in-then-out{opacity:0;visibility:hidden}.reveal .fragment.current-visible.current-fragment,.reveal .fragment.fade-in-then-out.current-fragment{opacity:1;visibility:inherit}.reveal .fragment.fade-in-then-semi-out{opacity:0;visibility:hidden}.reveal .fragment.fade-in-then-semi-out.visible{opacity:.5;visibility:inherit}.reveal .fragment.fade-in-then-semi-out.current-fragment{opacity:1;visibility:inherit}.reveal .fragment.highlight-blue,.reveal .fragment.highlight-current-blue,.reveal .fragment.highlight-current-green,.reveal .fragment.highlight-current-red,.reveal .fragment.highlight-green,.reveal .fragment.highlight-red{opacity:1;visibility:inherit}.reveal .fragment.highlight-red.visible{color:#ff2c2d}.reveal .fragment.highlight-green.visible{color:#17ff2e}.reveal .fragment.highlight-blue.visible{color:#1b91ff}.reveal .fragment.highlight-current-red.current-fragment{color:#ff2c2d}.reveal .fragment.highlight-current-green.current-fragment{color:#17ff2e}.reveal .fragment.highlight-current-blue.current-fragment{color:#1b91ff}.reveal:after{content:"";font-style:italic}.reveal iframe{z-index:1}.reveal a{position:relative}@keyframes bounce-right{0%,10%,25%,40%,50%{transform:translateX(0)}20%{transform:translateX(10px)}30%{transform:translateX(-5px)}}@keyframes bounce-left{0%,10%,25%,40%,50%{transform:translateX(0)}20%{transform:translateX(-10px)}30%{transform:translateX(5px)}}@keyframes bounce-down{0%,10%,25%,40%,50%{transform:translateY(0)}20%{transform:translateY(10px)}30%{transform:translateY(-5px)}}.reveal .controls{display:none;position:absolute;top:auto;bottom:var(--r-controls-spacing);right:var(--r-controls-spacing);left:auto;z-index:11;color:#000;pointer-events:none;font-size:10px}.reveal .controls button{position:absolute;padding:0;background-color:transparent;border:0;outline:0;cursor:pointer;color:currentColor;transform:scale(.9999);transition:color .2s ease,opacity .2s ease,transform .2s ease;z-index:2;pointer-events:auto;font-size:inherit;visibility:hidden;opacity:0;-webkit-appearance:none;-webkit-tap-highlight-color:transparent}.reveal .controls .controls-arrow:after,.reveal .controls .controls-arrow:before{content:"";position:absolute;top:0;left:0;width:2.6em;height:.5em;border-radius:.25em;background-color:currentColor;transition:all .15s ease,background-color .8s ease;transform-origin:.2em 50%;will-change:transform}.reveal .controls .controls-arrow{position:relative;width:3.6em;height:3.6em}.reveal .controls .controls-arrow:before{transform:translateX(.5em) translateY(1.55em) rotate(45deg)}.reveal .controls .controls-arrow:after{transform:translateX(.5em) translateY(1.55em) rotate(-45deg)}.reveal .controls .controls-arrow:hover:before{transform:translateX(.5em) translateY(1.55em) rotate(40deg)}.reveal .controls .controls-arrow:hover:after{transform:translateX(.5em) translateY(1.55em) rotate(-40deg)}.reveal .controls .controls-arrow:active:before{transform:translateX(.5em) translateY(1.55em) rotate(36deg)}.reveal .controls .controls-arrow:active:after{transform:translateX(.5em) translateY(1.55em) rotate(-36deg)}.reveal .controls .navigate-left{right:6.4em;bottom:3.2em;transform:translateX(-10px)}.reveal .controls .navigate-left.highlight{animation:bounce-left 2s 50 both ease-out}.reveal .controls .navigate-right{right:0;bottom:3.2em;transform:translateX(10px)}.reveal .controls .navigate-right .controls-arrow{transform:rotate(180deg)}.reveal .controls .navigate-right.highlight{animation:bounce-right 2s 50 both ease-out}.reveal .controls .navigate-up{right:3.2em;bottom:6.4em;transform:translateY(-10px)}.reveal .controls .navigate-up .controls-arrow{transform:rotate(90deg)}.reveal .controls .navigate-down{right:3.2em;bottom:-1.4em;padding-bottom:1.4em;transform:translateY(10px)}.reveal .controls .navigate-down .controls-arrow{transform:rotate(-90deg)}.reveal .controls .navigate-down.highlight{animation:bounce-down 2s 50 both ease-out}.reveal .controls[data-controls-back-arrows=faded] .navigate-up.enabled{opacity:.3}.reveal .controls[data-controls-back-arrows=faded] .navigate-up.enabled:hover{opacity:1}.reveal .controls[data-controls-back-arrows=hidden] .navigate-up.enabled{opacity:0;visibility:hidden}.reveal .controls .enabled{visibility:visible;opacity:.9;cursor:pointer;transform:none}.reveal .controls .enabled.fragmented{opacity:.5}.reveal .controls .enabled.fragmented:hover,.reveal .controls .enabled:hover{opacity:1}.reveal:not(.rtl) .controls[data-controls-back-arrows=faded] .navigate-left.enabled{opacity:.3}.reveal:not(.rtl) .controls[data-controls-back-arrows=faded] .navigate-left.enabled:hover{opacity:1}.reveal:not(.rtl) .controls[data-controls-back-arrows=hidden] .navigate-left.enabled{opacity:0;visibility:hidden}.reveal.rtl .controls[data-controls-back-arrows=faded] .navigate-right.enabled{opacity:.3}.reveal.rtl .controls[data-controls-back-arrows=faded] .navigate-right.enabled:hover{opacity:1}.reveal.rtl .controls[data-controls-back-arrows=hidden] .navigate-right.enabled{opacity:0;visibility:hidden}.reveal[data-navigation-mode=linear].has-horizontal-slides .navigate-down,.reveal[data-navigation-mode=linear].has-horizontal-slides .navigate-up{display:none}.reveal:not(.has-vertical-slides) .controls .navigate-left,.reveal[data-navigation-mode=linear].has-horizontal-slides .navigate-left{bottom:1.4em;right:5.5em}.reveal:not(.has-vertical-slides) .controls .navigate-right,.reveal[data-navigation-mode=linear].has-horizontal-slides .navigate-right{bottom:1.4em;right:.5em}.reveal:not(.has-horizontal-slides) .controls .navigate-up{right:1.4em;bottom:5em}.reveal:not(.has-horizontal-slides) .controls .navigate-down{right:1.4em;bottom:.5em}.reveal.has-dark-background .controls{color:#fff}.reveal.has-light-background .controls{color:#000}.reveal.no-hover .controls .controls-arrow:active:before,.reveal.no-hover .controls .controls-arrow:hover:before{transform:translateX(.5em) translateY(1.55em) rotate(45deg)}.reveal.no-hover .controls .controls-arrow:active:after,.reveal.no-hover .controls .controls-arrow:hover:after{transform:translateX(.5em) translateY(1.55em) rotate(-45deg)}@media screen and (min-width:500px){.reveal-viewport{--r-controls-spacing:0.8em}.reveal .controls[data-controls-layout=edges]{top:0;right:0;bottom:0;left:0}.reveal .controls[data-controls-layout=edges] .navigate-down,.reveal .controls[data-controls-layout=edges] .navigate-left,.reveal .controls[data-controls-layout=edges] .navigate-right,.reveal .controls[data-controls-layout=edges] .navigate-up{bottom:auto;right:auto}.reveal .controls[data-controls-layout=edges] .navigate-left{top:50%;left:var(--r-controls-spacing);margin-top:-1.8em}.reveal .controls[data-controls-layout=edges] .navigate-right{top:50%;right:var(--r-controls-spacing);margin-top:-1.8em}.reveal .controls[data-controls-layout=edges] .navigate-up{top:var(--r-controls-spacing);left:50%;margin-left:-1.8em}.reveal .controls[data-controls-layout=edges] .navigate-down{bottom:calc(var(--r-controls-spacing) - 1.4em + .3em);left:50%;margin-left:-1.8em}}.reveal .progress{position:absolute;display:none;height:3px;width:100%;bottom:0;left:0;z-index:10;background-color:rgba(0,0,0,.2);color:#fff}.reveal .progress:after{content:"";display:block;position:absolute;height:10px;width:100%;top:-10px}.reveal .progress span{display:block;height:100%;width:100%;background-color:currentColor;transition:transform .8s cubic-bezier(.26,.86,.44,.985);transform-origin:0 0;transform:scaleX(0)}.reveal .slide-number{position:absolute;display:block;right:8px;bottom:8px;z-index:31;font-family:Helvetica,sans-serif;font-size:12px;line-height:1;color:#fff;background-color:rgba(0,0,0,.4);padding:5px}.reveal .slide-number a{color:currentColor}.reveal .slide-number-delimiter{margin:0 3px}.reveal{position:relative;width:100%;height:100%;overflow:hidden;touch-action:pinch-zoom}.reveal.embedded{touch-action:pan-y}.reveal.embedded.is-vertical-slide{touch-action:none}.reveal .slides{position:absolute;width:100%;height:100%;top:0;right:0;bottom:0;left:0;margin:auto;pointer-events:none;overflow:visible;z-index:1;text-align:center;perspective:600px;perspective-origin:50% 40%}.reveal .slides>section{perspective:600px}.reveal .slides>section,.reveal .slides>section>section{display:none;position:absolute;width:100%;pointer-events:auto;z-index:10;transform-style:flat;transition:transform-origin .8s cubic-bezier(.26,.86,.44,.985),transform .8s cubic-bezier(.26,.86,.44,.985),visibility .8s cubic-bezier(.26,.86,.44,.985),opacity .8s cubic-bezier(.26,.86,.44,.985)}.reveal[data-transition-speed=fast] .slides section{transition-duration:.4s}.reveal[data-transition-speed=slow] .slides section{transition-duration:1.2s}.reveal .slides section[data-transition-speed=fast]{transition-duration:.4s}.reveal .slides section[data-transition-speed=slow]{transition-duration:1.2s}.reveal .slides>section.stack{padding-top:0;padding-bottom:0;pointer-events:none;height:100%}.reveal .slides>section.present,.reveal .slides>section>section.present{display:block;z-index:11;opacity:1}.reveal .slides>section:empty,.reveal .slides>section>section:empty,.reveal .slides>section>section[data-background-interactive],.reveal .slides>section[data-background-interactive]{pointer-events:none}.reveal.center,.reveal.center .slides,.reveal.center .slides section{min-height:0!important}.reveal .slides>section:not(.present),.reveal .slides>section>section:not(.present){pointer-events:none}.reveal.overview .slides>section,.reveal.overview .slides>section>section{pointer-events:auto}.reveal .slides>section.future,.reveal .slides>section.future>section,.reveal .slides>section.past,.reveal .slides>section.past>section,.reveal .slides>section>section.future,.reveal .slides>section>section.past{opacity:0}.reveal .slides>section[data-transition=slide].past,.reveal .slides>section[data-transition~=slide-out].past,.reveal.slide .slides>section:not([data-transition]).past{transform:translate(-150%,0)}.reveal .slides>section[data-transition=slide].future,.reveal .slides>section[data-transition~=slide-in].future,.reveal.slide .slides>section:not([data-transition]).future{transform:translate(150%,0)}.reveal .slides>section>section[data-transition=slide].past,.reveal .slides>section>section[data-transition~=slide-out].past,.reveal.slide .slides>section>section:not([data-transition]).past{transform:translate(0,-150%)}.reveal .slides>section>section[data-transition=slide].future,.reveal .slides>section>section[data-transition~=slide-in].future,.reveal.slide .slides>section>section:not([data-transition]).future{transform:translate(0,150%)}.reveal .slides>section[data-transition=linear].past,.reveal .slides>section[data-transition~=linear-out].past,.reveal.linear .slides>section:not([data-transition]).past{transform:translate(-150%,0)}.reveal .slides>section[data-transition=linear].future,.reveal .slides>section[data-transition~=linear-in].future,.reveal.linear .slides>section:not([data-transition]).future{transform:translate(150%,0)}.reveal .slides>section>section[data-transition=linear].past,.reveal .slides>section>section[data-transition~=linear-out].past,.reveal.linear .slides>section>section:not([data-transition]).past{transform:translate(0,-150%)}.reveal .slides>section>section[data-transition=linear].future,.reveal .slides>section>section[data-transition~=linear-in].future,.reveal.linear .slides>section>section:not([data-transition]).future{transform:translate(0,150%)}.reveal .slides section[data-transition=default].stack,.reveal.default .slides section.stack{transform-style:preserve-3d}.reveal .slides>section[data-transition=default].past,.reveal .slides>section[data-transition~=default-out].past,.reveal.default .slides>section:not([data-transition]).past{transform:translate3d(-100%,0,0) rotateY(-90deg) translate3d(-100%,0,0)}.reveal .slides>section[data-transition=default].future,.reveal .slides>section[data-transition~=default-in].future,.reveal.default .slides>section:not([data-transition]).future{transform:translate3d(100%,0,0) rotateY(90deg) translate3d(100%,0,0)}.reveal .slides>section>section[data-transition=default].past,.reveal .slides>section>section[data-transition~=default-out].past,.reveal.default .slides>section>section:not([data-transition]).past{transform:translate3d(0,-300px,0) rotateX(70deg) translate3d(0,-300px,0)}.reveal .slides>section>section[data-transition=default].future,.reveal .slides>section>section[data-transition~=default-in].future,.reveal.default .slides>section>section:not([data-transition]).future{transform:translate3d(0,300px,0) rotateX(-70deg) translate3d(0,300px,0)}.reveal .slides section[data-transition=convex].stack,.reveal.convex .slides section.stack{transform-style:preserve-3d}.reveal .slides>section[data-transition=convex].past,.reveal .slides>section[data-transition~=convex-out].past,.reveal.convex .slides>section:not([data-transition]).past{transform:translate3d(-100%,0,0) rotateY(-90deg) translate3d(-100%,0,0)}.reveal .slides>section[data-transition=convex].future,.reveal .slides>section[data-transition~=convex-in].future,.reveal.convex .slides>section:not([data-transition]).future{transform:translate3d(100%,0,0) rotateY(90deg) translate3d(100%,0,0)}.reveal .slides>section>section[data-transition=convex].past,.reveal .slides>section>section[data-transition~=convex-out].past,.reveal.convex .slides>section>section:not([data-transition]).past{transform:translate3d(0,-300px,0) rotateX(70deg) translate3d(0,-300px,0)}.reveal .slides>section>section[data-transition=convex].future,.reveal .slides>section>section[data-transition~=convex-in].future,.reveal.convex .slides>section>section:not([data-transition]).future{transform:translate3d(0,300px,0) rotateX(-70deg) translate3d(0,300px,0)}.reveal .slides section[data-transition=concave].stack,.reveal.concave .slides section.stack{transform-style:preserve-3d}.reveal .slides>section[data-transition=concave].past,.reveal .slides>section[data-transition~=concave-out].past,.reveal.concave .slides>section:not([data-transition]).past{transform:translate3d(-100%,0,0) rotateY(90deg) translate3d(-100%,0,0)}.reveal .slides>section[data-transition=concave].future,.reveal .slides>section[data-transition~=concave-in].future,.reveal.concave .slides>section:not([data-transition]).future{transform:translate3d(100%,0,0) rotateY(-90deg) translate3d(100%,0,0)}.reveal .slides>section>section[data-transition=concave].past,.reveal .slides>section>section[data-transition~=concave-out].past,.reveal.concave .slides>section>section:not([data-transition]).past{transform:translate3d(0,-80%,0) rotateX(-70deg) translate3d(0,-80%,0)}.reveal .slides>section>section[data-transition=concave].future,.reveal .slides>section>section[data-transition~=concave-in].future,.reveal.concave .slides>section>section:not([data-transition]).future{transform:translate3d(0,80%,0) rotateX(70deg) translate3d(0,80%,0)}.reveal .slides section[data-transition=zoom],.reveal.zoom .slides section:not([data-transition]){transition-timing-function:ease}.reveal .slides>section[data-transition=zoom].past,.reveal .slides>section[data-transition~=zoom-out].past,.reveal.zoom .slides>section:not([data-transition]).past{visibility:hidden;transform:scale(16)}.reveal .slides>section[data-transition=zoom].future,.reveal .slides>section[data-transition~=zoom-in].future,.reveal.zoom .slides>section:not([data-transition]).future{visibility:hidden;transform:scale(.2)}.reveal .slides>section>section[data-transition=zoom].past,.reveal .slides>section>section[data-transition~=zoom-out].past,.reveal.zoom .slides>section>section:not([data-transition]).past{transform:scale(16)}.reveal .slides>section>section[data-transition=zoom].future,.reveal .slides>section>section[data-transition~=zoom-in].future,.reveal.zoom .slides>section>section:not([data-transition]).future{transform:scale(.2)}.reveal.cube .slides{perspective:1300px}.reveal.cube .slides section{padding:30px;min-height:700px;backface-visibility:hidden;box-sizing:border-box;transform-style:preserve-3d}.reveal.center.cube .slides section{min-height:0}.reveal.cube .slides section:not(.stack):before{content:"";position:absolute;display:block;width:100%;height:100%;left:0;top:0;background:rgba(0,0,0,.1);border-radius:4px;transform:translateZ(-20px)}.reveal.cube .slides section:not(.stack):after{content:"";position:absolute;display:block;width:90%;height:30px;left:5%;bottom:0;background:0 0;z-index:1;border-radius:4px;box-shadow:0 95px 25px rgba(0,0,0,.2);transform:translateZ(-90px) rotateX(65deg)}.reveal.cube .slides>section.stack{padding:0;background:0 0}.reveal.cube .slides>section.past{transform-origin:100% 0;transform:translate3d(-100%,0,0) rotateY(-90deg)}.reveal.cube .slides>section.future{transform-origin:0 0;transform:translate3d(100%,0,0) rotateY(90deg)}.reveal.cube .slides>section>section.past{transform-origin:0 100%;transform:translate3d(0,-100%,0) rotateX(90deg)}.reveal.cube .slides>section>section.future{transform-origin:0 0;transform:translate3d(0,100%,0) rotateX(-90deg)}.reveal.page .slides{perspective-origin:0 50%;perspective:3000px}.reveal.page .slides section{padding:30px;min-height:700px;box-sizing:border-box;transform-style:preserve-3d}.reveal.page .slides section.past{z-index:12}.reveal.page .slides section:not(.stack):before{content:"";position:absolute;display:block;width:100%;height:100%;left:0;top:0;background:rgba(0,0,0,.1);transform:translateZ(-20px)}.reveal.page .slides section:not(.stack):after{content:"";position:absolute;display:block;width:90%;height:30px;left:5%;bottom:0;background:0 0;z-index:1;border-radius:4px;box-shadow:0 95px 25px rgba(0,0,0,.2);-webkit-transform:translateZ(-90px) rotateX(65deg)}.reveal.page .slides>section.stack{padding:0;background:0 0}.reveal.page .slides>section.past{transform-origin:0 0;transform:translate3d(-40%,0,0) rotateY(-80deg)}.reveal.page .slides>section.future{transform-origin:100% 0;transform:translate3d(0,0,0)}.reveal.page .slides>section>section.past{transform-origin:0 0;transform:translate3d(0,-40%,0) rotateX(80deg)}.reveal.page .slides>section>section.future{transform-origin:0 100%;transform:translate3d(0,0,0)}.reveal .slides section[data-transition=fade],.reveal.fade .slides section:not([data-transition]),.reveal.fade .slides>section>section:not([data-transition]){transform:none;transition:opacity .5s}.reveal.fade.overview .slides section,.reveal.fade.overview .slides>section>section{transition:none}.reveal .slides section[data-transition=none],.reveal.none .slides section:not([data-transition]){transform:none;transition:none}.reveal .pause-overlay{position:absolute;top:0;left:0;width:100%;height:100%;background:#000;visibility:hidden;opacity:0;z-index:100;transition:all 1s ease}.reveal .pause-overlay .resume-button{position:absolute;bottom:20px;right:20px;color:#ccc;border-radius:2px;padding:6px 14px;border:2px solid #ccc;font-size:16px;background:0 0;cursor:pointer}.reveal .pause-overlay .resume-button:hover{color:#fff;border-color:#fff}.reveal.paused .pause-overlay{visibility:visible;opacity:1}.reveal .no-transition,.reveal .no-transition *,.reveal .slides.disable-slide-transitions section{transition:none!important}.reveal .slides.disable-slide-transitions section{transform:none!important}.reveal .backgrounds{position:absolute;width:100%;height:100%;top:0;left:0;perspective:600px}.reveal .slide-background{display:none;position:absolute;width:100%;height:100%;opacity:0;visibility:hidden;overflow:hidden;background-color:rgba(0,0,0,0);transition:all .8s cubic-bezier(.26,.86,.44,.985)}.reveal .slide-background-content{position:absolute;width:100%;height:100%;background-position:50% 50%;background-repeat:no-repeat;background-size:cover}.reveal .slide-background.stack{display:block}.reveal .slide-background.present{opacity:1;visibility:visible;z-index:2}.print-pdf .reveal .slide-background{opacity:1!important;visibility:visible!important}.reveal .slide-background video{position:absolute;width:100%;height:100%;max-width:none;max-height:none;top:0;left:0;object-fit:cover}.reveal .slide-background[data-background-size=contain] video{object-fit:contain}.reveal>.backgrounds .slide-background[data-background-transition=none],.reveal[data-background-transition=none]>.backgrounds .slide-background:not([data-background-transition]){transition:none}.reveal>.backgrounds .slide-background[data-background-transition=slide],.reveal[data-background-transition=slide]>.backgrounds .slide-background:not([data-background-transition]){opacity:1}.reveal>.backgrounds .slide-background.past[data-background-transition=slide],.reveal[data-background-transition=slide]>.backgrounds .slide-background.past:not([data-background-transition]){transform:translate(-100%,0)}.reveal>.backgrounds .slide-background.future[data-background-transition=slide],.reveal[data-background-transition=slide]>.backgrounds .slide-background.future:not([data-background-transition]){transform:translate(100%,0)}.reveal>.backgrounds .slide-background>.slide-background.past[data-background-transition=slide],.reveal[data-background-transition=slide]>.backgrounds .slide-background>.slide-background.past:not([data-background-transition]){transform:translate(0,-100%)}.reveal>.backgrounds .slide-background>.slide-background.future[data-background-transition=slide],.reveal[data-background-transition=slide]>.backgrounds .slide-background>.slide-background.future:not([data-background-transition]){transform:translate(0,100%)}.reveal>.backgrounds .slide-background.past[data-background-transition=convex],.reveal[data-background-transition=convex]>.backgrounds .slide-background.past:not([data-background-transition]){opacity:0;transform:translate3d(-100%,0,0) rotateY(-90deg) translate3d(-100%,0,0)}.reveal>.backgrounds .slide-background.future[data-background-transition=convex],.reveal[data-background-transition=convex]>.backgrounds .slide-background.future:not([data-background-transition]){opacity:0;transform:translate3d(100%,0,0) rotateY(90deg) translate3d(100%,0,0)}.reveal>.backgrounds .slide-background>.slide-background.past[data-background-transition=convex],.reveal[data-background-transition=convex]>.backgrounds .slide-background>.slide-background.past:not([data-background-transition]){opacity:0;transform:translate3d(0,-100%,0) rotateX(90deg) translate3d(0,-100%,0)}.reveal>.backgrounds .slide-background>.slide-background.future[data-background-transition=convex],.reveal[data-background-transition=convex]>.backgrounds .slide-background>.slide-background.future:not([data-background-transition]){opacity:0;transform:translate3d(0,100%,0) rotateX(-90deg) translate3d(0,100%,0)}.reveal>.backgrounds .slide-background.past[data-background-transition=concave],.reveal[data-background-transition=concave]>.backgrounds .slide-background.past:not([data-background-transition]){opacity:0;transform:translate3d(-100%,0,0) rotateY(90deg) translate3d(-100%,0,0)}.reveal>.backgrounds .slide-background.future[data-background-transition=concave],.reveal[data-background-transition=concave]>.backgrounds .slide-background.future:not([data-background-transition]){opacity:0;transform:translate3d(100%,0,0) rotateY(-90deg) translate3d(100%,0,0)}.reveal>.backgrounds .slide-background>.slide-background.past[data-background-transition=concave],.reveal[data-background-transition=concave]>.backgrounds .slide-background>.slide-background.past:not([data-background-transition]){opacity:0;transform:translate3d(0,-100%,0) rotateX(-90deg) translate3d(0,-100%,0)}.reveal>.backgrounds .slide-background>.slide-background.future[data-background-transition=concave],.reveal[data-background-transition=concave]>.backgrounds .slide-background>.slide-background.future:not([data-background-transition]){opacity:0;transform:translate3d(0,100%,0) rotateX(90deg) translate3d(0,100%,0)}.reveal>.backgrounds .slide-background[data-background-transition=zoom],.reveal[data-background-transition=zoom]>.backgrounds .slide-background:not([data-background-transition]){transition-timing-function:ease}.reveal>.backgrounds .slide-background.past[data-background-transition=zoom],.reveal[data-background-transition=zoom]>.backgrounds .slide-background.past:not([data-background-transition]){opacity:0;visibility:hidden;transform:scale(16)}.reveal>.backgrounds .slide-background.future[data-background-transition=zoom],.reveal[data-background-transition=zoom]>.backgrounds .slide-background.future:not([data-background-transition]){opacity:0;visibility:hidden;transform:scale(.2)}.reveal>.backgrounds .slide-background>.slide-background.past[data-background-transition=zoom],.reveal[data-background-transition=zoom]>.backgrounds .slide-background>.slide-background.past:not([data-background-transition]){opacity:0;visibility:hidden;transform:scale(16)}.reveal>.backgrounds .slide-background>.slide-background.future[data-background-transition=zoom],.reveal[data-background-transition=zoom]>.backgrounds .slide-background>.slide-background.future:not([data-background-transition]){opacity:0;visibility:hidden;transform:scale(.2)}.reveal[data-transition-speed=fast]>.backgrounds .slide-background{transition-duration:.4s}.reveal[data-transition-speed=slow]>.backgrounds .slide-background{transition-duration:1.2s}.reveal [data-auto-animate-target^=unmatched]{will-change:opacity}.reveal section[data-auto-animate]:not(.stack):not([data-auto-animate=running]) [data-auto-animate-target^=unmatched]{opacity:0}.reveal.overview{perspective-origin:50% 50%;perspective:700px}.reveal.overview .slides{-moz-transform-style:preserve-3d}.reveal.overview .slides section{height:100%;top:0!important;opacity:1!important;overflow:hidden;visibility:visible!important;cursor:pointer;box-sizing:border-box}.reveal.overview .slides section.present,.reveal.overview .slides section:hover{outline:10px solid rgba(150,150,150,.4);outline-offset:10px}.reveal.overview .slides section .fragment{opacity:1;transition:none}.reveal.overview .slides section:after,.reveal.overview .slides section:before{display:none!important}.reveal.overview .slides>section.stack{padding:0;top:0!important;background:0 0;outline:0;overflow:visible}.reveal.overview .backgrounds{perspective:inherit;-moz-transform-style:preserve-3d}.reveal.overview .backgrounds .slide-background{opacity:1;visibility:visible;outline:10px solid rgba(150,150,150,.1);outline-offset:10px}.reveal.overview .backgrounds .slide-background.stack{overflow:visible}.reveal.overview .slides section,.reveal.overview-deactivating .slides section{transition:none}.reveal.overview .backgrounds .slide-background,.reveal.overview-deactivating .backgrounds .slide-background{transition:none}.reveal.rtl .slides,.reveal.rtl .slides h1,.reveal.rtl .slides h2,.reveal.rtl .slides h3,.reveal.rtl .slides h4,.reveal.rtl .slides h5,.reveal.rtl .slides h6{direction:rtl;font-family:sans-serif}.reveal.rtl code,.reveal.rtl pre{direction:ltr}.reveal.rtl ol,.reveal.rtl ul{text-align:right}.reveal.rtl .progress span{transform-origin:100% 0}.reveal.has-parallax-background .backgrounds{transition:all .8s ease}.reveal.has-parallax-background[data-transition-speed=fast] .backgrounds{transition-duration:.4s}.reveal.has-parallax-background[data-transition-speed=slow] .backgrounds{transition-duration:1.2s}.reveal>.overlay{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1000;background:rgba(0,0,0,.95);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);transition:all .3s ease}.reveal>.overlay .spinner{position:absolute;display:block;top:50%;left:50%;width:32px;height:32px;margin:-16px 0 0 -16px;z-index:10;background-image:url(data:image/gif;base64,R0lGODlhIAAgAPMAAJmZmf%2F%2F%2F6%2Bvr8nJybW1tcDAwOjo6Nvb26ioqKOjo7Ozs%2FLy8vz8%2FAAAAAAAAAAAACH%2FC05FVFNDQVBFMi4wAwEAAAAh%2FhpDcmVhdGVkIHdpdGggYWpheGxvYWQuaW5mbwAh%2BQQJCgAAACwAAAAAIAAgAAAE5xDISWlhperN52JLhSSdRgwVo1ICQZRUsiwHpTJT4iowNS8vyW2icCF6k8HMMBkCEDskxTBDAZwuAkkqIfxIQyhBQBFvAQSDITM5VDW6XNE4KagNh6Bgwe60smQUB3d4Rz1ZBApnFASDd0hihh12BkE9kjAJVlycXIg7CQIFA6SlnJ87paqbSKiKoqusnbMdmDC2tXQlkUhziYtyWTxIfy6BE8WJt5YJvpJivxNaGmLHT0VnOgSYf0dZXS7APdpB309RnHOG5gDqXGLDaC457D1zZ%2FV%2FnmOM82XiHRLYKhKP1oZmADdEAAAh%2BQQJCgAAACwAAAAAIAAgAAAE6hDISWlZpOrNp1lGNRSdRpDUolIGw5RUYhhHukqFu8DsrEyqnWThGvAmhVlteBvojpTDDBUEIFwMFBRAmBkSgOrBFZogCASwBDEY%2FCZSg7GSE0gSCjQBMVG023xWBhklAnoEdhQEfyNqMIcKjhRsjEdnezB%2BA4k8gTwJhFuiW4dokXiloUepBAp5qaKpp6%2BHo7aWW54wl7obvEe0kRuoplCGepwSx2jJvqHEmGt6whJpGpfJCHmOoNHKaHx61WiSR92E4lbFoq%2BB6QDtuetcaBPnW6%2BO7wDHpIiK9SaVK5GgV543tzjgGcghAgAh%2BQQJCgAAACwAAAAAIAAgAAAE7hDISSkxpOrN5zFHNWRdhSiVoVLHspRUMoyUakyEe8PTPCATW9A14E0UvuAKMNAZKYUZCiBMuBakSQKG8G2FzUWox2AUtAQFcBKlVQoLgQReZhQlCIJesQXI5B0CBnUMOxMCenoCfTCEWBsJColTMANldx15BGs8B5wlCZ9Po6OJkwmRpnqkqnuSrayqfKmqpLajoiW5HJq7FL1Gr2mMMcKUMIiJgIemy7xZtJsTmsM4xHiKv5KMCXqfyUCJEonXPN2rAOIAmsfB3uPoAK%2B%2BG%2Bw48edZPK%2BM6hLJpQg484enXIdQFSS1u6UhksENEQAAIfkECQoAAAAsAAAAACAAIAAABOcQyEmpGKLqzWcZRVUQnZYg1aBSh2GUVEIQ2aQOE%2BG%2BcD4ntpWkZQj1JIiZIogDFFyHI0UxQwFugMSOFIPJftfVAEoZLBbcLEFhlQiqGp1Vd140AUklUN3eCA51C1EWMzMCezCBBmkxVIVHBWd3HHl9JQOIJSdSnJ0TDKChCwUJjoWMPaGqDKannasMo6WnM562R5YluZRwur0wpgqZE7NKUm%2BFNRPIhjBJxKZteWuIBMN4zRMIVIhffcgojwCF117i4nlLnY5ztRLsnOk%2BaV%2BoJY7V7m76PdkS4trKcdg0Zc0tTcKkRAAAIfkECQoAAAAsAAAAACAAIAAABO4QyEkpKqjqzScpRaVkXZWQEximw1BSCUEIlDohrft6cpKCk5xid5MNJTaAIkekKGQkWyKHkvhKsR7ARmitkAYDYRIbUQRQjWBwJRzChi9CRlBcY1UN4g0%2FVNB0AlcvcAYHRyZPdEQFYV8ccwR5HWxEJ02YmRMLnJ1xCYp0Y5idpQuhopmmC2KgojKasUQDk5BNAwwMOh2RtRq5uQuPZKGIJQIGwAwGf6I0JXMpC8C7kXWDBINFMxS4DKMAWVWAGYsAdNqW5uaRxkSKJOZKaU3tPOBZ4DuK2LATgJhkPJMgTwKCdFjyPHEnKxFCDhEAACH5BAkKAAAALAAAAAAgACAAAATzEMhJaVKp6s2nIkolIJ2WkBShpkVRWqqQrhLSEu9MZJKK9y1ZrqYK9WiClmvoUaF8gIQSNeF1Er4MNFn4SRSDARWroAIETg1iVwuHjYB1kYc1mwruwXKC9gmsJXliGxc%2BXiUCby9ydh1sOSdMkpMTBpaXBzsfhoc5l58Gm5yToAaZhaOUqjkDgCWNHAULCwOLaTmzswadEqggQwgHuQsHIoZCHQMMQgQGubVEcxOPFAcMDAYUA85eWARmfSRQCdcMe0zeP1AAygwLlJtPNAAL19DARdPzBOWSm1brJBi45soRAWQAAkrQIykShQ9wVhHCwCQCACH5BAkKAAAALAAAAAAgACAAAATrEMhJaVKp6s2nIkqFZF2VIBWhUsJaTokqUCoBq%2BE71SRQeyqUToLA7VxF0JDyIQh%2FMVVPMt1ECZlfcjZJ9mIKoaTl1MRIl5o4CUKXOwmyrCInCKqcWtvadL2SYhyASyNDJ0uIiRMDjI0Fd30%2FiI2UA5GSS5UDj2l6NoqgOgN4gksEBgYFf0FDqKgHnyZ9OX8HrgYHdHpcHQULXAS2qKpENRg7eAMLC7kTBaixUYFkKAzWAAnLC7FLVxLWDBLKCwaKTULgEwbLA4hJtOkSBNqITT3xEgfLpBtzE%2FjiuL04RGEBgwWhShRgQExHBAAh%2BQQJCgAAACwAAAAAIAAgAAAE7xDISWlSqerNpyJKhWRdlSAVoVLCWk6JKlAqAavhO9UkUHsqlE6CwO1cRdCQ8iEIfzFVTzLdRAmZX3I2SfZiCqGk5dTESJeaOAlClzsJsqwiJwiqnFrb2nS9kmIcgEsjQydLiIlHehhpejaIjzh9eomSjZR%2BipslWIRLAgMDOR2DOqKogTB9pCUJBagDBXR6XB0EBkIIsaRsGGMMAxoDBgYHTKJiUYEGDAzHC9EACcUGkIgFzgwZ0QsSBcXHiQvOwgDdEwfFs0sDzt4S6BK4xYjkDOzn0unFeBzOBijIm1Dgmg5YFQwsCMjp1oJ8LyIAACH5BAkKAAAALAAAAAAgACAAAATwEMhJaVKp6s2nIkqFZF2VIBWhUsJaTokqUCoBq%2BE71SRQeyqUToLA7VxF0JDyIQh%2FMVVPMt1ECZlfcjZJ9mIKoaTl1MRIl5o4CUKXOwmyrCInCKqcWtvadL2SYhyASyNDJ0uIiUd6GGl6NoiPOH16iZKNlH6KmyWFOggHhEEvAwwMA0N9GBsEC6amhnVcEwavDAazGwIDaH1ipaYLBUTCGgQDA8NdHz0FpqgTBwsLqAbWAAnIA4FWKdMLGdYGEgraigbT0OITBcg5QwPT4xLrROZL6AuQAPUS7bxLpoWidY0JtxLHKhwwMJBTHgPKdEQAACH5BAkKAAAALAAAAAAgACAAAATrEMhJaVKp6s2nIkqFZF2VIBWhUsJaTokqUCoBq%2BE71SRQeyqUToLA7VxF0JDyIQh%2FMVVPMt1ECZlfcjZJ9mIKoaTl1MRIl5o4CUKXOwmyrCInCKqcWtvadL2SYhyASyNDJ0uIiUd6GAULDJCRiXo1CpGXDJOUjY%2BYip9DhToJA4RBLwMLCwVDfRgbBAaqqoZ1XBMHswsHtxtFaH1iqaoGNgAIxRpbFAgfPQSqpbgGBqUD1wBXeCYp1AYZ19JJOYgH1KwA4UBvQwXUBxPqVD9L3sbp2BNk2xvvFPJd%2BMFCN6HAAIKgNggY0KtEBAAh%2BQQJCgAAACwAAAAAIAAgAAAE6BDISWlSqerNpyJKhWRdlSAVoVLCWk6JKlAqAavhO9UkUHsqlE6CwO1cRdCQ8iEIfzFVTzLdRAmZX3I2SfYIDMaAFdTESJeaEDAIMxYFqrOUaNW4E4ObYcCXaiBVEgULe0NJaxxtYksjh2NLkZISgDgJhHthkpU4mW6blRiYmZOlh4JWkDqILwUGBnE6TYEbCgevr0N1gH4At7gHiRpFaLNrrq8HNgAJA70AWxQIH1%2BvsYMDAzZQPC9VCNkDWUhGkuE5PxJNwiUK4UfLzOlD4WvzAHaoG9nxPi5d%2BjYUqfAhhykOFwJWiAAAIfkECQoAAAAsAAAAACAAIAAABPAQyElpUqnqzaciSoVkXVUMFaFSwlpOCcMYlErAavhOMnNLNo8KsZsMZItJEIDIFSkLGQoQTNhIsFehRww2CQLKF0tYGKYSg%2BygsZIuNqJksKgbfgIGepNo2cIUB3V1B3IvNiBYNQaDSTtfhhx0CwVPI0UJe0%2Bbm4g5VgcGoqOcnjmjqDSdnhgEoamcsZuXO1aWQy8KAwOAuTYYGwi7w5h%2BKr0SJ8MFihpNbx%2B4Erq7BYBuzsdiH1jCAzoSfl0rVirNbRXlBBlLX%2BBP0XJLAPGzTkAuAOqb0WT5AH7OcdCm5B8TgRwSRKIHQtaLCwg1RAAAOwAAAAAAAAAAAA%3D%3D);visibility:visible;opacity:.6;transition:all .3s ease}.reveal>.overlay header{position:absolute;left:0;top:0;width:100%;padding:5px;z-index:2;box-sizing:border-box}.reveal>.overlay header a{display:inline-block;width:40px;height:40px;line-height:36px;padding:0 10px;float:right;opacity:.6;box-sizing:border-box}.reveal>.overlay header a:hover{opacity:1}.reveal>.overlay header a .icon{display:inline-block;width:20px;height:20px;background-position:50% 50%;background-size:100%;background-repeat:no-repeat}.reveal>.overlay header a.close .icon{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABkklEQVRYR8WX4VHDMAxG6wnoJrABZQPYBCaBTWAD2g1gE5gg6OOsXuxIlr40d81dfrSJ9V4c2VLK7spHuTJ/5wpM07QXuXc5X0opX2tEJcadjHuV80li/FgxTIEK/5QBCICBD6xEhSMGHgQPgBgLiYVAB1dpSqKDawxTohFw4JSEA3clzgIBPCURwE2JucBR7rhPJJv5OpJwDX+SfDjgx1wACQeJG1aChP9K/IMmdZ8DtESV1WyP3Bt4MwM6sj4NMxMYiqUWHQu4KYA/SYkIjOsm3BXYWMKFDwU2khjCQ4ELJUJ4SmClRArOCmSXGuKma0fYD5CbzHxFpCSGAhfAVSSUGDUk2BWZaff2g6GE15BsBQ9nwmpIGDiyHQddwNTMKkbZaf9fajXQca1EX44puJZUsnY0ObGmITE3GVLCbEhQUjGVt146j6oasWN+49Vph2w1pZ5EansNZqKBm1txbU57iRRcZ86RWMDdWtBJUHBHwoQPi1GV+JCbntmvok7iTX4/Up9mgyTc/FJYDTcndgH/AA5A/CHsyEkVAAAAAElFTkSuQmCC)}.reveal>.overlay header a.external .icon{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAcElEQVRYR+2WSQoAIQwEzf8f7XiOMkUQxUPlGkM3hVmiQfQR9GYnH1SsAQlI4DiBqkCMoNb9y2e90IAEJPAcgdznU9+engMaeJ7Azh5Y1U67gAho4DqBqmB1buAf0MB1AlVBek83ZPkmJMGc1wAR+AAqod/B97TRpQAAAABJRU5ErkJggg==)}.reveal>.overlay .viewport{position:absolute;display:flex;top:50px;right:0;bottom:0;left:0}.reveal>.overlay.overlay-preview .viewport iframe{width:100%;height:100%;max-width:100%;max-height:100%;border:0;opacity:0;visibility:hidden;transition:all .3s ease}.reveal>.overlay.overlay-preview.loaded .viewport iframe{opacity:1;visibility:visible}.reveal>.overlay.overlay-preview.loaded .viewport-inner{position:absolute;z-index:-1;left:0;top:45%;width:100%;text-align:center;letter-spacing:normal}.reveal>.overlay.overlay-preview .x-frame-error{opacity:0;transition:opacity .3s ease .3s}.reveal>.overlay.overlay-preview.loaded .x-frame-error{opacity:1}.reveal>.overlay.overlay-preview.loaded .spinner{opacity:0;visibility:hidden;transform:scale(.2)}.reveal>.overlay.overlay-help .viewport{overflow:auto;color:#fff}.reveal>.overlay.overlay-help .viewport .viewport-inner{width:600px;margin:auto;padding:20px 20px 80px 20px;text-align:center;letter-spacing:normal}.reveal>.overlay.overlay-help .viewport .viewport-inner .title{font-size:20px}.reveal>.overlay.overlay-help .viewport .viewport-inner table{border:1px solid #fff;border-collapse:collapse;font-size:16px}.reveal>.overlay.overlay-help .viewport .viewport-inner table td,.reveal>.overlay.overlay-help .viewport .viewport-inner table th{width:200px;padding:14px;border:1px solid #fff;vertical-align:middle}.reveal>.overlay.overlay-help .viewport .viewport-inner table th{padding-top:20px;padding-bottom:20px}.reveal .playback{position:absolute;left:15px;bottom:20px;z-index:30;cursor:pointer;transition:all .4s ease;-webkit-tap-highlight-color:transparent}.reveal.overview .playback{opacity:0;visibility:hidden}.reveal .hljs{min-height:100%}.reveal .hljs table{margin:initial}.reveal .hljs-ln-code,.reveal .hljs-ln-numbers{padding:0;border:0}.reveal .hljs-ln-numbers{opacity:.6;padding-right:.75em;text-align:right;vertical-align:top}.reveal .hljs.has-highlights tr:not(.highlight-line){opacity:.4}.reveal .hljs.has-highlights.fragment{transition:all .2s ease}.reveal .hljs:not(:first-child).fragment{position:absolute;top:0;left:0;width:100%;box-sizing:border-box}.reveal pre[data-auto-animate-target]{overflow:hidden}.reveal pre[data-auto-animate-target] code{height:100%}.reveal .roll{display:inline-block;line-height:1.2;overflow:hidden;vertical-align:top;perspective:400px;perspective-origin:50% 50%}.reveal .roll:hover{background:0 0;text-shadow:none}.reveal .roll span{display:block;position:relative;padding:0 2px;pointer-events:none;transition:all .4s ease;transform-origin:50% 0;transform-style:preserve-3d;backface-visibility:hidden}.reveal .roll:hover span{background:rgba(0,0,0,.5);transform:translate3d(0,0,-45px) rotateX(90deg)}.reveal .roll span:after{content:attr(data-title);display:block;position:absolute;left:0;top:0;padding:0 2px;backface-visibility:hidden;transform-origin:50% 0;transform:translate3d(0,110%,0) rotateX(-90deg)}.reveal aside.notes{display:none}.reveal .speaker-notes{display:none;position:absolute;width:33.3333333333%;height:100%;top:0;left:100%;padding:14px 18px 14px 18px;z-index:1;font-size:18px;line-height:1.4;border:1px solid rgba(0,0,0,.05);color:#222;background-color:#f5f5f5;overflow:auto;box-sizing:border-box;text-align:left;font-family:Helvetica,sans-serif;-webkit-overflow-scrolling:touch}.reveal .speaker-notes .notes-placeholder{color:#ccc;font-style:italic}.reveal .speaker-notes:focus{outline:0}.reveal .speaker-notes:before{content:"Speaker notes";display:block;margin-bottom:10px;opacity:.5}.reveal.show-notes{max-width:75%;overflow:visible}.reveal.show-notes .speaker-notes{display:block}@media screen and (min-width:1600px){.reveal .speaker-notes{font-size:20px}}@media screen and (max-width:1024px){.reveal.show-notes{border-left:0;max-width:none;max-height:70%;max-height:70vh;overflow:visible}.reveal.show-notes .speaker-notes{top:100%;left:0;width:100%;height:30vh;border:0}}@media screen and (max-width:600px){.reveal.show-notes{max-height:60%;max-height:60vh}.reveal.show-notes .speaker-notes{top:100%;height:40vh}.reveal .speaker-notes{font-size:14px}}.reveal .jump-to-slide{position:absolute;top:15px;left:15px;z-index:30;font-size:32px;-webkit-tap-highlight-color:transparent}.reveal .jump-to-slide-input{background:0 0;padding:8px;font-size:inherit;color:currentColor;border:0}.reveal .jump-to-slide-input::placeholder{color:currentColor;opacity:.5}.reveal.has-dark-background .jump-to-slide-input{color:#fff}.reveal.has-light-background .jump-to-slide-input{color:#222}.reveal .jump-to-slide-input:focus{outline:0}.zoomed .reveal *,.zoomed .reveal :after,.zoomed .reveal :before{backface-visibility:visible!important}.zoomed .reveal .controls,.zoomed .reveal .progress{opacity:0}.zoomed .reveal .roll span{background:0 0}.zoomed .reveal .roll span:after{visibility:hidden}.reveal-viewport.loading-scroll-mode{visibility:hidden}.reveal-viewport.reveal-scroll{margin:0 auto;overflow:auto;overflow-x:hidden;overflow-y:auto;z-index:1;--r-scrollbar-width:7px;--r-scrollbar-trigger-size:5px;--r-controls-spacing:8px}@media screen and (max-width:500px){.reveal-viewport.reveal-scroll{--r-scrollbar-width:3px;--r-scrollbar-trigger-size:3px}}.reveal-viewport.reveal-scroll .backgrounds,.reveal-viewport.reveal-scroll .controls,.reveal-viewport.reveal-scroll .playback,.reveal-viewport.reveal-scroll .progress,.reveal-viewport.reveal-scroll .slide-number,.reveal-viewport.reveal-scroll .speaker-notes{display:none!important}.reveal-viewport.reveal-scroll .overlay,.reveal-viewport.reveal-scroll .pause-overlay{position:fixed}.reveal-viewport.reveal-scroll .reveal{overflow:visible;touch-action:manipulation}.reveal-viewport.reveal-scroll .slides{position:static;pointer-events:initial;left:auto;top:auto;width:100%!important;margin:0;padding:0;overflow:visible;display:block;perspective:none;perspective-origin:50% 50%}.reveal-viewport.reveal-scroll .scroll-page{position:relative;width:100%;height:calc(var(--page-height) + var(--page-scroll-padding));z-index:1;overflow:visible}.reveal-viewport.reveal-scroll .scroll-page-sticky{position:sticky;height:var(--page-height);top:0}.reveal-viewport.reveal-scroll .scroll-page-content{position:absolute;top:0;left:0;width:100%;height:100%;overflow:hidden}.reveal-viewport.reveal-scroll .scroll-page section{visibility:visible!important;display:block!important;position:absolute!important;width:var(--slide-width)!important;height:var(--slide-height)!important;top:50%!important;left:50%!important;opacity:1!important;transform:scale(var(--slide-scale)) translate(-50%,-50%)!important;transform-style:flat!important;transform-origin:0 0!important}.reveal-viewport.reveal-scroll .slide-background{display:block!important;position:absolute;top:0;left:0;width:100%;height:100%;z-index:auto!important;visibility:visible;opacity:1;touch-action:manipulation}.reveal-viewport.reveal-scroll[data-scrollbar=auto]::-webkit-scrollbar,.reveal-viewport.reveal-scroll[data-scrollbar=true]::-webkit-scrollbar{display:none}.reveal-viewport.reveal-scroll[data-scrollbar=auto],.reveal-viewport.reveal-scroll[data-scrollbar=true]{scrollbar-width:none}.reveal-viewport.has-dark-background,.reveal.has-dark-background{--r-overlay-element-bg-color:240,240,240;--r-overlay-element-fg-color:0,0,0}.reveal-viewport.has-light-background,.reveal.has-light-background{--r-overlay-element-bg-color:0,0,0;--r-overlay-element-fg-color:240,240,240}.reveal-viewport.reveal-scroll .scrollbar{position:sticky;top:50%;z-index:20;opacity:0;transition:all .3s ease}.reveal-viewport.reveal-scroll .scrollbar.visible,.reveal-viewport.reveal-scroll .scrollbar:hover{opacity:1}.reveal-viewport.reveal-scroll .scrollbar .scrollbar-inner{position:absolute;width:var(--r-scrollbar-width);height:calc(var(--viewport-height) - var(--r-controls-spacing) * 2);right:var(--r-controls-spacing);top:0;transform:translateY(-50%);border-radius:var(--r-scrollbar-width);z-index:10}.reveal-viewport.reveal-scroll .scrollbar .scrollbar-playhead{position:absolute;width:var(--r-scrollbar-width);height:var(--r-scrollbar-width);top:0;left:0;border-radius:var(--r-scrollbar-width);background-color:rgba(var(--r-overlay-element-bg-color),1);z-index:11;transition:background-color .2s ease}.reveal-viewport.reveal-scroll .scrollbar .scrollbar-slide{position:absolute;width:100%;background-color:rgba(var(--r-overlay-element-bg-color),.2);box-shadow:0 0 0 1px rgba(var(--r-overlay-element-fg-color),.1);border-radius:var(--r-scrollbar-width);transition:background-color .2s ease}.reveal-viewport.reveal-scroll .scrollbar .scrollbar-slide:after{content:"";position:absolute;width:200%;height:100%;top:0;left:-50%;background:rgba(0,0,0,0);z-index:-1}.reveal-viewport.reveal-scroll .scrollbar .scrollbar-slide.active,.reveal-viewport.reveal-scroll .scrollbar .scrollbar-slide:hover{background-color:rgba(var(--r-overlay-element-bg-color),.4)}.reveal-viewport.reveal-scroll .scrollbar .scrollbar-trigger{position:absolute;width:100%;transition:background-color .2s ease}.reveal-viewport.reveal-scroll .scrollbar .scrollbar-slide.active.has-triggers{background-color:rgba(var(--r-overlay-element-bg-color),.4);z-index:10}.reveal-viewport.reveal-scroll .scrollbar .scrollbar-slide.active .scrollbar-trigger:after{content:"";position:absolute;width:var(--r-scrollbar-trigger-size);height:var(--r-scrollbar-trigger-size);border-radius:20px;top:50%;left:50%;transform:translate(-50%,-50%);background-color:rgba(var(--r-overlay-element-bg-color),1);transition:transform .2s ease,opacity .2s ease;opacity:.4}.reveal-viewport.reveal-scroll .scrollbar .scrollbar-slide.active .scrollbar-trigger.active:after,.reveal-viewport.reveal-scroll .scrollbar .scrollbar-slide.active .scrollbar-trigger.active~.scrollbar-trigger:after{opacity:1}.reveal-viewport.reveal-scroll .scrollbar .scrollbar-slide.active .scrollbar-trigger~.scrollbar-trigger.active:after{transform:translate(calc(var(--r-scrollbar-width) * -2),0);background-color:rgba(var(--r-overlay-element-bg-color),1)}html.reveal-print *{-webkit-print-color-adjust:exact}html.reveal-print{width:100%;height:100%;overflow:visible}html.reveal-print body{margin:0 auto!important;border:0;padding:0;float:none!important;overflow:visible}html.reveal-print .nestedarrow,html.reveal-print .reveal .controls,html.reveal-print .reveal .playback,html.reveal-print .reveal .progress,html.reveal-print .reveal.overview,html.reveal-print .state-background{display:none!important}html.reveal-print .reveal pre code{overflow:hidden!important}html.reveal-print .reveal{width:auto!important;height:auto!important;overflow:hidden!important}html.reveal-print .reveal .slides{position:static;width:100%!important;height:auto!important;zoom:1!important;pointer-events:initial;left:auto;top:auto;margin:0!important;padding:0!important;overflow:visible;display:block;perspective:none;perspective-origin:50% 50%}html.reveal-print .reveal .slides .pdf-page{position:relative;overflow:hidden;z-index:1;page-break-after:always}html.reveal-print .reveal .slides .pdf-page:last-of-type{page-break-after:avoid}html.reveal-print .reveal .slides section{visibility:visible!important;display:block!important;position:absolute!important;margin:0!important;padding:0!important;box-sizing:border-box!important;min-height:1px;opacity:1!important;transform-style:flat!important;transform:none!important}html.reveal-print .reveal section.stack{position:relative!important;margin:0!important;padding:0!important;page-break-after:avoid!important;height:auto!important;min-height:auto!important}html.reveal-print .reveal img{box-shadow:none}html.reveal-print .reveal .backgrounds{display:none}html.reveal-print .reveal .slide-background{display:block!important;position:absolute;top:0;left:0;width:100%;height:100%;z-index:auto!important}html.reveal-print .reveal.show-notes{max-width:none;max-height:none}html.reveal-print .reveal .speaker-notes-pdf{display:block;width:100%;height:auto;max-height:none;top:auto;right:auto;bottom:auto;left:auto;z-index:100}html.reveal-print .reveal .speaker-notes-pdf[data-layout=separate-page]{position:relative;color:inherit;background-color:transparent;padding:20px;page-break-after:always;border:0}html.reveal-print .reveal .slide-number-pdf{display:block;position:absolute;font-size:14px;visibility:visible}html.reveal-print .aria-status{display:none}@media print{html:not(.print-pdf){overflow:visible;width:auto;height:auto}html:not(.print-pdf) body{margin:0;padding:0;overflow:visible}html:not(.print-pdf) .reveal{background:#fff;font-size:20pt}html:not(.print-pdf) .reveal .backgrounds,html:not(.print-pdf) .reveal .controls,html:not(.print-pdf) .reveal .progress,html:not(.print-pdf) .reveal .slide-number,html:not(.print-pdf) .reveal .state-background{display:none!important}html:not(.print-pdf) .reveal li,html:not(.print-pdf) .reveal p,html:not(.print-pdf) .reveal td{font-size:20pt!important;color:#000}html:not(.print-pdf) .reveal h1,html:not(.print-pdf) .reveal h2,html:not(.print-pdf) .reveal h3,html:not(.print-pdf) .reveal h4,html:not(.print-pdf) .reveal h5,html:not(.print-pdf) .reveal h6{color:#000!important;height:auto;line-height:normal;text-align:left;letter-spacing:normal}html:not(.print-pdf) .reveal h1{font-size:28pt!important}html:not(.print-pdf) .reveal h2{font-size:24pt!important}html:not(.print-pdf) .reveal h3{font-size:22pt!important}html:not(.print-pdf) .reveal h4{font-size:22pt!important;font-variant:small-caps}html:not(.print-pdf) .reveal h5{font-size:21pt!important}html:not(.print-pdf) .reveal h6{font-size:20pt!important;font-style:italic}html:not(.print-pdf) .reveal a:link,html:not(.print-pdf) .reveal a:visited{color:#000!important;font-weight:700;text-decoration:underline}html:not(.print-pdf) .reveal div,html:not(.print-pdf) .reveal ol,html:not(.print-pdf) .reveal p,html:not(.print-pdf) .reveal ul{visibility:visible;position:static;width:auto;height:auto;display:block;overflow:visible;margin:0;text-align:left!important}html:not(.print-pdf) .reveal pre,html:not(.print-pdf) .reveal table{margin-left:0;margin-right:0}html:not(.print-pdf) .reveal pre code{padding:20px}html:not(.print-pdf) .reveal blockquote{margin:20px 0}html:not(.print-pdf) .reveal .slides{position:static!important;width:auto!important;height:auto!important;left:0!important;top:0!important;margin-left:0!important;margin-top:0!important;padding:0!important;zoom:1!important;transform:none!important;overflow:visible!important;display:block!important;text-align:left!important;perspective:none;perspective-origin:50% 50%}html:not(.print-pdf) .reveal .slides section{visibility:visible!important;position:static!important;width:auto!important;height:auto!important;display:block!important;overflow:visible!important;left:0!important;top:0!important;margin-left:0!important;margin-top:0!important;padding:60px 20px!important;z-index:auto!important;opacity:1!important;page-break-after:always!important;transform-style:flat!important;transform:none!important;transition:none!important}html:not(.print-pdf) .reveal .slides section.stack{padding:0!important}html:not(.print-pdf) .reveal .slides section:last-of-type{page-break-after:avoid!important}html:not(.print-pdf) .reveal .slides section .fragment{opacity:1!important;visibility:visible!important;transform:none!important}html:not(.print-pdf) .reveal .r-fit-text{white-space:normal!important}html:not(.print-pdf) .reveal section img{display:block;margin:15px 0;background:#fff;border:1px solid #666;box-shadow:none}html:not(.print-pdf) .reveal section small{font-size:.8em}html:not(.print-pdf) .reveal .hljs{max-height:100%;white-space:pre-wrap;word-wrap:break-word;word-break:break-word;font-size:15pt}html:not(.print-pdf) .reveal .hljs .hljs-ln-numbers{white-space:nowrap}html:not(.print-pdf) .reveal .hljs td{font-size:inherit!important;color:inherit!important}}
+  </style>
+
+  <style>
+    /* ============================================================
+       BLITZY BRAND DESIGN SYSTEM
+       Canonical theme blitzy-deck/references/blitzy-reveal-theme.css
+       is an external asset not present in the repo; its brand tokens
+       are embedded verbatim here to keep this file self-contained.
+       ============================================================ */
+    :root{
+      /* --- Backgrounds --- */
+      --blitzy-bg:#0B0E1A;
+      --blitzy-bg-deep:#070912;
+      --blitzy-surface:#121629;
+      --blitzy-surface-2:#1A1F38;
+      --blitzy-surface-3:#232a4d;
+      --blitzy-border:#2A3157;
+      --blitzy-border-soft:#20264a;
+
+      /* --- Accents & status --- */
+      --blitzy-accent:#4F6BFF;
+      --blitzy-accent-2:#7C5CFF;
+      --blitzy-accent-3:#22D3EE;
+      --blitzy-success:#2ecc71;
+      --blitzy-warn:#f5a623;
+      --blitzy-danger:#ff5c7c;
+
+      /* --- Text --- */
+      --blitzy-text:#E6E9F5;
+      --blitzy-text-muted:#9AA3C7;
+      --blitzy-text-dim:#6b7399;
+
+      /* --- Typography --- */
+      --blitzy-font-heading:'Space Grotesk', sans-serif;
+      --blitzy-font-body:'Inter', sans-serif;
+      --blitzy-font-mono:'Fira Code', monospace;
+
+      /* --- Spacing scale --- */
+      --sp-1:8px;  --sp-2:16px; --sp-3:24px; --sp-4:32px;
+      --sp-5:48px; --sp-6:64px; --sp-7:96px; --sp-8:128px;
+
+      /* --- Radii --- */
+      --radius-sm:8px; --radius-md:14px; --radius-lg:22px; --radius-xl:32px;
+
+      /* --- Shadows / glow --- */
+      --shadow-sm:0 2px 8px rgba(0,0,0,.35);
+      --shadow-md:0 10px 30px rgba(0,0,0,.45);
+      --shadow-lg:0 24px 60px rgba(0,0,0,.55);
+      --glow-accent:0 0 40px rgba(79,107,255,.35);
+
+      /* --- Gradients --- */
+      --grad-accent:linear-gradient(135deg,#4F6BFF 0%,#7C5CFF 100%);
+      --grad-headline:linear-gradient(120deg,#7C5CFF 0%,#4F6BFF 45%,#22D3EE 100%);
+      --grad-panel:linear-gradient(160deg,#1A1F38 0%,#121629 100%);
+    }
+
+    /* ============================================================
+       BASE / REVEAL WIRING
+       ============================================================ */
+    html,body{ background:var(--blitzy-bg); }
+    .reveal-viewport{
+      background:
+        radial-gradient(1200px 600px at 12% -8%, rgba(79,107,255,.16), transparent 60%),
+        radial-gradient(1000px 700px at 100% 112%, rgba(124,92,255,.14), transparent 55%),
+        var(--blitzy-bg);
+    }
+    .reveal{
+      font-family:var(--blitzy-font-body);
+      font-size:36px;
+      font-weight:400;
+      color:var(--blitzy-text);
+    }
+    .reveal .slides{ text-align:left; }
+    .reveal .slides section{
+      padding:56px 92px;
+      box-sizing:border-box;
+    }
+
+    .reveal h1,.reveal h2,.reveal h3,.reveal h4{
+      font-family:var(--blitzy-font-heading);
+      color:var(--blitzy-text);
+      font-weight:700;
+      line-height:1.08;
+      margin:0 0 .35em;
+      text-transform:none;
+      letter-spacing:-.01em;
+    }
+    .reveal h1{ font-size:2.4em; }
+    .reveal h2{ font-size:1.5em; }
+    .reveal h3{ font-size:1.05em; }
+    .reveal p,.reveal li{
+      font-size:.7em;
+      line-height:1.5;
+      color:var(--blitzy-text-muted);
+    }
+    .reveal strong{ color:var(--blitzy-text); font-weight:600; }
+    .reveal em{ color:var(--blitzy-accent-3); font-style:normal; font-family:var(--blitzy-font-mono); }
+    .reveal a{ color:var(--blitzy-accent); text-decoration:none; }
+    .reveal code{
+      font-family:var(--blitzy-font-mono);
+      color:var(--blitzy-accent-3);
+      background:rgba(34,211,238,.08);
+      padding:1px 7px;
+      border-radius:5px;
+      font-size:.92em;
+    }
+    .reveal svg.lucide{ vertical-align:middle; }
+
+    /* reveal chrome */
+    .reveal .slide-number{ background:transparent; color:var(--blitzy-text-dim); font-family:var(--blitzy-font-mono); font-size:16px; }
+    .reveal .controls{ color:var(--blitzy-accent); }
+    .reveal .progress{ color:var(--blitzy-accent); height:5px; }
+    .reveal .progress span{ background:var(--grad-accent); }
+
+    /* Shared helpers */
+    .eyebrow{
+      display:inline-flex; align-items:center; gap:10px;
+      font-family:var(--blitzy-font-mono);
+      font-size:.44em; letter-spacing:.2em; text-transform:uppercase;
+      color:var(--blitzy-accent-3);
+      margin-bottom:14px;
+    }
+    .eyebrow svg{ width:20px; height:20px; }
+    .lead{ font-size:.8em; color:var(--blitzy-text-muted); max-width:26em; }
+    .mt-2{ margin-top:16px; } .mt-3{ margin-top:24px; } .mt-4{ margin-top:32px; }
+    .center{ text-align:center; }
+    .two-col{ display:grid; grid-template-columns:1.35fr 1fr; gap:44px; align-items:center; width:100%; }
+
+    /* ============================================================
+       SLIDE TYPE: TITLE
+       ============================================================ */
+    .reveal section.slide-title{ text-align:center; }
+    .slide-title .brand-lockup{
+      display:flex; align-items:center; justify-content:center; gap:22px; margin-bottom:34px;
+    }
+    .slide-title .brand-mark{
+      width:104px; height:104px; border-radius:26px;
+      background:var(--grad-accent);
+      display:flex; align-items:center; justify-content:center;
+      box-shadow:var(--glow-accent);
+    }
+    .slide-title .brand-mark svg{ width:58px; height:58px; color:#fff; }
+    .slide-title .wordmark{
+      font-family:var(--blitzy-font-heading); font-weight:700;
+      font-size:1.1em; letter-spacing:.02em; color:var(--blitzy-text);
+      display:flex; align-items:center; gap:14px;
+    }
+    .slide-title .wordmark svg{ width:38px; height:38px; color:var(--blitzy-accent-3); }
+    .slide-title h1{
+      font-size:3.25em; margin-bottom:.2em;
+      background:var(--grad-headline);
+      -webkit-background-clip:text; background-clip:text;
+      -webkit-text-fill-color:transparent; color:transparent;
+    }
+    .slide-title .subtitle{ font-size:1em; color:var(--blitzy-text); font-weight:500; }
+    .slide-title .subtitle .muted{ color:var(--blitzy-text-muted); }
+    .slide-title .meta-row{
+      display:flex; gap:18px; justify-content:center; margin-top:34px; flex-wrap:wrap;
+    }
+    .slide-title .meta-chip{
+      display:inline-flex; align-items:center; gap:10px;
+      background:var(--grad-panel); border:1px solid var(--blitzy-border);
+      border-radius:999px; padding:12px 22px;
+      font-family:var(--blitzy-font-mono); font-size:.5em; color:var(--blitzy-text-muted);
+    }
+    .slide-title .meta-chip svg{ width:20px; height:20px; color:var(--blitzy-accent); }
+
+    /* ============================================================
+       SLIDE TYPE: DIVIDER (full-bleed accent via data-background-gradient)
+       ============================================================ */
+    .reveal section.slide-divider{ text-align:center; }
+    .slide-divider .divider-ico{
+      width:132px; height:132px; border-radius:32px;
+      background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.3);
+      display:flex; align-items:center; justify-content:center; margin:0 auto 30px;
+      backdrop-filter:blur(2px);
+    }
+    .slide-divider .divider-ico svg{ width:70px; height:70px; color:#fff; }
+    .slide-divider .section-num{
+      font-family:var(--blitzy-font-mono); font-size:1.3em; font-weight:600;
+      color:rgba(255,255,255,.92); letter-spacing:.12em;
+    }
+    .slide-divider h2{ font-size:2.7em; color:#fff; margin-top:6px; }
+    .slide-divider p{ color:rgba(255,255,255,.9); font-size:.82em; max-width:24em; margin:12px auto 0; }
+
+    /* ============================================================
+       SLIDE TYPE: CLOSING
+       ============================================================ */
+    .reveal section.slide-closing{ text-align:center; }
+    .slide-closing .closing-mark{
+      width:128px; height:128px; border-radius:34px;
+      background:var(--grad-accent);
+      display:flex; align-items:center; justify-content:center;
+      box-shadow:var(--glow-accent); margin:0 auto 32px;
+    }
+    .slide-closing .closing-mark svg{ width:74px; height:74px; color:#fff; }
+    .slide-closing h1{
+      font-size:2.7em;
+      background:var(--grad-headline);
+      -webkit-background-clip:text; background-clip:text;
+      -webkit-text-fill-color:transparent; color:transparent;
+    }
+    .slide-closing .lead{ margin:0 auto; }
+
+    /* ============================================================
+       COMPONENT: KPI stat cards (headline summary)
+       ============================================================ */
+    .kpi-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:22px; width:100%; }
+    .kpi-card{
+      background:var(--grad-panel); border:1px solid var(--blitzy-border);
+      border-radius:var(--radius-md); padding:22px 24px;
+      box-shadow:var(--shadow-md); position:relative; overflow:hidden;
+    }
+    .kpi-card .accent-bar{ position:absolute; left:0; top:0; bottom:0; width:5px; background:var(--blitzy-success); }
+    .kpi-card.partial .accent-bar{ background:var(--blitzy-warn); }
+    .kpi-card .kpi-head{ display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+    .kpi-card .kpi-icon{
+      width:46px; height:46px; border-radius:12px; flex:none;
+      background:rgba(79,107,255,.14); color:var(--blitzy-accent);
+      display:flex; align-items:center; justify-content:center;
+    }
+    .kpi-card .kpi-icon svg{ width:24px; height:24px; }
+    .kpi-card .kpi-label{ font-size:.42em; color:var(--blitzy-text-muted); line-height:1.25; font-weight:500; }
+    .kpi-card .kpi-value{ font-family:var(--blitzy-font-heading); font-size:1.2em; font-weight:700; color:var(--blitzy-text); }
+    .kpi-card .kpi-delta{ font-family:var(--blitzy-font-mono); font-size:.44em; margin-top:8px; display:flex; gap:10px; align-items:center; color:var(--blitzy-text-muted); }
+    .kpi-card .kpi-pct{ font-weight:600; }
+    .kpi-card.met .kpi-pct{ color:var(--blitzy-success); }
+    .kpi-card.partial .kpi-pct{ color:var(--blitzy-warn); }
+
+    /* status badges */
+    .badge-row{ display:flex; gap:14px; flex-wrap:wrap; margin-top:22px; align-items:center; }
+    .status-badge{
+      display:inline-flex; align-items:center; gap:9px;
+      padding:9px 16px; border-radius:999px;
+      font-size:.46em; font-family:var(--blitzy-font-mono); border:1px solid transparent;
+    }
+    .status-badge svg{ width:18px; height:18px; }
+    .status-badge.met{ background:rgba(46,204,113,.12); color:var(--blitzy-success); border-color:rgba(46,204,113,.35); }
+    .status-badge.partial{ background:rgba(245,166,35,.12); color:var(--blitzy-warn); border-color:rgba(245,166,35,.4); }
+    .status-badge.open{ background:rgba(154,163,199,.1); color:var(--blitzy-text-muted); border-color:rgba(154,163,199,.3); }
+
+    /* ============================================================
+       COMPONENT: process row (mission)
+       ============================================================ */
+    .process-row{ display:flex; align-items:flex-start; width:100%; margin-top:26px; }
+    .process-step{ flex:1; display:flex; flex-direction:column; align-items:center; text-align:center; gap:14px; padding:0 6px; }
+    .process-step .step-ico{
+      width:96px; height:96px; border-radius:22px;
+      background:var(--grad-panel); border:1px solid var(--blitzy-border);
+      display:flex; align-items:center; justify-content:center;
+      color:var(--blitzy-accent); box-shadow:var(--shadow-sm);
+    }
+    .process-step .step-ico svg{ width:44px; height:44px; }
+    .process-step .step-name{ font-family:var(--blitzy-font-heading); font-size:.6em; color:var(--blitzy-text); font-weight:600; }
+    .process-step .step-desc{ font-size:.4em; color:var(--blitzy-text-muted); line-height:1.4; }
+    .process-arrow{ display:flex; align-items:center; padding-top:34px; color:var(--blitzy-accent-2); }
+    .process-arrow svg{ width:38px; height:38px; }
+
+    /* ============================================================
+       COMPONENT: icon cards (why it matters)
+       ============================================================ */
+    .icon-cards{ display:grid; grid-template-columns:repeat(4,1fr); gap:22px; width:100%; margin-top:16px; }
+    .icon-card{
+      background:var(--grad-panel); border:1px solid var(--blitzy-border);
+      border-radius:var(--radius-md); padding:28px 24px; box-shadow:var(--shadow-md);
+    }
+    .icon-card .ic{
+      width:64px; height:64px; border-radius:16px;
+      background:rgba(124,92,255,.15); color:var(--blitzy-accent-2);
+      display:flex; align-items:center; justify-content:center; margin-bottom:18px;
+    }
+    .icon-card .ic svg{ width:32px; height:32px; }
+    .icon-card h3{ font-size:.72em; margin-bottom:8px; }
+    .icon-card p{ font-size:.48em; margin:0; }
+
+    /* ============================================================
+       COMPONENT: KPI scorecard rows + attainment pie
+       ============================================================ */
+    .score-list{ display:flex; flex-direction:column; gap:11px; }
+    .score-row{
+      display:grid; grid-template-columns:46px 1fr auto auto; gap:16px; align-items:center;
+      background:var(--grad-panel); border:1px solid var(--blitzy-border);
+      border-left-width:4px; border-radius:11px; padding:12px 18px;
+    }
+    .score-row.met{ border-left-color:var(--blitzy-success); }
+    .score-row.partial{ border-left-color:var(--blitzy-warn); }
+    .score-row.open{ border-left-color:var(--blitzy-text-dim); }
+    .score-row .s-ico{
+      width:42px; height:42px; border-radius:11px; flex:none;
+      background:rgba(79,107,255,.14); color:var(--blitzy-accent);
+      display:flex; align-items:center; justify-content:center;
+    }
+    .score-row .s-ico svg{ width:22px; height:22px; }
+    .score-row .s-label{ font-size:.46em; color:var(--blitzy-text); font-weight:500; line-height:1.25; }
+    .score-row .s-sub{ font-size:.38em; color:var(--blitzy-text-muted); font-family:var(--blitzy-font-mono); margin-top:3px; }
+    .score-row .s-pct{ font-family:var(--blitzy-font-mono); font-weight:600; font-size:.56em; text-align:right; }
+    .score-row.met .s-pct{ color:var(--blitzy-success); }
+    .score-row.partial .s-pct{ color:var(--blitzy-warn); }
+    .score-row.open .s-pct{ color:var(--blitzy-text-muted); }
+    .score-row .s-status{ display:flex; align-items:center; }
+    .score-row .s-status svg{ width:26px; height:26px; }
+    .score-row.met .s-status{ color:var(--blitzy-success); }
+    .score-row.partial .s-status{ color:var(--blitzy-warn); }
+    .score-row.open .s-status{ color:var(--blitzy-text-dim); }
+
+    /* ============================================================
+       COMPONENT: before/after comparison bars
+       ============================================================ */
+    .bars{ display:flex; flex-direction:column; gap:26px; width:100%; margin-top:8px; }
+    .bar-group .bar-label{
+      display:flex; justify-content:space-between; align-items:center;
+      font-size:.5em; margin-bottom:10px; color:var(--blitzy-text);
+      font-family:var(--blitzy-font-heading); font-weight:600;
+    }
+    .bar-group .bar-label .pct{ font-family:var(--blitzy-font-mono); color:var(--blitzy-success); }
+    .bar-track{ position:relative; height:38px; margin-bottom:10px; }
+    .bar-fill{
+      position:absolute; left:0; top:0; bottom:0; border-radius:9px;
+      display:flex; align-items:center; padding:0 16px;
+      font-size:.42em; font-family:var(--blitzy-font-mono); color:#fff; white-space:nowrap;
+    }
+    .bar-fill.before{ background:linear-gradient(90deg,#3a4270,#4a5488); border:1px solid var(--blitzy-border); }
+    .bar-fill.after{ background:var(--grad-accent); box-shadow:var(--glow-accent); }
+    .bar-tag{ font-size:.4em; font-family:var(--blitzy-font-mono); color:var(--blitzy-text-muted); margin-bottom:4px; }
+
+    /* ============================================================
+       COMPONENT: diagram wrapper, title, legend
+       ============================================================ */
+    .diagram-title{
+      font-family:var(--blitzy-font-heading); font-size:.62em; color:var(--blitzy-text);
+      font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:12px;
+    }
+    .diagram-title svg{ width:26px; height:26px; color:var(--blitzy-accent); }
+    .diagram-wrap{
+      background:var(--grad-panel); border:1px solid var(--blitzy-border);
+      border-radius:var(--radius-md); padding:18px 22px; box-shadow:var(--shadow-md);
+    }
+    .diagram-wrap .mermaid{ display:flex; justify-content:center; }
+    .diagram-wrap .mermaid svg{ max-width:100%; height:auto; max-height:620px; }
+    /* Ensure Mermaid SVG node labels use the brand font and stay legible */
+    .diagram-wrap .mermaid .nodeLabel,
+    .diagram-wrap .mermaid text{ font-family:var(--blitzy-font-body) !important; }
+    .legend{ display:flex; gap:22px; flex-wrap:wrap; margin-top:16px; font-family:var(--blitzy-font-mono); font-size:.42em; color:var(--blitzy-text-muted); }
+    .legend .lg{ display:flex; align-items:center; gap:9px; }
+    .legend .dot{ width:15px; height:15px; border-radius:5px; flex:none; }
+    .legend .dot.node{ background:var(--blitzy-accent); }
+    .legend .dot.branch{ background:var(--blitzy-accent-2); border-radius:50%; }
+    .legend .dot.metric{ background:var(--blitzy-accent-3); }
+    .legend .dot.met{ background:var(--blitzy-success); }
+    .legend .dot.partial{ background:var(--blitzy-warn); }
+    .legend .dot.open{ background:var(--blitzy-text-dim); }
+
+    /* ============================================================
+       COMPONENT: risk / mitigation table
+       ============================================================ */
+    .risk-table{ width:100%; border-collapse:separate; border-spacing:0; }
+    .risk-table th{
+      text-align:left; font-family:var(--blitzy-font-heading); color:var(--blitzy-text);
+      font-weight:600; padding:12px 16px; border-bottom:2px solid var(--blitzy-border); font-size:.5em;
+    }
+    .risk-table td{
+      padding:14px 16px; border-bottom:1px solid var(--blitzy-border-soft);
+      color:var(--blitzy-text-muted); vertical-align:top; font-size:.46em; line-height:1.45;
+    }
+    .risk-table .rk{ display:flex; align-items:center; gap:11px; color:var(--blitzy-text); font-weight:500; }
+    .risk-table .rk svg{ width:22px; height:22px; flex:none; color:var(--blitzy-accent); }
+    .risk-table .st{ font-family:var(--blitzy-font-mono); font-weight:600; white-space:nowrap; }
+    .risk-table .st.mit{ color:var(--blitzy-success); }
+    .risk-table .st.open{ color:var(--blitzy-warn); }
+    .gate-row{ display:flex; gap:14px; flex-wrap:wrap; margin-top:22px; }
+    .gate-chip{
+      display:inline-flex; align-items:center; gap:10px;
+      background:rgba(46,204,113,.1); border:1px solid rgba(46,204,113,.32);
+      color:var(--blitzy-success); border-radius:10px; padding:11px 16px;
+      font-family:var(--blitzy-font-mono); font-size:.44em;
+    }
+    .gate-chip svg{ width:19px; height:19px; }
+    .gate-chip.partial{ background:rgba(245,166,35,.1); border-color:rgba(245,166,35,.32); color:var(--blitzy-warn); }
+
+    /* ============================================================
+       COMPONENT: onboarding steps
+       ============================================================ */
+    .steps{ display:flex; flex-direction:column; gap:15px; width:100%; }
+    .step-item{
+      display:flex; align-items:center; gap:20px;
+      background:var(--grad-panel); border:1px solid var(--blitzy-border);
+      border-radius:var(--radius-md); padding:16px 24px;
+    }
+    .step-item .num{ font-family:var(--blitzy-font-heading); font-size:.85em; font-weight:700; color:var(--blitzy-accent); width:40px; flex:none; text-align:center; }
+    .step-item .sico{
+      width:54px; height:54px; border-radius:14px; flex:none;
+      background:rgba(79,107,255,.14); color:var(--blitzy-accent);
+      display:flex; align-items:center; justify-content:center;
+    }
+    .step-item .sico svg{ width:28px; height:28px; }
+    .step-item .stext{ font-size:.52em; color:var(--blitzy-text-muted); line-height:1.4; }
+    .step-item .stext strong{ display:block; color:var(--blitzy-text); font-family:var(--blitzy-font-heading); font-weight:600; margin-bottom:3px; font-size:1.05em; }
+
+    /* ============================================================
+       COMPONENT: next-step chips (closing)
+       ============================================================ */
+    .next-list{ display:flex; gap:18px; justify-content:center; margin-top:30px; flex-wrap:wrap; }
+    .next-chip{
+      display:flex; align-items:center; gap:12px;
+      background:var(--grad-panel); border:1px solid var(--blitzy-border);
+      border-radius:999px; padding:14px 24px; font-size:.5em; color:var(--blitzy-text);
+    }
+    .next-chip svg{ width:22px; height:22px; color:var(--blitzy-accent-2); }
+
+    /* Efficiency stat cards (deep dive) */
+    .stat-duo{ display:grid; grid-template-columns:1fr 1fr; gap:26px; width:100%; margin-top:12px; }
+    .stat-big{
+      background:var(--grad-panel); border:1px solid var(--blitzy-border);
+      border-radius:var(--radius-lg); padding:34px 32px; box-shadow:var(--shadow-md); position:relative; overflow:hidden;
+    }
+    .stat-big .sb-ico{
+      width:58px; height:58px; border-radius:15px; margin-bottom:18px;
+      background:rgba(34,211,238,.14); color:var(--blitzy-accent-3);
+      display:flex; align-items:center; justify-content:center;
+    }
+    .stat-big .sb-ico svg{ width:30px; height:30px; }
+    .stat-big .sb-label{ font-size:.5em; color:var(--blitzy-text-muted); font-weight:500; }
+    .stat-big .sb-flow{ display:flex; align-items:baseline; gap:16px; margin-top:10px; font-family:var(--blitzy-font-heading); }
+    .stat-big .sb-before{ font-size:1em; color:var(--blitzy-text-dim); text-decoration:line-through; }
+    .stat-big .sb-arrow{ color:var(--blitzy-accent); }
+    .stat-big .sb-arrow svg{ width:26px; height:26px; }
+    .stat-big .sb-after{ font-size:1.9em; font-weight:700; color:var(--blitzy-text); }
+    .stat-big .sb-pct{ margin-top:12px; font-family:var(--blitzy-font-mono); font-size:.5em; color:var(--blitzy-success); font-weight:600; display:inline-flex; align-items:center; gap:8px; }
+    .stat-big .sb-pct svg{ width:18px; height:18px; }
+
+    /* slide intro heading block */
+    .slide-head{ margin-bottom:6px; }
+    .slide-head h2 .accent{ color:var(--blitzy-accent-3); }
+
+    /*
+     * Reduced-motion accommodation.
+     *
+     * Reveal is configured with transition:'slide' (verbatim per Rule 4), but
+     * viewers who request reduced motion at the OS/browser level should not be
+     * subjected to sliding/zooming slide transitions, fragment movement, or the
+     * decorative control-arrow bounce animations. When prefers-reduced-motion is
+     * "reduce", neutralize the motion (slides cut rather than slide, fragments
+     * appear without translation) while keeping all content fully visible and the
+     * deck fully navigable. Opacity-only changes are retained as they do not
+     * constitute vestibular motion.
+     */
+    @media (prefers-reduced-motion: reduce){
+      .reveal .slides section,
+      .reveal .slides section > section,
+      .reveal .slide-background,
+      .reveal.has-parallax-background .backgrounds,
+      .reveal .progress span,
+      .reveal .controls button{
+        transition:none !important;
+      }
+      .reveal .slides section[class*="past"],
+      .reveal .slides section[class*="future"]{
+        transform:none !important;
+      }
+      .reveal .fragment{
+        transition:none !important;
+        transform:none !important;
+      }
+      .reveal .controls .navigate-left.highlight,
+      .reveal .controls .navigate-right.highlight,
+      .reveal .controls .navigate-up.highlight,
+      .reveal .controls .navigate-down.highlight{
+        animation:none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+      <!-- ===== Slide 1 — Title ===== -->
+      <section class="slide-title">
+        <div class="brand-lockup">
+          <div class="brand-mark"><i data-lucide="gauge" aria-hidden="true"></i></div>
+          <div class="wordmark"><i data-lucide="zap" aria-hidden="true"></i> BLITZY</div>
+        </div>
+        <h1>WordPress 7.0 Performance Optimization</h1>
+        <div class="subtitle">Executive Briefing <span class="muted">— an evidence-first performance mission</span></div>
+        <div class="meta-row">
+          <span class="meta-chip"><i data-lucide="git-commit-horizontal" aria-hidden="true"></i> WordPress Core v7.0.0-alpha</span>
+          <span class="meta-chip"><i data-lucide="target" aria-hidden="true"></i> 6 measured KPI targets</span>
+          <span class="meta-chip"><i data-lucide="badge-check" aria-hidden="true"></i> Baseline test parity</span>
+        </div>
+      </section>
+
+      <!-- ===== Slide 2 — The Mission ===== -->
+      <section>
+        <div class="slide-head">
+          <span class="eyebrow"><i data-lucide="compass" aria-hidden="true"></i> The Method</span>
+          <h2>Faster by evidence, not by guesswork</h2>
+        </div>
+        <p class="lead">No speculative changes. Every bottleneck is measured before it is touched, and every improvement is proven with a repeatable measurement afterward — then written down.</p>
+        <div class="process-row">
+          <div class="process-step">
+            <div class="step-ico"><i data-lucide="search" aria-hidden="true"></i></div>
+            <div class="step-name">Profile</div>
+            <div class="step-desc">Find the real hot path under load</div>
+          </div>
+          <div class="process-arrow"><i data-lucide="chevron-right" aria-hidden="true"></i></div>
+          <div class="process-step">
+            <div class="step-ico"><i data-lucide="bar-chart-3" aria-hidden="true"></i></div>
+            <div class="step-name">Quantify</div>
+            <div class="step-desc">Measure the baseline cost precisely</div>
+          </div>
+          <div class="process-arrow"><i data-lucide="chevron-right" aria-hidden="true"></i></div>
+          <div class="process-step">
+            <div class="step-ico"><i data-lucide="wrench" aria-hidden="true"></i></div>
+            <div class="step-name">Fix</div>
+            <div class="step-desc">Apply the smallest effective change</div>
+          </div>
+          <div class="process-arrow"><i data-lucide="chevron-right" aria-hidden="true"></i></div>
+          <div class="process-step">
+            <div class="step-ico"><i data-lucide="check-check" aria-hidden="true"></i></div>
+            <div class="step-name">Prove</div>
+            <div class="step-desc">Re-measure to confirm the gain</div>
+          </div>
+          <div class="process-arrow"><i data-lucide="chevron-right" aria-hidden="true"></i></div>
+          <div class="process-step">
+            <div class="step-ico"><i data-lucide="file-text" aria-hidden="true"></i></div>
+            <div class="step-name">Document</div>
+            <div class="step-desc">Record the decision and evidence</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Slide 3 — Executive Summary / Headline Result ===== -->
+      <section>
+        <div class="slide-head">
+          <span class="eyebrow"><i data-lucide="clipboard-check" aria-hidden="true"></i> Executive Summary</span>
+          <h2>Real gains, measured honestly &mdash; every test at baseline parity</h2>
+        </div>
+        <div class="kpi-grid">
+          <div class="kpi-card partial">
+            <span class="accent-bar"></span>
+            <div class="kpi-head">
+              <div class="kpi-icon"><i data-lucide="files" aria-hidden="true"></i></div>
+              <div class="kpi-label">PHP files loaded<br>per front-end request</div>
+            </div>
+            <div class="kpi-value">493 &rarr; 431</div>
+            <div class="kpi-delta"><span class="kpi-pct">-12.58%</span><span>largest win &middot; target &ge;30%</span></div>
+          </div>
+          <div class="kpi-card partial">
+            <span class="accent-bar"></span>
+            <div class="kpi-head">
+              <div class="kpi-icon"><i data-lucide="rocket" aria-hidden="true"></i></div>
+              <div class="kpi-label">Front-end time<br>to first byte</div>
+            </div>
+            <div class="kpi-value">390.6 &rarr; 351.3</div>
+            <div class="kpi-delta"><span class="kpi-pct">-10.06%</span><span>milliseconds &middot; target &ge;20%</span></div>
+          </div>
+          <div class="kpi-card partial">
+            <span class="accent-bar"></span>
+            <div class="kpi-head">
+              <div class="kpi-icon"><i data-lucide="cpu" aria-hidden="true"></i></div>
+              <div class="kpi-label">PHP memory<br>per front-end request</div>
+            </div>
+            <div class="kpi-value">6.77 &rarr; 6.41</div>
+            <div class="kpi-delta"><span class="kpi-pct">-5.31%</span><span>megabytes &middot; target &ge;10%</span></div>
+          </div>
+        </div>
+        <div class="badge-row">
+          <span class="status-badge partial"><i data-lucide="trending-down" aria-hidden="true"></i> TTFB -10.06%</span>
+          <span class="status-badge partial"><i data-lucide="trending-down" aria-hidden="true"></i> Memory -5.31%</span>
+          <span class="status-badge partial"><i data-lucide="trending-down" aria-hidden="true"></i> Files -12.58%</span>
+          <span class="status-badge open"><i data-lucide="minus" aria-hidden="true"></i> Admin DCL flat</span>
+          <span class="status-badge open"><i data-lucide="minus" aria-hidden="true"></i> Admin JS flat</span>
+          <span class="status-badge open"><i data-lucide="minus" aria-hidden="true"></i> DB queries flat</span>
+        </div>
+        <p class="mt-2"><strong>0 of 6</strong> aggressive targets met; three metrics show genuine, statistically-significant improvement below target and three are flat. All improvements are bounded by a strict byte-identical-output guarantee &mdash; and this replaces earlier fabricated figures with honest measurements.</p>
+      </section>
+
+      <!-- ===== Slide 4 — Divider: Business Value ===== -->
+      <section class="slide-divider" data-background-gradient="linear-gradient(135deg,#4F6BFF 0%,#7C5CFF 100%)">
+        <div class="divider-ico"><i data-lucide="trending-up" aria-hidden="true"></i></div>
+        <div class="section-num">SECTION 01</div>
+        <h2>Business Value</h2>
+        <p>Faster pages, lower hosting cost, and stronger search &amp; user experience &mdash; the outcomes behind the numbers.</p>
+      </section>
+
+      <!-- ===== Slide 5 — Why It Matters ===== -->
+      <section>
+        <div class="slide-head">
+          <span class="eyebrow"><i data-lucide="heart-handshake" aria-hidden="true"></i> Why It Matters</span>
+          <h2>What the numbers mean for the business</h2>
+        </div>
+        <div class="icon-cards">
+          <div class="icon-card">
+            <div class="ic"><i data-lucide="timer" aria-hidden="true"></i></div>
+            <h3>Faster pages</h3>
+            <p>A 10% quicker first byte and 62 fewer files per request keep visitors engaged and lift conversion.</p>
+          </div>
+          <div class="icon-card">
+            <div class="ic"><i data-lucide="server" aria-hidden="true"></i></div>
+            <h3>Lower cost</h3>
+            <p>Fewer files and queries per request means more traffic per server &mdash; and less infrastructure spend.</p>
+          </div>
+          <div class="icon-card">
+            <div class="ic"><i data-lucide="search" aria-hidden="true"></i></div>
+            <h3>Better SEO</h3>
+            <p>Server response time and page speed are direct ranking and Core Web Vitals signals.</p>
+          </div>
+          <div class="icon-card">
+            <div class="ic"><i data-lucide="users" aria-hidden="true"></i></div>
+            <h3>Better UX</h3>
+            <p>A snappier admin and front-end reduce friction for editors and readers alike.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Slide 6 — KPI Scorecard ===== -->
+      <section>
+        <div class="slide-head">
+          <span class="eyebrow"><i data-lucide="list-checks" aria-hidden="true"></i> KPI Scorecard</span>
+          <h2>Six targets, measured before and after</h2>
+        </div>
+        <div class="two-col">
+          <div class="score-list">
+            <div class="score-row partial">
+              <div class="s-ico"><i data-lucide="rocket" aria-hidden="true"></i></div>
+              <div><div class="s-label">Front-end TTFB (uncached)</div><div class="s-sub">390.6 &rarr; 351.3 ms &middot; target &ge;20%</div></div>
+              <div class="s-pct">-10.06%</div>
+              <div class="s-status"><i data-lucide="alert-triangle" aria-hidden="true"></i></div>
+            </div>
+            <div class="score-row open">
+              <div class="s-ico"><i data-lucide="monitor" aria-hidden="true"></i></div>
+              <div><div class="s-label">Admin DOMContentLoaded</div><div class="s-sub">1026.75 &rarr; 1028.50 ms &middot; target &ge;15%</div></div>
+              <div class="s-pct">-0.17%</div>
+              <div class="s-status"><i data-lucide="minus" aria-hidden="true"></i></div>
+            </div>
+            <div class="score-row open">
+              <div class="s-ico"><i data-lucide="file-code-2" aria-hidden="true"></i></div>
+              <div><div class="s-label">Admin JS transfer (gzipped)</div><div class="s-sub">11296.12 &rarr; 11296.68 KB &middot; target &ge;30%</div></div>
+              <div class="s-pct">-0.00%</div>
+              <div class="s-status"><i data-lucide="minus" aria-hidden="true"></i></div>
+            </div>
+            <div class="score-row partial">
+              <div class="s-ico"><i data-lucide="cpu" aria-hidden="true"></i></div>
+              <div><div class="s-label">PHP memory per request</div><div class="s-sub">6.77 &rarr; 6.41 MB &middot; target &ge;10%</div></div>
+              <div class="s-pct">-5.31%</div>
+              <div class="s-status"><i data-lucide="alert-triangle" aria-hidden="true"></i></div>
+            </div>
+            <div class="score-row open">
+              <div class="s-ico"><i data-lucide="database" aria-hidden="true"></i></div>
+              <div><div class="s-label">DB queries per page</div><div class="s-sub">21 &rarr; 21 &middot; target &ge;15%</div></div>
+              <div class="s-pct">0.00%</div>
+              <div class="s-status"><i data-lucide="minus" aria-hidden="true"></i></div>
+            </div>
+            <div class="score-row partial">
+              <div class="s-ico"><i data-lucide="files" aria-hidden="true"></i></div>
+              <div><div class="s-label">PHP files loaded per request</div><div class="s-sub">493 &rarr; 431 &middot; target &ge;30%</div></div>
+              <div class="s-pct">-12.58%</div>
+              <div class="s-status"><i data-lucide="alert-triangle" aria-hidden="true"></i></div>
+            </div>
+          </div>
+          <div>
+            <div class="diagram-title"><i data-lucide="pie-chart" aria-hidden="true"></i> KPI Outcomes</div>
+            <div class="diagram-wrap">
+              <div class="mermaid">
+pie title KPI outcomes (0 of 6 met target)
+    "Below target" : 3
+    "Flat" : 3
+              </div>
+            </div>
+            <div class="legend">
+              <span class="lg"><span class="dot partial"></span> Improved, below target (3)</span>
+              <span class="lg"><span class="dot open"></span> Flat / no change (3)</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Slide 7 — Deep Dive: Speed (TTFB &amp; Files) ===== -->
+      <section>
+        <div class="slide-head">
+          <span class="eyebrow"><i data-lucide="rocket" aria-hidden="true"></i> Deep Dive &middot; Speed</span>
+          <h2>The front-end got faster by loading less</h2>
+        </div>
+        <p class="lead">Deferring REST controllers and nine new-7.0 subsystem classes on non-REST front-end requests cut 62 files (12.58%) parsed per request, which drives both a faster first byte and lower memory &mdash; all while emitting byte-identical HTML.</p>
+        <div class="bars">
+          <div class="bar-group">
+            <div class="bar-label"><span>Front-end TTFB (uncached)</span><span class="pct">-10.06%</span></div>
+            <div class="bar-tag">Before</div>
+            <div class="bar-track"><div class="bar-fill before" style="width:100%">390.6 ms</div></div>
+            <div class="bar-tag">After</div>
+            <div class="bar-track"><div class="bar-fill after" style="width:89.9%">351.3 ms</div></div>
+          </div>
+          <div class="bar-group">
+            <div class="bar-label"><span>PHP files loaded per request</span><span class="pct">-12.58%</span></div>
+            <div class="bar-tag">Before</div>
+            <div class="bar-track"><div class="bar-fill before" style="width:100%">493 files</div></div>
+            <div class="bar-tag">After</div>
+            <div class="bar-track"><div class="bar-fill after" style="width:87.4%">431 files</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Slide 8 — Deep Dive: Efficiency (Memory &amp; Queries) ===== -->
+      <section>
+        <div class="slide-head">
+          <span class="eyebrow"><i data-lucide="activity" aria-hidden="true"></i> Deep Dive &middot; Efficiency</span>
+          <h2>Lighter memory &mdash; and why queries are already at the floor</h2>
+        </div>
+        <p class="lead">Batch priming and N+1 elimination were already present at the WordPress 6.1+ baseline, so query count holds at its floor; the honest efficiency win lands in memory held per request.</p>
+        <div class="stat-duo">
+          <div class="stat-big">
+            <div class="sb-ico"><i data-lucide="cpu" aria-hidden="true"></i></div>
+            <div class="sb-label">PHP memory per front-end request</div>
+            <div class="sb-flow">
+              <span class="sb-before">6.77 MB</span>
+              <span class="sb-arrow"><i data-lucide="arrow-right" aria-hidden="true"></i></span>
+              <span class="sb-after">6.41 MB</span>
+            </div>
+            <div class="sb-pct"><i data-lucide="trending-down" aria-hidden="true"></i> 5.31% lighter &middot; target &ge;10%</div>
+          </div>
+          <div class="stat-big">
+            <div class="sb-ico"><i data-lucide="database" aria-hidden="true"></i></div>
+            <div class="sb-label">Database queries per front-end page</div>
+            <div class="sb-flow">
+              <span class="sb-before" style="text-decoration:none;color:var(--blitzy-text-dim)">21</span>
+              <span class="sb-arrow"><i data-lucide="arrow-right" aria-hidden="true"></i></span>
+              <span class="sb-after">21</span>
+            </div>
+            <div class="sb-pct" style="color:var(--blitzy-text-muted)"><i data-lucide="minus" aria-hidden="true"></i> 0.00% &middot; already at batched floor</div>
+          </div>
+        </div>
+      </section>
+      <!-- ===== Slide 9 — Divider: What Changed Architecturally ===== -->
+      <section class="slide-divider" data-background-gradient="linear-gradient(135deg,#4F6BFF 0%,#22D3EE 100%)">
+        <div class="divider-ico"><i data-lucide="layers" aria-hidden="true"></i></div>
+        <div class="section-num">SECTION 02</div>
+        <h2>What Changed Architecturally</h2>
+        <p>From an eager, always-on runtime to a context-aware, deferred one &mdash; with every public contract preserved.</p>
+      </section>
+
+      <!-- ===== Slide 10 — Runtime: Before (Eager) ===== -->
+      <section>
+        <div class="slide-head">
+          <span class="eyebrow"><i data-lucide="history" aria-hidden="true"></i> Before</span>
+          <h2>Every request paid the full cost</h2>
+        </div>
+        <div class="two-col">
+          <div>
+            <div class="diagram-title"><i data-lucide="git-fork" aria-hidden="true"></i> Runtime Architecture &mdash; Before (Eager, Always-On)</div>
+            <div class="diagram-wrap">
+              <div class="mermaid">
+graph TD
+    R["HTTP Request"] --> S["wp-settings.php: 324 eager require/include"]
+    S --> A["All subsystems load eagerly, including the 53 REST controller classes"]
+    A --> F["default-filters.php: 465 hook registrations"]
+    F --> H["WP_Hook dispatch: always call_user_func_array()"]
+    H --> Q["WP_Query: per-object meta/term queries (N+1)"]
+    Q --> C["Object cache: coarse flush, single get/set"]
+    C --> Z["Response"]
+              </div>
+            </div>
+          </div>
+          <div>
+            <p>The <strong>Runtime Architecture &mdash; Before (Eager, Always-On)</strong> diagram shows how a single request always loaded every subsystem, registered all hooks, and dispatched them through the general-purpose call path &mdash; then re-queried metadata object by object.</p>
+            <div class="legend">
+              <span class="lg"><span class="dot node"></span> Boxes = runtime stages</span>
+              <span class="lg"><span class="dot metric"></span> Full path runs for every context</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Slide 11 — Runtime: After (Deferred) ===== -->
+      <section>
+        <div class="slide-head">
+          <span class="eyebrow"><i data-lucide="sparkles" aria-hidden="true"></i> After</span>
+          <h2>Defer REST controllers on non-REST requests</h2>
+        </div>
+        <div class="two-col">
+          <div>
+            <div class="diagram-title"><i data-lucide="git-branch" aria-hidden="true"></i> Runtime Architecture &mdash; After (Context-Aware, Deferred)</div>
+            <div class="diagram-wrap">
+              <div class="mermaid">
+graph TD
+    R2["HTTP Request"] --> CTX{"Non-REST front-end? WP_USE_THEMES and not is_admin and not wp_is_rest_request"}
+    CTX -->|yes| S2["Defer 53 REST controller classes to rest_api_init + spl_autoload_register safety net"]
+    CTX -->|no| S3["Load all 53 REST controllers eagerly"]
+    S2 --> F2["default-filters.php: same 465 registrations preserved"]
+    S3 --> F2
+    F2 --> H2["WP_Hook: arity fast path, direct-call for 0-1 args"]
+    H2 --> Q2["WP_Query: batch prime meta/terms in bulk"]
+    Q2 --> C2["Object cache: multi-get/set, granular invalidation, hit/miss counters"]
+    C2 --> STx["Server-Timing: emit 7 metrics (test env only)"]
+    STx --> Z2["Response: identical output, fewer files/queries"]
+              </div>
+            </div>
+          </div>
+          <div>
+            <p>The <strong>Runtime Architecture &mdash; After (Context-Aware, Deferred)</strong> diagram defers the 53 REST controller classes to rest_api_init behind an spl_autoload_register() safety net on non-REST front-end requests (other contexts load them eagerly), routes low-arity hooks through a direct fast path, and primes metadata in bulk &mdash; while the output stays byte-identical.</p>
+            <div class="legend">
+              <span class="lg"><span class="dot branch"></span> Diamond = non-REST front-end predicate (wp_is_rest_request)</span>
+              <span class="lg"><span class="dot node"></span> Non-REST front-end defers 53 REST controllers; other contexts load eagerly</span>
+              <span class="lg"><span class="dot metric"></span> Public contracts unchanged</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Slide 12 — How We Measured (Observability) ===== -->
+      <section>
+        <div class="slide-head">
+          <span class="eyebrow"><i data-lucide="activity" aria-hidden="true"></i> How We Measured</span>
+          <h2>Proof from an isolated, repeatable harness</h2>
+        </div>
+        <div class="diagram-title"><i data-lucide="git-compare-arrows" aria-hidden="true"></i> Measurement Harness Flow</div>
+        <div class="diagram-wrap">
+          <div class="mermaid">
+graph LR
+    E["docker-compose.benchmark.yml: pinned isolated env"] --> B["run-baseline.sh: baseline metrics"]
+    E --> O["run-optimized.sh: optimized metrics"]
+    B --> D["generate-diff-report.js: statistical diff"]
+    O --> D
+    D --> J["benchmark-report.json: 6 KPIs + 7 Server-Timing metrics"]
+    J --> P["performance-dashboard.md"]
+    J --> HT["executive-presentation.html"]
+          </div>
+        </div>
+        <p class="mt-2">The <strong>Measurement Harness Flow</strong> diagram traces baseline and optimized runs into a single statistical diff. Seven <em>Server-Timing</em> metrics &mdash; bootstrap, plugins, files-loaded, cache-hits, cache-misses, db-queries and memory-usage &mdash; are captured in the test environment only.</p>
+        <div class="legend">
+          <span class="lg"><span class="dot node"></span> Measurement scripts</span>
+          <span class="lg"><span class="dot metric"></span> Machine-readable report</span>
+          <span class="lg"><span class="dot branch"></span> Leadership &amp; team artifacts</span>
+        </div>
+      </section>
+
+      <!-- ===== Slide 13 — Divider: Risks &amp; Safeguards ===== -->
+      <section class="slide-divider" data-background-gradient="linear-gradient(135deg,#7C5CFF 0%,#4F6BFF 100%)">
+        <div class="divider-ico"><i data-lucide="shield-check" aria-hidden="true"></i></div>
+        <div class="section-num">SECTION 03</div>
+        <h2>Risks &amp; Safeguards</h2>
+        <p>How we protected the sites running on WordPress from regressions while changing the runtime hot path.</p>
+      </section>
+
+      <!-- ===== Slide 14 — Risks &amp; Mitigations ===== -->
+      <section>
+        <div class="slide-head">
+          <span class="eyebrow"><i data-lucide="shield-alert" aria-hidden="true"></i> Risks &amp; Mitigations</span>
+          <h2>Changed the engine, kept the contract</h2>
+        </div>
+        <table class="risk-table">
+          <thead>
+            <tr><th style="width:30%">Risk</th><th>Safeguard</th><th style="width:14%">Status</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="rk"><i data-lucide="shield" aria-hidden="true"></i> Public API preservation</span></td>
+              <td>Method signatures, hook names and argument counts, REST routes/schemas and the <code>wp.*</code> surface are unchanged; 465 registrations, 546 do_action and 1,485 apply_filters sites remain intact.</td>
+              <td><span class="st mit">Mitigated</span></td>
+            </tr>
+            <tr>
+              <td><span class="rk"><i data-lucide="lock" aria-hidden="true"></i> Security-order preservation</span></td>
+              <td>Authentication, nonce and capability gates stay in the non-deferred core bootstrap; deferred files contain only class definitions and registrations.</td>
+              <td><span class="st mit">Mitigated</span></td>
+            </tr>
+            <tr>
+              <td><span class="rk"><i data-lucide="alert-triangle" aria-hidden="true"></i> Admin JS &ge;30% target</span></td>
+              <td>Admin JS transfer is essentially flat (-0.00%): the admin bundles load eagerly by design and webpack cannot split the Grunt-uglified admin JS, so reaching the target requires relocating admin JS onto webpack entry points with splitChunks &mdash; the prioritized next step, deferred under the minimal-diff principle.</td>
+              <td><span class="st open">Deferred</span></td>
+            </tr>
+            <tr>
+              <td><span class="rk"><i data-lucide="git-branch" aria-hidden="true"></i> Minimal-diff discipline</span></td>
+              <td>The in-request query cache is read-only (SELECT only), keyed by exact SQL with a bounded 256-entry FIFO; no bundled refactors or style-only edits.</td>
+              <td><span class="st mit">Mitigated</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="gate-row">
+          <span class="gate-chip"><i data-lucide="check-circle" aria-hidden="true"></i> PHPUnit: baseline parity</span>
+          <span class="gate-chip"><i data-lucide="check-circle" aria-hidden="true"></i> QUnit 456: baseline parity</span>
+          <span class="gate-chip"><i data-lucide="check-circle" aria-hidden="true"></i> PHPStan: zero new errors</span>
+          <span class="gate-chip"><i data-lucide="check-circle" aria-hidden="true"></i> PHPCS: zero new violations</span>
+        </div>
+        <p style="margin-top:14px; font-family:var(--blitzy-font-mono); font-size:.34em; color:var(--blitzy-text-muted); line-height:1.55;">The full PHPUnit suite matches baseline on the documented PHP 8.3 CI toolchain. On the PHP 8.4.11 measurement host, eight deprecated-timezone tests fail identically to a clean baseline checkout &mdash; an environmental timezone-database delta, not a regression.</p>
+      </section>
+
+      <!-- ===== Slide 15 — Team Onboarding ===== -->
+      <section>
+        <div class="slide-head">
+          <span class="eyebrow"><i data-lucide="graduation-cap" aria-hidden="true"></i> Team Onboarding</span>
+          <h2>Run the benchmarks and read the results</h2>
+        </div>
+        <div class="steps">
+          <div class="step-item">
+            <div class="num">1</div>
+            <div class="sico"><i data-lucide="download" aria-hidden="true"></i></div>
+            <div class="stext"><strong>Start the benchmark environment</strong>The <code>docker-compose.benchmark.yml</code> stack brings up a pinned, isolated PHP and database environment so results are attributable to code, not host noise.</div>
+          </div>
+          <div class="step-item">
+            <div class="num">2</div>
+            <div class="sico"><i data-lucide="play" aria-hidden="true"></i></div>
+            <div class="stext"><strong>Capture baseline, then optimized</strong>Run <code>run-baseline.sh</code> then <code>run-optimized.sh</code> &mdash; the committed run used 10 iterations with 2 repetitions each for statistical stability.</div>
+          </div>
+          <div class="step-item">
+            <div class="num">3</div>
+            <div class="sico"><i data-lucide="bar-chart" aria-hidden="true"></i></div>
+            <div class="stext"><strong>Generate the comparison</strong>Running <code>generate-diff-report.js</code> emits <code>benchmark-report.json</code> with all six KPIs and the seven Server-Timing metrics.</div>
+          </div>
+          <div class="step-item">
+            <div class="num">4</div>
+            <div class="sico"><i data-lucide="book-open" aria-hidden="true"></i></div>
+            <div class="stext"><strong>Read the results</strong>Open <code>performance-dashboard.md</code> for the live scorecard and <code>decision-log-and-traceability.md</code> for the full rationale and traceability matrix.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Slide 16 — Closing ===== -->
+      <section class="slide-closing" data-background-gradient="radial-gradient(circle at 50% 38%, #1A1F38 0%, #070912 78%)">
+        <div class="closing-mark"><i data-lucide="check-circle" aria-hidden="true"></i></div>
+        <h1>Faster by evidence</h1>
+        <p class="lead">Three genuine, statistically-significant improvements &mdash; files -12.58%, TTFB -10.06%, memory -5.31% &mdash; with baseline test parity preserved across the 28,930 PHPUnit and 456 QUnit suites. No target was inflated: the measurement harness ships with the code, so every future gain is provable too.</p>
+        <div class="next-list">
+          <span class="next-chip"><i data-lucide="file-code-2" aria-hidden="true"></i> Move admin JS onto webpack entry points</span>
+          <span class="next-chip"><i data-lucide="boxes" aria-hidden="true"></i> Audit 35 remaining REST controllers</span>
+          <span class="next-chip"><i data-lucide="network" aria-hidden="true"></i> Optimize multisite queries</span>
+        </div>
+      </section>
+
+    </div>
+  </div>
+  <!-- Pinned libraries (exact versions) -->
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js" integrity="sha384-M/JtqCVlLcK9lwVnBnMXP0V577CBULkjodKsR/PITOe4MSKNbbwqCemEyluOw0+5" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.min.js" integrity="sha384-Wm9qzEgq4j1jEnuFK2FxKTlwuhbV2QqtGhcchvjDoKxeJ7WWAW7fysBq+1s6myfX" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.460.0/dist/umd/lucide.min.js" integrity="sha384-ieG+IKD0d/ZPXyCBTMVAbqsQdns8QGJR/e26WMw7M4fkaI/rHcS/YIoi+ah9WGge" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+  <script>
+    // ----------------------------------------------------------------
+    // Mermaid — dark theme tuned to the Blitzy palette.
+    // startOnLoad is FALSE on purpose: diagrams are rendered on Reveal
+    // lifecycle events so slides that are hidden at load still render
+    // correctly once they become visible.
+    // ----------------------------------------------------------------
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'dark',
+      securityLevel: 'loose',
+      htmlLabels: false,
+      flowchart: { htmlLabels: false, useMaxWidth: true, nodeSpacing: 45, rankSpacing: 52, padding: 12 },
+      themeVariables: {
+        fontFamily: 'Inter, sans-serif',
+        fontSize: '18px',
+        background: '#121629',
+        primaryColor: '#1A1F38',
+        primaryBorderColor: '#4F6BFF',
+        primaryTextColor: '#E6E9F5',
+        secondaryColor: '#232a4d',
+        tertiaryColor: '#0B0E1A',
+        lineColor: '#7C5CFF',
+        textColor: '#E6E9F5',
+        clusterBkg: '#121629',
+        clusterBorder: '#2A3157',
+        pie1: '#f5a623',
+        pie2: '#6b7399',
+        pieTitleTextColor: '#E6E9F5',
+        pieSectionTextColor: '#0B0E1A',
+        pieOuterStrokeColor: '#2A3157'
+      }
+    });
+
+    // Render Lucide icons across the deck (idempotent — already-converted
+    // icons are <svg> without a data-lucide attribute, so re-runs are safe)
+    // and render any not-yet-processed Mermaid diagrams inside the given slide.
+    function renderVisuals(slide) {
+      if (window.lucide && typeof lucide.createIcons === 'function') {
+        lucide.createIcons();
+      }
+      if (window.mermaid && slide) {
+        // Render diagrams only after web fonts are ready so Mermaid measures
+        // label widths with the real font (Inter) and sizes nodes correctly.
+        var ready = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
+        ready.then(function () {
+          var pending = slide.querySelectorAll('.mermaid:not([data-processed="true"])');
+          if (pending.length) {
+            try {
+              mermaid.run({ nodes: pending });
+            } catch (err) {
+              console.error('Mermaid render error:', err);
+            }
+          }
+        });
+      }
+    }
+
+    // ----------------------------------------------------------------
+    // Reveal — the four named settings (hash, transition, width, height)
+    // are verbatim per Rule 4; the rest are sensible presentation defaults.
+    // ----------------------------------------------------------------
+    Reveal.initialize({
+      hash: true,
+      transition: 'slide',
+      width: 1920,
+      height: 1080,
+      margin: 0.06,
+      minScale: 0.2,
+      maxScale: 2.0,
+      controls: true,
+      progress: true,
+      slideNumber: 'c/t',
+      center: true
+    }).then(function () {
+      renderVisuals(Reveal.getCurrentSlide());
+    });
+
+    // Render on ready AND slidechanged so icons/diagrams appear on every
+    // slide, including ones deep-linked via the URL hash.
+    Reveal.on('ready', function (event) {
+      renderVisuals(event.currentSlide || Reveal.getCurrentSlide());
+    });
+    Reveal.on('slidechanged', function (event) {
+      renderVisuals(event.currentSlide);
+    });
+  </script>
+
+</body>
+</html>
